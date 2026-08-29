@@ -1,0 +1,50 @@
+schema: spec-driven
+
+# Project context — shown to AI when creating artifacts
+context: |
+  PureChess is a native, local-first, accessible chess workstation built with
+  Tauri 2 (Rust backend) + React 19 (TypeScript frontend).
+
+  Key domains: repertoire workstation, position search, spaced repetition,
+  endgame drills, puzzles, engine analysis.
+
+  Accessibility is non-negotiable: keyboard-first, screen reader support,
+  ARIA announcements, no Ctrl+ shortcuts on Windows.
+
+  License: AGPL-3.0-or-later. GPL-3.0 dependencies: chessground, chessops, shakmaty.
+
+  See AGENTS.md for full project constitution and rules.
+
+# Per-artifact rules
+rules:
+  proposal:
+    - Keep proposals focused on a single feature or fix
+    - Reference relevant ADRs from openspec/adr/ when architectural decisions are involved
+    - Note accessibility implications explicitly
+  specs:
+    - Every user-facing feature MUST include keyboard navigation requirements
+    - Every feature MUST include screen reader announcement requirements
+    - Use Given/When/Then scenarios for testable behavior
+    - Include i18n requirements (en, ru, he) for any user-facing strings
+  design:
+    - Reference ADRs for architecture decisions
+    - Note any new npm/cargo dependencies and their licenses
+    - Include accessibility architecture (ARIA, focus management, announcements)
+  tasks:
+    - Each task should be completable in one coding session
+    - Include verification steps (typecheck, tests) in the final task
+    - Flag tasks that require VoiceOver/NVDA testing
+
+# Per-operation guidance
+operations:
+  apply:
+    guidance:
+      - Always prefix git commit messages with the change ID in brackets, e.g. "[sound-design] Add move sound effects"
+      - Run npm run typecheck after implementation
+      - Run cd src-tauri && cargo check for any Rust changes
+      - Verify keyboard navigation for any UI changes
+      - Never remove existing comments or docstrings unrelated to the change
+  archive:
+    guidance:
+      - Summarize accessibility impact in the archive notes
+      - Update docs/STATUS.md with completed work
