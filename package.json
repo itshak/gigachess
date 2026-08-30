@@ -45,6 +45,8 @@
     "bench:fen-san": "node bench/bench-fen-san.mjs",
     "bench:bundle": "node bench/bench-bundle.mjs",
     "bench:ci": "node bench/bench-ci.mjs",
+    "bench:real": "node --expose-gc bench/bench-real.mjs",
+    "bench:real:ci": "node --expose-gc bench/bench-real.mjs --ci",
     "build": "tsc -p tsconfig.build.json",
     "test:parity": "npm run build && node tests/parity.mjs",
     "test:perft": "npm run build && node tests/perft.mjs"

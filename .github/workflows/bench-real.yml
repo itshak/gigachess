@@ -1,0 +1,47 @@
+# Real-world benchmark suites (change: purechess-bench-real).
+# - PRs: reduced-corpus `--quick` run of every suite (same methodology, fast).
+# - Nightly: full-corpus run (100k-game PGN streaming, perft(4) corpora, 10M
+#   occupancy sliding, 10k-position parity).
+# Gates: `bench:real:ci` exits non-zero if any purechess-benchmarks SHALL gate
+# is unmet, so unmet gates turn CI red (results are gated, not just logged).
+name: bench-real
+
+on:
+  pull_request:
+  schedule:
+    - cron: "0 3 * * *" # nightly, 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  bench-quick:
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.5.0" # spec pin (see bench/README.md)
+      - run: npm ci
+      - run: npm run build
+      - run: npm run bench:real:ci -- --quick
+        # The pinned Lichess corpus is re-downloadable (see bench/data/README.md);
+        # --quick mode also runs without it via the vendored 10-game sample.
+
+  bench-nightly:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.5.0"
+      - run: npm ci
+      - run: npm run build
+      - name: Download pinned PGN corpus
+        run: |
+          curl -sL -o bench/data/lichess_db_standard_rated_2013-01.pgn.zst \
+            https://database.lichess.org/standard/lichess_db_standard_rated_2013-01.pgn.zst
+          shasum -a 256 bench/data/lichess_db_standard_rated_2013-01.pgn.zst
+          echo "aa40b3671fa3cf1072eb182892cd90b0e1e003a4a5943492f64b77e7f3fd1635  bench/data/lichess_db_standard_rated_2013-01.pgn.zst" | shasum -a 256 -c -
+      - run: npm run bench:real:ci

@@ -201,3 +201,88 @@ node bench/bench-bundle.mjs --entry core
 npm run bench:ci                          # harness green even when stubbed
 ```
 
+---
+
+## Real-world suites (`purechess-bench-real`, change of 2026-08-30)
+
+`bench/bench-real.mjs` orchestrates six suites that measure purechess against
+`chessops@0.15.1` on **real-world corpora** with parity checked **before**
+timing (a faster-but-wrong library must fail, not win):
+
+| Suite | Corpus | Parity precondition | Gates (purechess-benchmarks spec) |
+|---|---|---|---|
+| `sliding` | occupancies harvested from perft(4) trees of the 6 standard perft positions (dedup key `lo*2^32+hi`; corpus exhausts at ~2.75M unique) | attack sets bit-identical on first 100k samples | 100% attack-set parity |
+| `perft` | `perftsuite.epd` (126 FENs) + `wac_150.epd` (150 FENs), depth ≤ 4 | node counts equal chessops for every FEN/depth | 0 mismatches; then `nodes/s` ≥ parity (target +15%) |
+| `pgn-stream` | first 100,000 games of the pinned 2013-01 Lichess `.zst` | game counts + SAN streams + `makePgn(parsePgn(g))` round-trips vs chessops for every legal game | ≥+50% `games/s` per chunk size; peak heap ≤110% |
+| `fen-san-uci` | 10k+ FENs replayed from real games + `samplefen1000.epd` + perft FENs + Chess960/X-FEN samples | FEN round-trips byte-identical; SAN make/parse byte-identical; UCI identical modulo ADR-013 castling normalization | parity ≥99% (failures enumerated); FEN parse+make ≥+20% |
+| `dests-terminal` | 10k unique positions replayed from real games | `allDests` (castling normalized), `isLegal`, all terminal predicates | 100% parity, then dests throughput reported |
+| `bundle` | esbuild-minified consumers (`purechess/core`, `purechess` full, `chessops` full) | — | core gz ≥30% smaller than chessops; full ≤110%; `parsePgn` + Chess960 tables absent from core |
+
+### Reproduction
+
+```bash
+npm run build
+npm run bench:real -- --quick                  # reduced corpora, same methodology (CI)
+npm run bench:real                             # full corpora (nightly; ~30–45 min)
+npm run bench:real -- --suite pgn-stream       # one suite
+npm run bench:real -- --json                   # machine-readable summary
+```
+
+`bench:real:ci` runs the same suites but CI-enforces exit code 1 on any unmet
+gate (results are gated, not just logged).
+
+### Methodology (amended spec requirement)
+
+- **Driver:** hand-rolled `performance.now()` loop (design D1 fallback).
+  `tinybench`'s setup/teardown hooks run once per Task and cannot provide the
+  per-iteration forced-GC granularity the spec mandates, so the fallback rule
+  in `design.md` applies. The loop implements the identical methodology.
+- **3 warmup iterations excluded**, then the **median of 20 runs** is reported
+  alongside **p10/p90**. `global.gc()` is forced before every iteration;
+  the harness fails fast with instructions if `--expose-gc` is missing.
+- **Pinned Node:** `v22.5.0` (spec pin; used in CI) and `v24.19.0` (dev
+  verification). Other versions fail fast; `BENCH_ALLOW_NODE=1` overrides.
+- **Pinned corpora (sha256):**
+
+| Corpus | SHA-256 |
+|---|---|
+| `bench/data/lichess_db_standard_rated_2013-01.pgn.zst` | `aa40b3671fa3cf1072eb182892cd90b0e1e003a4a5943492f64b77e7f3fd1635` |
+| `bench/data/lichess_db.sample.pgn` | `f5c0644769394e3169828dd6f224ab3204bb83f40fb535396e3de076ed7dc0f8` |
+| `refs/mit-permissive/GopherCheck/test_suites/perftsuite.epd` | `cb27ea3a61e11e8466ab4f76305e5db8f5de47eb413a723398217d490dfdab41` |
+| `refs/mit-permissive/GopherCheck/test_suites/wac_150.epd` | `54a984ab7a1ba74ae021ab2a646fc157933995722b90321ea9de9a33d1ed381c` |
+| `refs/mit-permissive/Chess4j/src/test/resources/samplefen1000.epd` | `88ff90cfa8bd67593d044ea245ccdc1b3f82be2a3c9ea2d8c2b3efe6166b72aa` |
+
+Note: the Lichess `.zst` interleaves standard zstd frames with skippable
+metadata frames; Node's zstd decoder rejects those, so the harness demuxes
+them before streaming decompression (`bench/suites/lib/common.mjs`).
+
+### Results (2026-08-30, Node v24.19.0, darwin/arm64)
+
+Full tables: `bench/results/real-2026-08-30.md`. Headline findings at the
+time of writing:
+
+- **Sliding:** 100k/100k attack-set parity ✓; purechess Black Magic ≈2.3×
+  chessops HQ `MAttacks/s` on real occupancies.
+- **PGN streaming:** 100% game/SAN/round-trip parity ✓; ≈2.8× `games/s`.
+- **Perft parity:** ✗ — purechess perft disagrees with chessops AND the
+  published perft corpus on castling-heavy positions (e.g. kiwipete d4:
+  4,085,607 vs canonical 4,085,603; `r3k2r/8/8/8/8/8/8/4K3 w kq` d3: 790 vs
+  782). Minimal repro for the public API: `allDests` emits the ADR-013
+  normalized castling dest (e8→c8) but `makeMove` given that dest moves only
+  the king and leaves the rook (`r1k4r` instead of `2kr3r`). **This blocks the
+  chessops→purechess migration** until fixed in `src/`.
+- **dests-terminal:** ✗ — a replayed real-game position showed a bogus dest
+  (`59-58`, moving the opponent's queen) and an `isCheckmate` disagreement;
+  enumerated in the suite output.
+- **fen-san-uci:** SAN/UCI parity 100% ✓, but purechess `parseFen` rejects
+  FENs (with unreachable en-passant squares, as emitted by lichess PGNs and by
+  purechess's own `makeFen`) that chessops accepts; FEN throughput was at
+  parity (−3%), below the +20% gate.
+- **Bundle:** ✗ — `purechess/core` (~83 KB gz) is *larger* than chessops
+  (~5.3 KB gz) because the Black Magic tables (`rookMagic.js` ≈ 3.2 MB raw)
+  are statically imported. Lazy table loading or code-splitting is needed
+  before the tree-shake gate can pass.
+
+These failures are the gates doing their job: the chessops→purechess
+migration (`purechess-adopt`) must not merge until they are green.
+
