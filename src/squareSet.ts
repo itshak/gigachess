@@ -7,6 +7,18 @@ export type SquareSet = {
   readonly hi: number;
 };
 
+/**
+ * Mutable {lo,hi} view for hot-loop scratch buffers (see the WritableBoard FP
+ * policy in board.ts). Assignable to SquareSet (readonly is assignability-
+ * neutral in TS), so scratch boards flow through Board-typed parameters while
+ * their owning hot loop may write the bitfields in place, allocation-free.
+ * MutableSquareSet values must NEVER escape the hot loop that owns them.
+ */
+export type MutableSquareSet = {
+  lo: number;
+  hi: number;
+};
+
 // Constants — note >>>0 ensures unsigned 32
 export const EMPTY: SquareSet = { lo: 0, hi: 0 } as const;
 export const FULL: SquareSet = { lo: 0xffffffff >>> 0, hi: 0xffffffff >>> 0 } as const;
@@ -136,6 +148,27 @@ export function* iter(set: SquareSet): Iterable<number> {
   while ((sq = first(cur)) !== undefined) {
     yield sq;
     cur = minus(cur, singleton(sq));
+  }
+}
+
+/**
+ * Non-generator square iteration for hot loops. `iter` allocates 2 objects per
+ * square (minus + singleton) plus the generator machinery; this allocates
+ * nothing. Prefer `forEachSquare` over `for...of sq.iter(...)` wherever the
+ * callback can be a plain statement (see board.ts FP policy).
+ */
+export function forEachSquare(set: SquareSet, fn: (sqIdx: number) => void): void {
+  let lo = set.lo >>> 0;
+  while (lo !== 0) {
+    const lsb = (lo & -lo) >>> 0;
+    fn(31 - Math.clz32(lsb));
+    lo ^= lsb;
+  }
+  let hi = set.hi >>> 0;
+  while (hi !== 0) {
+    const lsb = (hi & -hi) >>> 0;
+    fn(32 + (31 - Math.clz32(lsb)));
+    hi ^= lsb;
   }
 }
 

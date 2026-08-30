@@ -68,19 +68,35 @@ export function cloneBoard(board: Board): Board {
  *  2. While a borrowed scratch is live, only leaf helpers may be called
  *     (SquareSet ops, attacks lookups) — nothing that re-enters movegen.
  *  3. Public APIs must keep the observable pure contract: inputs unmodified.
+ *
+ * Unlike Board, a WritableBoard's field objects are MUTABLE bitfields
+ * (MutableSquareSet): the owning scratch copies bits in place instead of
+ * allocating fresh {lo,hi} objects per edit. This is sound because the scratch
+ * objects never alias any Board's (immutable) field objects — see
+ * newScratchBoard/copyBoardInto — and never escape rule 1.
  */
-export type WritableBoard = { -readonly [K in keyof Board]: Board[K] };
+export type WritableBoard = { [K in keyof Board]: sq.MutableSquareSet };
 
 export function newScratchBoard(): WritableBoard {
-  const e = sq.empty();
+  // Each field gets its OWN object: the fields are mutable now, so sharing one
+  // empty object across all ten would alias them together.
   return {
-    white: e, black: e, pawn: e, knight: e, bishop: e,
-    rook: e, queen: e, king: e, occupied: e, promoted: e,
+    white: { lo: 0, hi: 0 },
+    black: { lo: 0, hi: 0 },
+    pawn: { lo: 0, hi: 0 },
+    knight: { lo: 0, hi: 0 },
+    bishop: { lo: 0, hi: 0 },
+    rook: { lo: 0, hi: 0 },
+    queen: { lo: 0, hi: 0 },
+    king: { lo: 0, hi: 0 },
+    occupied: { lo: 0, hi: 0 },
+    promoted: { lo: 0, hi: 0 },
   };
 }
 
 export function cloneAsWritable(board: Board): WritableBoard {
-  // fresh object, safe to write; SquareSet values are immutable so field copy suffices
+  // fresh mutable objects (the result escapes as a new Board); SquareSet
+  // values are immutable so a field-bit copy suffices
   return {
     white: { lo: board.white.lo >>> 0, hi: board.white.hi >>> 0 },
     black: { lo: board.black.lo >>> 0, hi: board.black.hi >>> 0 },
@@ -95,49 +111,66 @@ export function cloneAsWritable(board: Board): WritableBoard {
   };
 }
 
-/** Copy `src`'s ten fields into `dst` (scratch reuse — no allocation). */
+/** Copy `src`'s ten fields into `dst`. Zero-allocation: the scratch owns its
+ * field objects, so only the 64-bit values are assigned (no {lo,hi} churn). */
 export function copyBoardInto(dst: WritableBoard, src: Board): void {
-  dst.white = src.white;
-  dst.black = src.black;
-  dst.pawn = src.pawn;
-  dst.knight = src.knight;
-  dst.bishop = src.bishop;
-  dst.rook = src.rook;
-  dst.queen = src.queen;
-  dst.king = src.king;
-  dst.occupied = src.occupied;
-  dst.promoted = src.promoted;
+  dst.white.lo = src.white.lo; dst.white.hi = src.white.hi;
+  dst.black.lo = src.black.lo; dst.black.hi = src.black.hi;
+  dst.pawn.lo = src.pawn.lo; dst.pawn.hi = src.pawn.hi;
+  dst.knight.lo = src.knight.lo; dst.knight.hi = src.knight.hi;
+  dst.bishop.lo = src.bishop.lo; dst.bishop.hi = src.bishop.hi;
+  dst.rook.lo = src.rook.lo; dst.rook.hi = src.rook.hi;
+  dst.queen.lo = src.queen.lo; dst.queen.hi = src.queen.hi;
+  dst.king.lo = src.king.lo; dst.king.hi = src.king.hi;
+  dst.occupied.lo = src.occupied.lo; dst.occupied.hi = src.occupied.hi;
+  dst.promoted.lo = src.promoted.lo; dst.promoted.hi = src.promoted.hi;
 }
 
-/** In-place: remove the piece (any color/role) at sqIdx. Hot-loop only. */
+/** In-place: remove the piece (any color/role) at sqIdx. Hot-loop only.
+ * Zero-allocation: raw bitmasks instead of sq.not/singleton/and objects. */
 export function clearSquareInPlace(b: WritableBoard, sqIdx: number): void {
-  const mask = sq.not(sq.singleton(sqIdx));
-  b.white = sq.and(b.white, mask);
-  b.black = sq.and(b.black, mask);
-  b.pawn = sq.and(b.pawn, mask);
-  b.knight = sq.and(b.knight, mask);
-  b.bishop = sq.and(b.bishop, mask);
-  b.rook = sq.and(b.rook, mask);
-  b.queen = sq.and(b.queen, mask);
-  b.king = sq.and(b.king, mask);
-  b.occupied = sq.and(b.occupied, mask);
-  b.promoted = sq.and(b.promoted, mask);
+  if (sqIdx < 32) {
+    const inv = ~(1 << sqIdx);
+    b.white.lo &= inv; b.black.lo &= inv; b.pawn.lo &= inv; b.knight.lo &= inv;
+    b.bishop.lo &= inv; b.rook.lo &= inv; b.queen.lo &= inv; b.king.lo &= inv;
+    b.occupied.lo &= inv; b.promoted.lo &= inv;
+  } else {
+    const inv = ~(1 << (sqIdx - 32));
+    b.white.hi &= inv; b.black.hi &= inv; b.pawn.hi &= inv; b.knight.hi &= inv;
+    b.bishop.hi &= inv; b.rook.hi &= inv; b.queen.hi &= inv; b.king.hi &= inv;
+    b.occupied.hi &= inv; b.promoted.hi &= inv;
+  }
 }
 
-/** In-place: place a piece at sqIdx. Hot-loop only. */
+/** In-place: place a piece at sqIdx. Hot-loop only. Zero-allocation. */
 export function putPieceInPlace(b: WritableBoard, sqIdx: number, piece: { color: Color; role: Role }): void {
-  const bit = sq.singleton(sqIdx);
-  if (piece.color === Color.White) b.white = sq.or(b.white, bit);
-  else b.black = sq.or(b.black, bit);
-  switch (piece.role) {
-    case Role.Pawn: b.pawn = sq.or(b.pawn, bit); break;
-    case Role.Knight: b.knight = sq.or(b.knight, bit); break;
-    case Role.Bishop: b.bishop = sq.or(b.bishop, bit); break;
-    case Role.Rook: b.rook = sq.or(b.rook, bit); break;
-    case Role.Queen: b.queen = sq.or(b.queen, bit); break;
-    case Role.King: b.king = sq.or(b.king, bit); break;
+  if (sqIdx < 32) {
+    const bit = (1 << sqIdx) >>> 0;
+    if (piece.color === Color.White) b.white.lo |= bit;
+    else b.black.lo |= bit;
+    switch (piece.role) {
+      case Role.Pawn: b.pawn.lo |= bit; break;
+      case Role.Knight: b.knight.lo |= bit; break;
+      case Role.Bishop: b.bishop.lo |= bit; break;
+      case Role.Rook: b.rook.lo |= bit; break;
+      case Role.Queen: b.queen.lo |= bit; break;
+      case Role.King: b.king.lo |= bit; break;
+    }
+    b.occupied.lo |= bit;
+  } else {
+    const bit = (1 << (sqIdx - 32)) >>> 0;
+    if (piece.color === Color.White) b.white.hi |= bit;
+    else b.black.hi |= bit;
+    switch (piece.role) {
+      case Role.Pawn: b.pawn.hi |= bit; break;
+      case Role.Knight: b.knight.hi |= bit; break;
+      case Role.Bishop: b.bishop.hi |= bit; break;
+      case Role.Rook: b.rook.hi |= bit; break;
+      case Role.Queen: b.queen.hi |= bit; break;
+      case Role.King: b.king.hi |= bit; break;
+    }
+    b.occupied.hi |= bit;
   }
-  b.occupied = sq.or(b.occupied, bit);
 }
 
 export function setPiece(board: Board, sqIdx: number, piece: { color: Color; role: Role }): Board {
