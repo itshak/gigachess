@@ -144,3 +144,12 @@ Any movegen error string (illegal move `purechess.move.illegal`, `purechess.cast
 #### Scenario: Illegal move error is localized
 - **WHEN** `isLegal` returns false for `E1→E2` where king would move into check
 - **THEN** error code `purechess.move.leavesKingInCheck` has translations in `en, ru, he` and `AriaLiveAnnouncer` announces short queue-safe "Illegal move: leaves king in check" (localized) without disrupting focus
+
+### Requirement: Implementation sources for board-movegen SHALL be restricted — GPL, node_modules, and internet are forbidden
+
+The implementation of `SquareSet`/`Board`/`attacks` SHALL be derived only from the language-neutral tables in this spec (`{lo,hi}` ops, leaper offsets, Black Magic `mask`/`magic`/`shift`/`offset` schema) and MIT `bench/magic-tables/*.json`. It SHALL NOT read, import, or copy any file from `node_modules/` (including `node_modules/chessops`), `refs/gpl-only/`, or any internet URL. `src/squareSet.ts` and `src/attacks.ts` SHALL contain no `BigInt` and no `chessops` string, and `rg -n "chessops" src/` SHALL be empty. The Black Magic tables SHALL be the MIT `bench/magic-tables/*.json` generated via `RecklessMagics`, not GPL Stockfish/chessops tables.
+
+#### Scenario: Clean-room verification passes
+- **WHEN** a maintainer runs `rg -n "chessops|BigInt" src/squareSet.ts src/attacks.ts src/board.ts` and diffs `src/` against `refs/gpl-only/` and `node_modules/chessops`
+- **THEN** all three searches return empty and no identical lines (≥40 characters) exist between `src/` and any GPL or node_modules source
+

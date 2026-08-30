@@ -166,3 +166,11 @@ Every `FenError`, `SanError`, `PgnError`, `UciError` code SHALL map to keys `pur
 #### Scenario: AriaLive announcement does not disrupt screen reader flow
 - **WHEN** `makeSan` produces `Qxf7#` and `useChessMoveAnnouncer` announces "Queen takes f7. Checkmate."
 - **THEN** announcement is via `AriaLiveAnnouncer` with `polite` live region, queued, not `assertive`, and `Alt+` navigation still works on Windows without triggering NVDA browse mode, and `autoFocus` is not used on board after move (smart focus management per AGENTS.md)
+
+### Requirement: Implementation sources for rules SHALL be restricted — GPL, node_modules, and internet are forbidden
+
+The implementation of FEN/SAN/UCI and check/mate/draw logic SHALL be derived only from `openspec/specs/purechess-rules/spec.md` language-neutral tables, FIDE Laws 2023 (`refs/docs-refs/FIDE-Laws-2023.notes.md`), and `refs/docs-refs/` notes. It SHALL NOT read, import, or copy any file from `node_modules/` (including `node_modules/chessops`), `refs/gpl-only/`, or any internet URL. `src/` SHALL contain no GPL text and `rg -n "chessops" src/` SHALL be empty. CI SHALL fail if any implementation commit contains GPL-derived code.
+
+#### Scenario: GPL source rejection
+- **WHEN** an implementation agent attempts to implement `parseFen` by reading `node_modules/chessops/dist/esm/fen.js`
+- **THEN** the agent refuses, instead implements from the six-field FEN table in this spec and `refs/docs-refs/`, and audit finds no `chessops` string in `src/`

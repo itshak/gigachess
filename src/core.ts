@@ -1,5 +1,6 @@
-// src/index.ts — purechess full entry (MIT)
-// Re-exports all purechess modules per spec
+// src/core.ts — purechess core entry (no PGN, no Chess960) for tree-shaking
+// Exports board, squareSet, attacks, fen, san, chess (standard rules)
+// Side-effect free, tree-shakeable per ADR-012
 
 export * from "./squareSet.js";
 export * from "./board.js";
@@ -7,10 +8,6 @@ export * from "./types.js";
 export * from "./util.js";
 export * from "./fen.js";
 export * from "./san.js";
-export * from "./pgn.js";
-export * from "./chess960.js";
-
-// attacks: explicit to avoid duplicate kingAttackers with chess
 export {
   knightAttacks,
   kingAttacks,
@@ -21,10 +18,8 @@ export {
   ray,
   between,
   isAttacked,
+  kingAttackers,
 } from "./attacks.js";
-export { kingAttackers } from "./attacks.js";
-
-// chess core (avoid duplicate Position and kingAttackers)
 export {
   dests,
   allDests,
@@ -33,7 +28,6 @@ export {
   isStalemate,
   isInsufficientMaterial,
   isFiftyMoveDraw,
-  isSeventyFiveMoveDraw,
   isThreefoldRepetition,
   perft,
   makeMove,

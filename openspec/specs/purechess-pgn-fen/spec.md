@@ -143,3 +143,12 @@ Every user-facing error from `parsePgn`, `parseFen`, `parseSan`, `parseUci`, `ma
 #### Scenario: i18n for PGN errors
 - **WHEN** `parsePgn("[Event \"*\n")` with missing closing `]` is called
 - **THEN** `Err` code `pgn/invalidHeader` maps to `purechess.pgn.invalidHeader` with `en` "Invalid header", `ru` "Неверный заголовок", `he` "כותרת לא תקינה"
+
+### Requirement: Implementation sources for PGN/FEN/SAN/UCI SHALL be restricted — GPL, node_modules, and internet are forbidden
+
+The implementation of PGN/SAN/UCI/FEN/perft SHALL be derived only from the ABNF and language-neutral tables in this spec, `refs/docs-refs/cm-pgn-notes.md`, `refs/docs-refs/FIDE-Laws-2023.notes.md`, and `refs/docs-refs/san-notes.md`. It SHALL NOT read, import, or copy any file from `node_modules/` (including `node_modules/chessops`, `node_modules/pgn-chess-tree`), `refs/gpl-only/`, or any internet URL. `src/pgn.ts`, `src/fen.ts`, `src/san.ts`, and `bench/` SHALL contain no GPL text, and `rg -n "chessops|pgn-chess-tree" src/` SHALL be empty. The PGN `GameTree` shape is re-specified from behavior, not source.
+
+#### Scenario: Clean-room verification passes
+- **WHEN** a maintainer runs `rg -n "chessops|pgn-chess-tree|GPL" src/pgn.ts src/fen.ts src/san.ts` and diffs `src/` against `refs/gpl-only/` and `node_modules/`
+- **THEN** all searches return empty and no identical lines (≥40 characters) exist between `src/` and any GPL or node_modules source
+

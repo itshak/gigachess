@@ -21,6 +21,22 @@ The repository SHALL maintain a physical separation between GPL-tainted and perm
 - **WHEN** CI checks git history for the implementation path (`src/`, `bench/`, `package.json`)
 - **THEN** no commit authored by impl agent contains a read of `refs/gpl-only/` and no GPL text appears in `src/`
 
+### Requirement: Implementation sources SHALL be restricted to permissive, docs, and generated tables — GPL, node_modules, and internet are forbidden
+
+The implementation (all files under `src/`, `bench/` implementation code, and `package.json` implementation dependencies) SHALL NOT read, copy, import, or bundle any file from `node_modules/` (including `node_modules/chessops` and any `chess.js`/`chess.ts` package), `refs/gpl-only/`, or any internet URL. Only the following are allowed as sources: `openspec/specs/` (language-neutral tables), `refs/mit-permissive/`, `refs/docs-refs/`, and `bench/magic-tables/*.json` (MIT, generated offline via `RecklessMagics`). Any GPL-licensed text, including verbatim or transpiled `chessops` source, is forbidden in `src/` and in git history for the implementation change. CI SHALL fail if `rg -n "chessops" src/` or `rg -n "BigInt" src/squareSet.ts` finds GPL-derived or non-performant code outside tests, or if any `src/` file was created by reading `node_modules/chessops/dist/`.
+
+#### Scenario: node_modules is not a source
+- **WHEN** an implementation agent needs chess move logic
+- **THEN** it reads `openspec/specs/purechess-rules/spec.md` and `refs/docs-refs/FIDE-Laws-2023.notes.md`, not `node_modules/chessops/dist/esm/chess.js` or any `chessops` package file, and `rg -r "from.*chessops" src/` is empty
+
+#### Scenario: Internet is not a source
+- **WHEN** an agent needs a PGN or FEN reference
+- **THEN** it uses vendored `refs/docs-refs/cm-pgn-notes.md` or `bench/data/lichess_db.sample.pgn`, not `curl`/`WebFetch` to `github.com`/`lichess.org` for GPL code, and no `src/` file contains a fetched GPL snippet
+
+#### Scenario: GPL audit fails on violation
+- **WHEN** CI runs `git log --all --oneline -- src/` and `rg -n "GPL|chessops" src/` or checks `package.json` for a `chessops` runtime dependency in `src/` bundle
+- **THEN** the check fails if any `src/` file contains GPL text or was derived from `node_modules/chessops`, and the implementation is marked `not implemented` until rewritten clean-room
+
 ### Requirement: Repository layout for refs SHALL follow license split
 
 The system SHALL organize reference clones exactly as documented.
