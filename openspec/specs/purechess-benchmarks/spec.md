@@ -49,6 +49,22 @@ The harness SHALL measure `perft`, FEN/SAN, and PGN streaming end-to-end.
 - **WHEN** `bench/bench-fen-san.mjs` round-trips 10k random FENs
 - **THEN** purechess SHALL be ≥20% faster than chessops on `FEN parse+make` throughput and at parity on `SAN` throughput, with byte-identical outputs for legal positions
 
+### Requirement: Movegen micro-benchmark SHALL track allDests/makeMove/perft vs chessops
+
+The harness SHALL benchmark integrated movegen (`allDests`, `makeMove`, perft) against `chessops` on standard positions (startpos, Kiwipete, perft positions 3–6) so the FP-policy optimizations (zero-alloc scratch, mask-trusted legality, `forEachSquare`) are gated, not just logged.
+
+#### Scenario: Movegen benchmark is one command
+- **WHEN** a contributor runs `node bench/bench-movegen.mjs`
+- **THEN** it reports ms/iteration for purechess `allDests` (Kiwipete, 20k iters), `makeMove` (200k iters), perft node-rates for startpos and positions 3–6, and the same workloads via `chessops` `allDests` for the gap ratio
+
+#### Scenario: allDests gap gate
+- **WHEN** the Kiwipete `allDests` gap (purechess ms ÷ chessops ms) is measured
+- **THEN** the gap SHALL be ≤1.2× (current: ~1.17×, down from 1.76× before the FP-policy optimizations); a regression above 1.2× fails the gate
+
+#### Scenario: makeMove and perft gates
+- **WHEN** `makeMove` throughput and perft node counts are measured
+- **THEN** `makeMove` SHALL be ≥1.5× faster than the pre-FP-policy baseline (current: ~1.9×), perft node counts SHALL be exactly the published reference values (startpos d6 = 119060324; Kiwipete d5 = 193690690; pos4 d4 = 4223335), and perft `pos4` d4 SHALL be ≥3× faster than the play-and-test legality baseline (current: ~4.2×)
+
 ### Requirement: Bundle size gate SHALL enforce tree-shaking
 
 The library SHALL ship tree-shakeable modules so consumers pay only for what they import.

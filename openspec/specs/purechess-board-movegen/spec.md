@@ -1,7 +1,7 @@
 # purechess-board-movegen Specification
 
 ## Purpose
-Defines the immutable board encoding, 64-bit SquareSet pair, leaper and Black Magic sliding attack primitives, and higher-level movegen helpers that power legal move generation for the PureChess workstation; forbids BigInt in the hot path and references ADR-012 plain fixed-shift tables for 441% speedup over hyperbola.
+Defines the immutable board encoding, 64-bit SquareSet pair, leaper and Black Magic sliding attack primitives, and higher-level movegen helpers that power legal move generation for the PureChess workstation; forbids BigInt in the hot path and references ADR-012 plain fixed-shift tables for 441% speedup over hyperbola. Enforces the FP policy (pure/functional public API with copying only where it produces the result; hot loops use the zero-allocation `WritableBoard` scratch) and mask-trusted legal movegen (check/pin masks instead of per-move play-and-test), closing the gap vs chessops `allDests` to ≤1.2×.
 
 ## Requirements
 
@@ -31,6 +31,7 @@ Ops (language-neutral table, `a,b: SquareSet`):
 | `equals(a,b)` | `a.lo===b.lo && a.hi===b.hi` | |
 | `complementWithinBoard` | same as `not` | |
 | `iter(set)` | yields `Square` iterates via `first`+`minus(singleton)` — not in hot path, use indexed `for` in attacks | must not allocate iterator per call in hot loop |
+| `forEachSquare(set, fn)` | invokes `fn(square: number)` for each set bit, allocation-free (bitmask walk, no `minus`/`singleton` per square) | the ONLY sanctioned set-iteration form inside FP-policy hot loops; `iter`/`for..of` remain fine in cold paths |
 
 `popcnt` and `first` SHALL be correct for all 64-bit patterns; reference python-chess `popcount` oracle.
 
@@ -50,6 +51,13 @@ Ops (language-neutral table, `a,b: SquareSet`):
 
 The system SHALL define `Board` as `type Board = { readonly white: SquareSet, readonly black: SquareSet, readonly pawn: SquareSet, readonly knight: SquareSet, readonly bishop: SquareSet, readonly rook: SquareSet, readonly queen: SquareSet, readonly king: SquareSet, readonly occupied: SquareSet, readonly promoted: SquareSet }` where `occupied = white.or(black)` and every `occupied` bit is covered by exactly one role bit (`pawn|knight|bishop|rook|queen|king` partition `occupied`). `promoted` marks pieces that promoted (for X-FEN). `Board` is value: `play`, `setPiece` etc SHALL take `Board` and return new `Board` (clone→mutate clone), never mutate input. Construction from FEN SHALL validate via `purechess-rules` oppositeCheck etc.
 
+**FP policy (functional style with minimum overhead):** the public API SHALL stay pure/functional (every op returns fresh values, inputs never mutated), but copying is permitted ONLY where it produces the returned value or is required for soundness. Internal hot loops SHALL use the `WritableBoard` scratch escape hatch instead of per-edit functional ops:
+
+- `WritableBoard` (`{ [K in keyof Board]: MutableSquareSet }`) is a writable view whose ten field objects are MUTABLE bitfields; `newScratchBoard()` allocates ten fresh `{lo,hi}` objects (never shared between fields), `cloneAsWritable(board)` builds one from a `Board`, and `copyBoardInto(dst, src)` copies the twenty field numbers in place — all zero-allocation after the scratch itself.
+- Leaf helpers `clearSquareInPlace(b, sqIdx)` and `putPieceInPlace(b, sqIdx, piece)` SHALL mutate bits in place with raw 32-bit ops — they SHALL NOT route through allocating `SquareSet` ops (`not`/`and`/`or`).
+- Scratch rules (enforced by convention and purity tests): a `WritableBoard` must NEVER escape the function that created/borrowed it; while a borrowed scratch is live, only leaf helpers may be called (no re-entrant pure API that could share it); the public result is always a fresh immutable `Board` (clone→mutate-clone).
+- Set-valued state SHALL be cloned only when it actually changes (e.g. castling-rights `Set`s in `play`/`makeMove` are cloned lazily, only when a right is added/removed) — not eagerly per operation.
+
 #### Scenario: Board partition invariant holds
 - **WHEN** `board = parseFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").board` is built
 - **THEN** `board.occupied.equals(board.white.or(board.black))` true, `board.pawn.or(board.knight).or(board.bishop).or(board.rook).or(board.queen).or(board.king).equals(board.occupied)` true, and mutating returned board does not affect original (pure)
@@ -57,6 +65,18 @@ The system SHALL define `Board` as `type Board = { readonly white: SquareSet, re
 #### Scenario: Clone→mutate clone preserves immutability
 - **WHEN** `b2 = play(b1, move)` is called with `b1` startpos and `move=e2e4`
 - **THEN** `b1` still has pawn on `E2`, `b2` has pawn on `E4` and `E2` empty, `b1.pawn.lo !== b2.pawn.lo` demonstrates copy, and `b1 !== b2` reference
+
+#### Scenario: Scratch edits are zero-allocation and inputs stay pure
+- **WHEN** a hot loop applies `clearSquareInPlace`/`putPieceInPlace` edits to a scratch obtained via `cloneAsWritable(board)`, and the loop is sampled under `node --expose-gc` with heap-delta measurement
+- **THEN** the edit path allocates no per-edit `{lo,hi}` objects (0 incremental allocations per edit beyond the one-time scratch), and the original `Board` argument is bit-for-bit unchanged after the loop
+
+#### Scenario: Scratch never escapes and purity holds
+- **WHEN** the purity test suite (`src/*.test.ts`) runs all public `Board`/`Position` ops (play, setPiece, dests, allDests, makeMove, makeSan) asserting inputs are unchanged and results are fresh values
+- **THEN** all assertions pass (inputs byte-identical, no shared mutable field objects between result and input), proving the WritableBoard scratch stays function-local per the FP policy
+
+#### Scenario: forEachSquare replaces allocating iteration in hot loops
+- **WHEN** `rg -n "forEachSquare" src/chess.ts` is run against movegen hot loops (pseudo-dest generation, check/pin mask computation)
+- **THEN** hot loops iterate via allocation-free `forEachSquare`, and no hot loop creates a generator or per-square `minus`/`singleton` objects
 
 ### Requirement: Leaper attacks (knight, king, pawn) SHALL be table-driven and correct vs FIDE
 
@@ -119,7 +139,7 @@ The system SHALL provide `ray(from: Square, to: Square): SquareSet` (all squares
 
 ### Requirement: dests, isLegal, and kingAttackers SHALL be legal-move correct and keyboard/a11y parity kept
 
-The system SHALL provide `dests(pos: Position, square: Square): SquareSet` (all legal destination squares for piece on `square`, considering check, pins via `kingAttackers` and `between`, en passant legality requiring king not in discovered check after capture), `allDests(pos): Map<Square, SquareSet>`, `isLegal(pos, move): boolean` (pseudo-legal plus king not left in check, castling truth table, en passant, promotion), `kingAttackers` as above. All SHALL be pure (clone→mutate clone, check `isAttacked` after `play`). Parity vs `chessops` `dests`/`allDests` SHALL be byte-identical for 1k random positions so `GameViewShell` `[`/`]` stepping and `Alt+` chords remain correct, and `AriaLiveAnnouncer` announcements via `makeSan` remain correct.
+The system SHALL provide `dests(pos: Position, square: Square): SquareSet` (all legal destination squares for piece on `square`, considering check, pins via `kingAttackers` and `between`, en passant legality requiring king not in discovered check after capture), `allDests(pos): Map<Square, SquareSet>`, `isLegal(pos, move): boolean` (pseudo-legal plus king not left in check, castling truth table, en passant, promotion), `kingAttackers` as above. All SHALL be pure (clone→mutate clone via the FP-policy scratch, with `isAttacked` verification for any play-and-test fallback). **Legality SHALL be computed by check/pin masks, not redundant re-testing:** `allDests`/`genLegalMoves` SHALL derive legality from the `CheckContext` masks (`checkMask`, `pinRays`, `kingSafe`) and the shared board-edit path, and SHALL NOT run a per-move play-and-then-test (`isMoveLegal`) on moves whose legality the masks already guarantee (non-promotion, non-castling moves). Play-and-test is reserved for cases the masks do not cover. Parity vs `chessops` `dests`/`allDests` SHALL be byte-identical for 1k random positions so `GameViewShell` `[`/`]` stepping and `Alt+` chords remain correct, and `AriaLiveAnnouncer` announcements via `makeSan` remain correct.
 
 #### Scenario: dests respects pins
 - **WHEN** White king `E1`, White bishop `E2`, Black rook `E8` on same file (pin) in `4r3/8/8/8/8/8/4B3/4K3 w - - 0 1`
@@ -132,6 +152,15 @@ The system SHALL provide `dests(pos: Position, square: Square): SquareSet` (all 
 #### Scenario: En passant illegal if exposes king
 - **WHEN** White king `E5`, White pawn `D5`, Black pawn `E7` pushes to `E5`? Actually test discovered check: White king `E1`, White pawn `D5` could capture en passant `E6` but leaves E-file open for Black rook `E8` → king in check
 - **THEN** `isLegal(D5×E6 en passant)` is false because after `play`, `kingAttackers(posAfter, White)` nonempty, and `dests(D5)` excludes `E6`
+
+#### Scenario: Mask-trusted legality passes perft without per-move play-and-test
+- **WHEN** `allDests`/`genLegalMoves` run on the perft edge-case suite (startpos d6, Kiwipete d5, positions 3–6 incl. castling-through-check and en-passant-pin positions) with the per-move `isMoveLegal` re-test removed for mask-guaranteed moves
+- **THEN** every perft node count is exact (matches the published reference values), proving mask-derived legality is complete and the redundant play-and-test is safely absent; measured speedup on `pos4` (castling/ep heavy) is ≥3× over the play-and-test baseline
+
+#### Scenario: Castling rights cloned lazily, not eagerly
+- **WHEN** `makeMove` applies a move that does not touch castling rights (e.g. `e2e4` from startpos with rights `KQkq` intact)
+- **THEN** the result's castling-rights `Set`s are shared with the input position (no clone allocated), while a rook-or-king move that removes a right produces a fresh `Set` — verified by reference-identity assertions in the purity tests
+
 
 #### Scenario: Keyboard and screen reader parity not regressed
 - **WHEN** user steps moves with `[` (back) and `]` (forward) on desktop via `GameViewShell`, and screen reader announces via `useChessMoveAnnouncer` using `makeSan`
