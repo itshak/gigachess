@@ -32,25 +32,30 @@ export type Piece = {
 
 export type CastlingSide = "king" | "queen";
 export type CastlingRights = {
-  white: Set<number>;
-  black: Set<number>;
+  readonly white: ReadonlySet<number>;
+  readonly black: ReadonlySet<number>;
   // legacy booleans for standard compatibility (derived from sets)
-  whiteKing: boolean;
-  whiteQueen: boolean;
-  blackKing: boolean;
-  blackQueen: boolean;
+  readonly whiteKing: boolean;
+  readonly whiteQueen: boolean;
+  readonly blackKing: boolean;
+  readonly blackQueen: boolean;
 };
 
+// Setup/Position are immutable value types (ADR-012 §4): the public API is
+// functional — every op returns a new value and never mutates its input.
+// `readonly` here is compile-time only (TS erases it), so it costs nothing at
+// runtime; it makes accidental field writes and Set mutations of shared
+// sub-objects a type error instead of a silent corruption.
 export type Setup = {
-  board: import("./board.js").Board;
-  turn: Color;
-  castling: CastlingRights;
-  epSquare: number | null;
-  halfmoves: number;
-  fullmoves: number;
+  readonly board: import("./board.js").Board;
+  readonly turn: Color;
+  readonly castling: CastlingRights;
+  readonly epSquare: number | null;
+  readonly halfmoves: number;
+  readonly fullmoves: number;
   // aliases for spec naming
-  halfmove?: number;
-  fullmove?: number;
+  readonly halfmove?: number;
+  readonly fullmove?: number;
 };
 
 export type Position = Setup;

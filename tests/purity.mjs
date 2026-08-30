@@ -87,7 +87,43 @@ for (const fen of FENS) {
     check(`${label}: input unmodified after ops`, deepStringify(pos) === before);
     // result must round-trip through FEN and differ from input
     check(`${label}: result fen differs`, makeFen(next) !== makeFen(pos));
+    // structural sharing: unchanged castling sets must be shared by reference
+    // (lazy clone), changed ones must be fresh copies (ADR-012 §4)
+    check(`${label}: shared castling set identity ok`,
+      next.castling.white === pos.castling.white || !setsEqual(next.castling.white, pos.castling.white));
   }
+}
+
+// --- structural-sharing contract (ADR-012 §4) -------------------------------
+{
+  const parsed = parseFen("4k3/8/8/8/8/8/4N3/R3K2R w KQkq - 0 1");
+  if (parsed.ok) {
+    const start = parsed.value;
+    const noFlags = { promotion: null, isPromotion: false, isEnPassant: false, isCastling: false };
+    // quiet knight move: rights unchanged → sets shared by reference
+    const nd4 = makeMove(start, { from: 12, to: 27, ...noFlags });
+    check("sharing: quiet move shares castling.white", nd4.castling.white === start.castling.white);
+    check("sharing: quiet move shares castling.black", nd4.castling.black === start.castling.black);
+    // king move: rights removed → fresh empty set, input sets untouched
+    const kd1 = makeMove(start, { from: 4, to: 3, ...noFlags });
+    check("sharing: king move yields fresh white set", kd1.castling.white !== start.castling.white);
+    check("sharing: king move empties white rights", kd1.castling.white.size === 0);
+    check("sharing: input white rights untouched", start.castling.white.size === 2);
+    check("sharing: king move keeps black rights shared", kd1.castling.black === start.castling.black);
+    // rook move: one right removed → fresh set with right removed
+    const rh2 = makeMove(start, { from: 7, to: 23, ...noFlags });
+    check("sharing: rook move yields fresh white set", rh2.castling.white !== start.castling.white);
+    check("sharing: rook move drops kingside right", rh2.castling.white.size === 1 && rh2.castling.white.has(0));
+    check("sharing: input white rights intact after rook move", start.castling.white.size === 2);
+  } else {
+    check("sharing: endgame startpos parsed", false);
+  }
+}
+
+function setsEqual(a, b) {
+  if (a.size !== b.size) return false;
+  for (const v of a) if (!b.has(v)) return false;
+  return true;
 }
 
 console.log(`purity: ${pass} passed, ${fail} failed`);

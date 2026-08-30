@@ -279,32 +279,37 @@ export function makeMove(pos: Position, move: Move): Position {
   // Already handled via move.promotion
 
   // update castling rights — copy a Set ONLY when it actually changes; the
-  // common case (rights unchanged) shares the existing Set reference, which is
-  // safe because Position values are never mutated after construction.
-  let newWhite = pos.castling.white;
-  let newBlack = pos.castling.black;
-  // if king moves, remove all rights for that color
+  // common case (rights unchanged) shares the existing Set reference. This
+  // structural sharing is part of the public contract (ADR-012 §4): the
+  // library never mutates these sets, and the public CastlingRights type
+  // exposes ReadonlySet so callers cannot mutate shared sub-objects through
+  // the API either.
+  let newWhite: ReadonlySet<number> = pos.castling.white;
+  let newBlack: ReadonlySet<number> = pos.castling.black;
+  // if king moves, remove all rights for that color — a fresh empty set; no
+  // copy of the old one is needed
   if (piece.role === Role.King) {
     if (pos.turn === Color.White) {
-      if (newWhite.size > 0) { newWhite = new Set(newWhite); newWhite.clear(); }
+      if (newWhite.size > 0) newWhite = new Set<number>();
     } else {
-      if (newBlack.size > 0) { newBlack = new Set(newBlack); newBlack.clear(); }
+      if (newBlack.size > 0) newBlack = new Set<number>();
     }
   }
-  // if rook moves from origin, remove that right
+  // if rook moves from origin, remove that right (clone → delete on the
+  // owned copy — never on the input's set)
   if (piece.role === Role.Rook) {
     if (pos.turn === Color.White) {
-      if (newWhite.has(from)) { newWhite = new Set(newWhite); newWhite.delete(from); }
+      if (newWhite.has(from)) { const next = new Set(newWhite); next.delete(from); newWhite = next; }
     } else {
-      if (newBlack.has(from)) { newBlack = new Set(newBlack); newBlack.delete(from); }
+      if (newBlack.has(from)) { const next = new Set(newBlack); next.delete(from); newBlack = next; }
     }
   }
   // if rook captured on origin, remove opponent right
   if (captured && captured.role === Role.Rook) {
     if (captured.color === Color.White) {
-      if (newWhite.has(to)) { newWhite = new Set(newWhite); newWhite.delete(to); }
+      if (newWhite.has(to)) { const next = new Set(newWhite); next.delete(to); newWhite = next; }
     } else {
-      if (newBlack.has(to)) { newBlack = new Set(newBlack); newBlack.delete(to); }
+      if (newBlack.has(to)) { const next = new Set(newBlack); next.delete(to); newBlack = next; }
     }
   }
   // en passant capture already handled (captured pawn not rook, so no)
@@ -904,7 +909,7 @@ function makeCastlingForStart(): CastlingRights {
 }
 
 // helpers for fen castling creation
-function makeCastling(whiteSet: Set<number>, blackSet: Set<number>): CastlingRights {
+function makeCastling(whiteSet: ReadonlySet<number>, blackSet: ReadonlySet<number>): CastlingRights {
   return {
     white: new Set(whiteSet),
     black: new Set(blackSet),
