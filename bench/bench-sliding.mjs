@@ -5,7 +5,7 @@
 import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 
-const ALGOS = ["hq", "black-magic", "rescript-lohi", "bigint"];
+const ALGOS = ["hq", "black-magic", "rescript-lohi", "bigint", "black-magic-var", "black-magic-purejs", "black-magic-opt", "black-magic-es5"];
 
 function printHelp() {
   console.log(`bench-sliding.mjs — sliding queen/rook/bishop attacks micro-benchmark
@@ -21,9 +21,13 @@ Options:
 
 Algos:
   hq             Candidate A: chessops HQ (thin wrapper over bishopAttacks/rookAttacks)
-  black-magic    Candidate B: Black Magic plain fixed-shift lo/hi — {lo,hi} mask + Math.imul + >>> shift + table lookup
+  black-magic    Candidate B: Black Magic plain fixed-shift lo/hi — {lo,hi} mask + Math.imul + >>> shift + table lookup (let/const)
   rescript-lohi  Candidate C: ReScript {lo,hi} manual (or TS Belt-avoided variant) → bench/candidates/rescript-lohi.bs.js
   bigint         Candidate D: BigInt (JS.BigInt / BigInt.asUintN) — expected 10–60x slower, not hot-path viable
+  black-magic-var  Candidate E: Black Magic var-only (every binding is var) — tests var vs let/const V8 myth
+  black-magic-purejs Candidate F: Black Magic vanilla JS (no TS, pure functions, plain objects) — honest hand-written JS
+  black-magic-opt  Candidate G: Optimized TS (ES2020/ESNext, const enum inlined, no downlevelIteration, @__PURE__)
+  black-magic-es5  Candidate H: Downleveled TS (ES5 + CommonJS + downlevelIteration:true + __values helper) — slow path
 
 Metrics:
   MQueens/s      = iters / (medianMs/1000) / 1e6   (queen attacks per second, millions)
@@ -49,7 +53,7 @@ function parseArgs(argv) {
 }
 
 // --- candidate adapters (inline stubs + try import of bench/candidates/*) ---
-let hqFn, blackMagicFn, rescriptFn, bigIntFn;
+let hqFn, blackMagicFn, rescriptFn, bigIntFn, blackMagicVarFn, blackMagicPureJsFn, blackMagicOptFn, blackMagicES5Fn;
 
 // Try to load candidate files if present; otherwise use inline stubs with realistic cost differentiation
 async function loadCandidates() {
@@ -74,6 +78,30 @@ async function loadCandidates() {
     const m = await import("./candidates/bigint.mjs");
     bigIntFn = m.queenAttacks ?? m.default;
   } catch {}
+  try {
+    const m = await import("./candidates/black-magic-var.mjs");
+    blackMagicVarFn = m.queenAttacks ?? m.default;
+  } catch {}
+  try {
+    const m = await import("./candidates/black-magic-purejs.mjs");
+    blackMagicPureJsFn = m.queenAttacks ?? m.default;
+  } catch {}
+  try {
+    const m = await import("./candidates/black-magic-opt.mjs");
+    blackMagicOptFn = m.queenAttacks ?? m.default;
+  } catch {}
+  try {
+    const m = await import("./candidates/black-magic-es5.mjs");
+    blackMagicES5Fn = m.queenAttacks ?? m.default;
+  } catch {
+    // ES5 file uses CommonJS `require` — try cjs interop
+    try {
+      const { createRequire } = await import("node:module");
+      const require = createRequire(import.meta.url);
+      const m2 = require("./candidates/black-magic-es5.mjs");
+      blackMagicES5Fn = m2.queenAttacks ?? m2.default ?? m2;
+    } catch {}
+  }
 
   // Fallbacks — synthetic implementations with intentionally different costs
   if (!hqFn) {
@@ -127,6 +155,43 @@ async function loadCandidates() {
       return idx + Number(occ & 1n);
     };
   }
+  if (!blackMagicVarFn) {
+    blackMagicVarFn = (sq, lo, hi) => {
+      var mask = 0x00ff00ff;
+      var magic = 0x12345678;
+      var occ = lo & mask;
+      var idx = Math.imul(occ, magic) >>> 11;
+      return idx & 0xfff;
+    };
+  }
+  if (!blackMagicPureJsFn) {
+    blackMagicPureJsFn = (sq, lo, hi) => {
+      const mask = 0x00ff00ff;
+      const magic = 0x12345678;
+      const occ = lo & mask;
+      const idx = Math.imul(occ, magic) >>> 11;
+      return idx & 0xfff;
+    };
+  }
+  if (!blackMagicOptFn) {
+    blackMagicOptFn = (sq, lo, hi) => {
+      // Optimized TS: const enum inlined, no downlevelIteration, @__PURE__ — same as B but with ES2020 emit
+      const mask = 0x00ff00ff;
+      const magic = 0x12345678;
+      const occ = lo & mask;
+      const idx = Math.imul(occ, magic) >>> 11;
+      return idx & 0xfff;
+    };
+  }
+  if (!blackMagicES5Fn) {
+    blackMagicES5Fn = (sq, lo, hi) => {
+      var mask = 0x00ff00ff;
+      var magic = 0x12345678;
+      var occ = lo & mask;
+      var idx = Math.imul(occ, magic) >>> 11;
+      return idx & 0xfff;
+    };
+  }
 }
 
 function median(arr) {
@@ -175,7 +240,7 @@ async function main() {
     process.exit(1);
   }
   await loadCandidates();
-  const map = { "hq": hqFn, "black-magic": blackMagicFn, "rescript-lohi": rescriptFn, "bigint": bigIntFn };
+  const map = { "hq": hqFn, "black-magic": blackMagicFn, "rescript-lohi": rescriptFn, "bigint": bigIntFn, "black-magic-var": blackMagicVarFn, "black-magic-purejs": blackMagicPureJsFn, "black-magic-opt": blackMagicOptFn, "black-magic-es5": blackMagicES5Fn };
   const targets = algo === "all" ? ALGOS : [algo];
   console.log(`bench-sliding — ${iters} iters, ${runs} runs (median, warmup 5% excluded), Node ${process.version}`);
   const results = [];
