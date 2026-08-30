@@ -137,7 +137,10 @@ export function makeMove(pos: Position, move: Move): Position {
       }
     }
   }
-  let nb: Board = board.cloneBoard(pos.board);
+  // Board ops are pure: they take and return values, so `nb` can start as the
+  // input alias — removePiece/setPiece below produce fresh boards. No clone
+  // needed here (the old code cloned then immediately discarded the clone).
+  let nb: Board = pos.board;
   // capture handling (re-evaluate after normalization; for castling, captured is the rook but we handle rook move separately)
   let captured = board.pieceAt(pos.board, move.to);
   // if we normalized 960 castling, original captured is rook but normalized to is now empty dest, so captured should be undefined for that case
@@ -633,13 +636,25 @@ function isStartPos(pos: Position): boolean {
   if (pos.castling.white.size !== 2 || pos.castling.black.size !== 2) return false;
   if (!pos.castling.white.has(0) || !pos.castling.white.has(7)) return false;
   if (!pos.castling.black.has(56) || !pos.castling.black.has(63)) return false;
-  // board check: we can construct start board and compare
-  // For performance, we can cache start board
-  if (!startBoardCache) startBoardCache = makeStartBoard();
-  return board.boardEquals(pos.board, startBoardCache);
+  // board check: compare against the frozen start-board constant (pure — no
+  // module-level mutable cache)
+  return board.boardEquals(pos.board, START_BOARD);
 }
 
-let startBoardCache: Board | null = null;
+/**
+ * Immutable module constant (computed once at import, deep-frozen so no code
+ * path can accidentally mutate it). Deliberately NOT a lazily-assigned `let`
+ * cache: the only allowed module-level state is frozen, immutable data.
+ */
+const START_BOARD: Board = deepFreezeBoard(makeStartBoard());
+
+function deepFreezeBoard(b: Board): Board {
+  for (const key of Object.keys(b) as (keyof Board)[]) {
+    const set = b[key] as SquareSet;
+    Object.freeze(set);
+  }
+  return Object.freeze(b);
+}
 function makeStartBoard(): Board {
   let b = board.emptyBoard();
   // ranks

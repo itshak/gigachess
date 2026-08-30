@@ -49,44 +49,56 @@ export function cloneBoard(board: Board): Board {
   };
 }
 
-function recomputeOccupied(b: Board): void {
-  // mutates internal b (already cloned) — caller must have cloned
-  (b as any).occupied = sq.or(b.white, b.black);
-}
+/**
+ * Pure Board construction helpers.
+ *
+ * Contract (per purechess-board-movegen spec): Board is an immutable value —
+ * every op takes a Board and returns a NEW Board; the input is never mutated
+ * (not even via a clone-then-mutate intermediate, which also lets us avoid
+ * `as any` casts entirely). Object spread + explicit field computation keeps
+ * the types honest under `strict`.
+ */
+
+const ROLE_FIELD: Record<Role, "pawn" | "knight" | "bishop" | "rook" | "queen" | "king"> = {
+  [Role.Pawn]: "pawn",
+  [Role.Knight]: "knight",
+  [Role.Bishop]: "bishop",
+  [Role.Rook]: "rook",
+  [Role.Queen]: "queen",
+  [Role.King]: "king",
+};
 
 export function setPiece(board: Board, sqIdx: number, piece: { color: Color; role: Role }): Board {
-  const nb = cloneBoard(board);
   const bit = sq.singleton(sqIdx);
-  // add to color
-  if (piece.color === Color.White) (nb as any).white = sq.or(nb.white, bit);
-  else (nb as any).black = sq.or(nb.black, bit);
-  // add to role
-  switch (piece.role) {
-    case Role.Pawn: (nb as any).pawn = sq.or(nb.pawn, bit); break;
-    case Role.Knight: (nb as any).knight = sq.or(nb.knight, bit); break;
-    case Role.Bishop: (nb as any).bishop = sq.or(nb.bishop, bit); break;
-    case Role.Rook: (nb as any).rook = sq.or(nb.rook, bit); break;
-    case Role.Queen: (nb as any).queen = sq.or(nb.queen, bit); break;
-    case Role.King: (nb as any).king = sq.or(nb.king, bit); break;
-  }
-  recomputeOccupied(nb);
-  return nb;
+  const colorPart =
+    piece.color === Color.White
+      ? { white: sq.or(board.white, bit) }
+      : { black: sq.or(board.black, bit) };
+  const roleKey = ROLE_FIELD[piece.role];
+  const rolePart = { [roleKey]: sq.or(board[roleKey], bit) };
+  return {
+    ...board,
+    ...colorPart,
+    ...rolePart,
+    occupied: sq.or(board.occupied, bit),
+  };
 }
 
 export function removePiece(board: Board, sqIdx: number): Board {
-  const nb = cloneBoard(board);
   const mask = sq.not(sq.singleton(sqIdx));
-  (nb as any).white = sq.and(nb.white, mask);
-  (nb as any).black = sq.and(nb.black, mask);
-  (nb as any).pawn = sq.and(nb.pawn, mask);
-  (nb as any).knight = sq.and(nb.knight, mask);
-  (nb as any).bishop = sq.and(nb.bishop, mask);
-  (nb as any).rook = sq.and(nb.rook, mask);
-  (nb as any).queen = sq.and(nb.queen, mask);
-  (nb as any).king = sq.and(nb.king, mask);
-  (nb as any).promoted = sq.and(nb.promoted, mask);
-  recomputeOccupied(nb);
-  return nb;
+  const and = (s: SquareSet): SquareSet => sq.and(s, mask);
+  return {
+    white: and(board.white),
+    black: and(board.black),
+    pawn: and(board.pawn),
+    knight: and(board.knight),
+    bishop: and(board.bishop),
+    rook: and(board.rook),
+    queen: and(board.queen),
+    king: and(board.king),
+    occupied: and(board.occupied),
+    promoted: and(board.promoted),
+  };
 }
 
 export function pieceAt(board: Board, sqIdx: number): { color: Color; role: Role } | undefined {
