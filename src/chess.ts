@@ -111,61 +111,57 @@ function positionsEqualForRepetition(a: Position, b: Position): boolean {
 }
 
 // ---------- move execution (play) ----------
-export function makeMove(pos: Position, move: Move): Position {
-  let from = move.from;
-  let to = move.to;
-  let piece = board.pieceAt(pos.board, from);
-  if (!piece) throw new Error("no piece at from");
-  // 960 king-captures-rook normalization: if king captures own rook with castling right, normalize to G1/C1
-  let isEnPassant = !!move.isEnPassant;
-  let isCastling = !!move.isCastling;
-  const isPromotion = !!move.isPromotion || move.promotion !== undefined && move.promotion !== null;
-  if (piece.role === Role.King) {
-    const target = board.pieceAt(pos.board, to);
-    if (target && target.color === piece.color && target.role === Role.Rook) {
-      const hasRight = piece.color === Color.White ? pos.castling.white.has(to) : pos.castling.black.has(to);
-      if (hasRight) {
-        // Check if this rook is on same rank as king (castling rook must be on same rank)
-        if (squareRank(from) === squareRank(to)) {
-          const kf = squareFile(from);
-          const rf = squareFile(to);
-          const isKingSide = rf > kf;
-          if (piece.color === Color.White) to = isKingSide ? 6 : 2;
-          else to = isKingSide ? 62 : 58;
-          isCastling = true;
-        }
-      }
-    }
-  }
-  // Board ops are pure: they take and return values, so `nb` can start as the
-  // input alias — removePiece/setPiece below produce fresh boards. No clone
-  // needed here (the old code cloned then immediately discarded the clone).
-  let nb: Board = pos.board;
+/**
+ * Shared board-edit sequence used by BOTH the pure `makeMove` and the
+ * hot-loop scratch tester below — a single source of truth so the fast path
+ * can never drift from the pure path.
+ */
+function computeCaptured(
+  pos: Position,
+  origTo: number,
+  to: number,
+  isCastling: boolean,
+  piece: { color: Color; role: Role },
+): { color: Color; role: Role } | undefined {
   // capture handling (re-evaluate after normalization; for castling, captured is the rook but we handle rook move separately)
-  let captured = board.pieceAt(pos.board, move.to);
   // if we normalized 960 castling, original captured is rook but normalized to is now empty dest, so captured should be undefined for that case
   if (isCastling && piece.role === Role.King) {
     // For 960 normalized, the original rook capture is not a capture in normal sense; we should not treat as capture
     // Check if original move was king-captures-rook: then captured was rook, but after normalization we don't want to treat as capture of piece on dest (dest is empty)
-    const origTarget = board.pieceAt(pos.board, move.to);
+    const origTarget = board.pieceAt(pos.board, origTo);
     if (origTarget && origTarget.color === piece.color && origTarget.role === Role.Rook) {
-      captured = undefined;
-    } else {
-      captured = board.pieceAt(pos.board, to);
+      return undefined;
     }
-  } else {
-    captured = board.pieceAt(pos.board, to);
+    return board.pieceAt(pos.board, to);
   }
+  return board.pieceAt(pos.board, to);
+}
 
+function applyBoardEdits(
+  nb: board.WritableBoard,
+  pos: Position,
+  from: number,
+  to: number, // normalized dest (castling → G1/C1/G8/C8)
+  origTo: number, // move.to before normalization (for capture removal)
+  piece: { color: Color; role: Role },
+  isEnPassant: boolean,
+  isCastling: boolean,
+  isPromotion: boolean,
+  promotion: Role | null,
+  captured: { color: Color; role: Role } | undefined,
+): void {
   // remove moving piece from from
-  nb = board.removePiece(nb, from);
+  board.clearSquareInPlace(nb, from);
   // if en passant, remove captured pawn which is not on to square
   if (isEnPassant) {
     const epCaptureRank = pos.turn === Color.White ? squareRank(to) - 1 : squareRank(to) + 1;
     const epCaptureSq = epCaptureRank * 8 + squareFile(to);
-    nb = board.removePiece(nb, epCaptureSq);
+    board.clearSquareInPlace(nb, epCaptureSq);
   } else if (captured) {
-    nb = board.removePiece(nb, to);
+    // captured is only ever non-undefined when to === origTo (capture removal
+    // square), so removing at origTo is exactly equivalent to the original
+    // `removePiece(nb, to)`.
+    board.clearSquareInPlace(nb, origTo);
   }
 
   // handle castling: move rook
@@ -228,22 +224,56 @@ export function makeMove(pos: Position, move: Move): Position {
     }
     if (rookFrom !== undefined && rookTo !== undefined) {
       // remove rook from its origin
-      nb = board.removePiece(nb, rookFrom);
+      board.clearSquareInPlace(nb, rookFrom);
       // place rook on destination
-      const rookPiece = { color: pos.turn, role: Role.Rook };
-      nb = board.setPiece(nb, rookTo, rookPiece);
+      board.putPieceInPlace(nb, rookTo, { color: pos.turn, role: Role.Rook });
     }
     // place king on destination (to)
-    const kingPiece = { color: pos.turn, role: Role.King };
-    nb = board.setPiece(nb, to, kingPiece);
+    board.putPieceInPlace(nb, to, { color: pos.turn, role: Role.King });
   } else {
     // normal move: place moving piece (with promotion)
     let role = piece.role;
-    if (isPromotion && move.promotion !== undefined && move.promotion !== null) {
-      role = move.promotion;
+    if (isPromotion && promotion !== undefined && promotion !== null) {
+      role = promotion;
     }
-    nb = board.setPiece(nb, to, { color: piece.color, role });
+    board.putPieceInPlace(nb, to, { color: piece.color, role });
   }
+}
+
+export function makeMove(pos: Position, move: Move): Position {
+  let from = move.from;
+  let to = move.to;
+  let piece = board.pieceAt(pos.board, from);
+  if (!piece) throw new Error("no piece at from");
+  // 960 king-captures-rook normalization: if king captures own rook with castling right, normalize to G1/C1
+  let isEnPassant = !!move.isEnPassant;
+  let isCastling = !!move.isCastling;
+  const isPromotion = !!move.isPromotion || move.promotion !== undefined && move.promotion !== null;
+  if (piece.role === Role.King) {
+    const target = board.pieceAt(pos.board, to);
+    if (target && target.color === piece.color && target.role === Role.Rook) {
+      const hasRight = piece.color === Color.White ? pos.castling.white.has(to) : pos.castling.black.has(to);
+      if (hasRight) {
+        // Check if this rook is on same rank as king (castling rook must be on same rank)
+        if (squareRank(from) === squareRank(to)) {
+          const kf = squareFile(from);
+          const rf = squareFile(to);
+          const isKingSide = rf > kf;
+          if (piece.color === Color.White) to = isKingSide ? 6 : 2;
+          else to = isKingSide ? 62 : 58;
+          isCastling = true;
+        }
+      }
+    }
+  }
+  // Board construction: clone→mutate-clone (spec-sanctioned technique). `nb`
+  // is a fresh writable board owned locally and returned as a read-only Board;
+  // the input position is never touched, so the observable contract stays pure.
+  // The edit sequence itself lives in applyBoardEdits (shared with the
+  // hot-loop scratch tester).
+  const nb = board.cloneAsWritable(pos.board);
+  const captured = computeCaptured(pos, move.to, to, isCastling, piece);
+  applyBoardEdits(nb, pos, from, to, move.to, piece, isEnPassant, isCastling, isPromotion, move.promotion ?? null, captured);
 
   // handle promotion: pawn must promote if reaching back rank
   // Already handled via move.promotion
@@ -446,97 +476,172 @@ function genPseudoDests(pos: Position, from: number): SquareSet {
 }
 
 // ---------- dests filtered for legality ----------
-export function dests(pos: Position, from: number): SquareSet {
-  const pseudo = genPseudoDests(pos, from);
-  if (sq.isEmpty(pseudo)) return pseudo;
-  let legalLo = 0, legalHi = 0;
-  for (const to of sq.iter(pseudo)) {
-    // need to construct move to test legality
-    const piece = board.pieceAt(pos.board, from);
-    if (!piece) continue;
-    // Determine move flags
-    let isEnPassant = false;
-    let isCastling = false;
-    let promotion: Role | undefined = undefined;
+// ---- Hot-loop scratch (see FP policy in board.ts) ---------------------------
+// `destScratch` is owned exclusively by moveLeavesKingSafe, a leaf function:
+// while the scratch is live it only calls board/attacks helpers that never
+// re-enter movegen, so no re-entrant caller can observe intermediate state.
+// The public API remains pure — the scratch never escapes and its state is
+// fully rewritten from the input position before each use.
+const destScratch: board.WritableBoard = board.newScratchBoard();
 
-    const isPawn = piece.role === Role.Pawn;
-    const isKing = piece.role === Role.King;
-    const destRank = squareRank(to);
-    const isPromotionRank = (piece.color === Color.White && destRank === 7) || (piece.color === Color.Black && destRank === 0);
+/**
+ * Hot-loop legality tester: applies the shared board-edit sequence
+ * (applyBoardEdits — same code path as makeMove) to the reusable scratch
+ * board, then checks whether our king is left attacked. Semantically
+ * identical to `makeMove(pos, mv)` + `!isAttacked(our king)`, minus all the
+ * per-pseudo-move allocation (Position, Sets, Move object, 3 board spreads).
+ * Mutation is sanctioned here per the FP policy: hot loop, locally owned
+ * scratch, inputs never mutated.
+ */
+function moveLeavesKingSafe(
+  pos: Position,
+  piece: { color: Color; role: Role },
+  from: number,
+  to: number, // normalized dest
+  origTo: number, // move.to before normalization
+  isEnPassant: boolean,
+  isCastling: boolean,
+  isPromotion: boolean,
+  promotion: Role | null,
+): boolean {
+  board.copyBoardInto(destScratch, pos.board);
+  const captured = computeCaptured(pos, origTo, to, isCastling, piece);
+  applyBoardEdits(destScratch, pos, from, to, origTo, piece, isEnPassant, isCastling, isPromotion, promotion, captured);
+  const ksq = board.kingSquare(destScratch, pos.turn);
+  if (ksq === undefined) return false;
+  return !attacks.isAttacked(destScratch, ksq, opposite(pos.turn));
+}
 
-    if (isPawn && pos.epSquare !== null && to === pos.epSquare && sq.isEmpty(sq.and(pos.board.occupied, sq.singleton(to)))) {
-      // en passant capture (destination is empty ep square)
-      // Verify pawn diagonal to ep square and pawn exists to be captured
-      const fileDiff = Math.abs(squareFile(to) - squareFile(from));
-      const rankDiff = destRank - squareRank(from);
-      const dir = piece.color === Color.White ? 1 : -1;
-      if (fileDiff === 1 && rankDiff === dir) isEnPassant = true;
-    }
-    if (isKing && Math.abs(to - from) === 2) {
-      // Actually castling dest is G1/C1 which is 2 away from E1, so this catches
-      // But for 960 where king may start elsewhere, distance may not be 2? Standard dests are 2 away only if king on E1. For 960 king on different file, dest G1/C1 distance varies. So we need to detect castling differently: if move is king and to is G1/C1 and from is king square and to in pseudo generated as castling
-      // For now treat any king move to G1/C1/G8/C8 when castling right exists as castling
-      if ((to === 6 || to === 2 || to === 62 || to === 58) && pos.castling.white.size + pos.castling.black.size > 0) {
-        // Check if pseudo was added as castling (we added)
-        isCastling = true;
-      }
-    } else if (isKing && (pos.castling.white.size > 0 || pos.castling.black.size > 0)) {
-      // For 960 where king start not E1, castling dest may be G1/C1 but distance not 2, need broader check
-      // If to is 6/2/62/58 and isKing and castling set non-empty, treat as castling
-      if (to === 6 || to === 2 || to === 62 || to === 58) isCastling = true;
-    }
+// ---- Per-position check/pin-mask analysis (chessops-style legality) --------
+// Computed ONCE per position, then reused for every piece's dests. This
+// replaces per-pseudo-move play-and-test for the common cases; the exact
+// play-and-test (moveLeavesKingSafe) remains only for the rare trap cases:
+// en-passant (double horizontal pawn removal can expose the king along the
+// rank) and castling (the rook's landing square can block back-rank attacks
+// on the king destination).
 
-    if (isPawn && isPromotionRank) {
-      // For dests we just consider destination as legal regardless of promotion piece; for legality check we need to try promotion queen (any)
-      promotion = Role.Queen;
-      // We'll test with queen promotion; if queen promotion is illegal, other promotions also illegal (except maybe check? but queen promotion gives check possibilities)
-      // For dests, we consider move legal if any promotion is legal, which queen covers.
-    }
+type CheckContext = {
+  us: Color;
+  ksq: number;
+  doubleCheck: boolean;
+  /** squares that resolve a single check (block or capture); FULL when not in check */
+  checkMask: SquareSet;
+  /** squares the king may move to (not attacked with our king removed from occupancy) */
+  kingSafe: SquareSet;
+  /** pinned own piece square → allowed ray (between king and sniper, plus sniper) */
+  pinRays: Map<number, SquareSet>;
+};
 
-    const move: Move = {
-      from,
-      to,
-      promotion: promotion ?? null,
-      isEnPassant,
-      isCastling,
-      isPromotion: !!promotion,
-    };
-    // For pawn promotion, need to consider that promotion is required; if we don't specify promotion, move would be illegal. We specify queen.
+// Module-level scratch, sanctioned by the FP policy for hot loops: owned by
+// analyzeCheckContext (a leaf — no re-entrant movegen runs while a context is
+// live within one dests/allDests/genLegalMoves call) and cleared before every
+// use. Never escapes the enclosing call.
+const scratchPinRays = new Map<number, SquareSet>();
 
-    // Also need to handle normal promotion without specifying? dests should include promotion squares even if promotion not specified.
-    // For legality test, we use queen promotion.
-
-    // Now test if move leaves king in check
-    // For en passant discovered check, play will handle
-    let ok = false;
-    try {
-      const next = makeMove(pos, move);
-      const ourKing = board.kingSquare(next.board, pos.turn); // after move, our king is still same color but turn swapped? Need to check our king after move is not attacked by opponent
-      // After move, it's opponent's turn, but we need to see if our king (color = pos.turn) is attacked by opponent
-      // next.turn is opposite, so attacker is next.turn
-      // Check if our king square is attacked by next.turn (which is opponent)
-      const ksq = board.kingSquare(next.board, pos.turn);
-      if (ksq === undefined) ok = false;
-      else {
-        const attacked = attacks.isAttacked(next.board, ksq, opposite(pos.turn));
-        ok = !attacked;
-      }
-    } catch {
-      ok = false;
-    }
-    if (ok) {
-      if (to < 32) legalLo |= (1 << to) >>> 0;
-      else legalHi |= (1 << (to - 32)) >>> 0;
+function analyzeCheckContext(pos: Position): CheckContext {
+  const us = pos.turn;
+  const them = opposite(us);
+  scratchPinRays.clear();
+  const ksq = board.kingSquare(pos.board, us);
+  if (ksq === undefined) {
+    // degenerate (kingless) position: no pins, no masks
+    return { us, ksq: -1, doubleCheck: false, checkMask: sq.FULL, kingSafe: sq.EMPTY, pinRays: scratchPinRays };
+  }
+  const ctx: CheckContext = { us, ksq, doubleCheck: false, checkMask: sq.FULL, kingSafe: sq.EMPTY, pinRays: scratchPinRays };
+  const checkers = attacks.kingAttackers(pos.board, us);
+  const nCheckers = sq.popcount(checkers);
+  if (nCheckers === 1) {
+    const c = sq.first(checkers)!;
+    ctx.checkMask = sq.or(attacks.between(ksq, c), sq.singleton(c));
+  } else if (nCheckers >= 2) {
+    ctx.doubleCheck = true;
+  }
+  // Pinned pieces: enemy slider "snipers" x-raying our king with exactly one
+  // blocker between; if the blocker is ours, it is pinned to the sniper's ray.
+  const themOcc = them === Color.White ? pos.board.white : pos.board.black;
+  const themBQ = sq.or(sq.and(themOcc, pos.board.bishop), sq.and(themOcc, pos.board.queen));
+  const themRQ = sq.or(sq.and(themOcc, pos.board.rook), sq.and(themOcc, pos.board.queen));
+  const noOcc = sq.EMPTY;
+  const snipers = sq.or(
+    sq.and(themRQ, attacks.rookAttacks(ksq, noOcc)),
+    sq.and(themBQ, attacks.bishopAttacks(ksq, noOcc)),
+  );
+  for (const sniper of sq.iter(snipers)) {
+    const b = attacks.between(ksq, sniper);
+    const blockers = sq.and(b, pos.board.occupied);
+    if (sq.popcount(blockers) !== 1) continue;
+    const blockerSq = sq.first(blockers)!;
+    if (sq.has(themOcc, blockerSq)) continue; // enemy blocker: not a pin
+    scratchPinRays.set(blockerSq, sq.or(b, sq.singleton(sniper)));
+  }
+  // King-safe mask: attackedness evaluated with our king removed from the
+  // occupancy, so sliders x-raying the king keep it attacked on the far side.
+  const occWithoutKing = sq.minus(pos.board.occupied, sq.singleton(ksq));
+  const usOcc = us === Color.White ? pos.board.white : pos.board.black;
+  let kingSafe: SquareSet = { lo: 0, hi: 0 };
+  for (const d of sq.iter(attacks.kingAttacks(ksq))) {
+    if (sq.has(usOcc, d)) continue;
+    if (sq.isEmpty(attacks.attackersTo(pos.board, d, them, occWithoutKing))) {
+      kingSafe = sq.or(kingSafe, sq.singleton(d));
     }
   }
-  return { lo: legalLo >>> 0, hi: legalHi >>> 0 };
+  ctx.kingSafe = kingSafe;
+  return ctx;
+}
+/**
+ * dests for one piece, given the per-position CheckContext. Legality is a
+ * pure set intersection for all cases except the trap cases listed above.
+ */
+function destsFast(pos: Position, from: number, piece: { color: Color; role: Role }, ctx: CheckContext): SquareSet {
+  const pseudo = genPseudoDests(pos, from);
+  if (sq.isEmpty(pseudo)) return pseudo;
+  if (piece.role === Role.King) {
+    // Castling-flagged dests (to ∈ {6,2,62,58} while any right exists) keep
+    // the exact play-and-test semantics; other king dests come from the
+    // precomputed king-safe mask.
+    const castlingPossible = pos.castling.white.size + pos.castling.black.size > 0;
+    let result: SquareSet = { lo: 0, hi: 0 };
+    for (const to of sq.iter(pseudo)) {
+      if (castlingPossible && (to === 6 || to === 2 || to === 62 || to === 58)) {
+        if (moveLeavesKingSafe(pos, piece, from, to, to, false, true, false, null)) {
+          result = sq.or(result, sq.singleton(to));
+        }
+      } else if (sq.has(ctx.kingSafe, to)) {
+        result = sq.or(result, sq.singleton(to));
+      }
+    }
+    return result;
+  }
+  // Any single non-king move can never resolve a double check.
+  if (ctx.doubleCheck) return { lo: 0, hi: 0 };
+  let nonEp = pseudo;
+  let epLegal = false;
+  const epSquare = pos.epSquare;
+  if (piece.role === Role.Pawn && epSquare !== null && sq.has(pseudo, epSquare)) {
+    nonEp = sq.minus(pseudo, sq.singleton(epSquare));
+    epLegal = moveLeavesKingSafe(pos, piece, from, epSquare, epSquare, true, false, false, null);
+  }
+  let result = sq.and(nonEp, ctx.checkMask);
+  const pin = ctx.pinRays.get(from);
+  if (pin) result = sq.and(result, pin);
+  if (epLegal && epSquare !== null) result = sq.or(result, sq.singleton(epSquare));
+  return result;
+}
+
+export function dests(pos: Position, from: number): SquareSet {
+  const piece = board.pieceAt(pos.board, from);
+  if (!piece) return { lo: 0, hi: 0 };
+  return destsFast(pos, from, piece, analyzeCheckContext(pos));
 }
 
 export function allDests(pos: Position): Map<number, SquareSet> {
   const m = new Map<number, SquareSet>();
+  const ctx = analyzeCheckContext(pos);
   const own = pos.turn === Color.White ? pos.board.white : pos.board.black;
   for (const sqIdx of sq.iter(own)) {
-    const d = dests(pos, sqIdx);
+    const piece = board.pieceAt(pos.board, sqIdx);
+    if (!piece) continue;
+    const d = destsFast(pos, sqIdx, piece, ctx);
     if (!sq.isEmpty(d)) m.set(sqIdx, d);
   }
   return m;
@@ -670,21 +775,25 @@ function makeStartBoard(): Board {
 
 function genLegalMoves(pos: Position): Move[] {
   const moves: Move[] = [];
+  // Per-position check/pin-mask analysis replaces the per-move play-and-test;
+  // only ep (validated inside destsFast) keeps exact semantics.
+  const ctx = analyzeCheckContext(pos);
   const own = pos.turn === Color.White ? pos.board.white : pos.board.black;
   for (const from of sq.iter(own)) {
-    const pseudo = genPseudoDests(pos, from);
-    for (const to of sq.iter(pseudo)) {
-      const piece = board.pieceAt(pos.board, from)!;
+    const piece = board.pieceAt(pos.board, from);
+    if (!piece) continue;
+    // A non-king move can never resolve a double check.
+    if (piece.role !== Role.King && ctx.doubleCheck) continue;
+    const legal = destsFast(pos, from, piece, ctx);
+    for (const to of sq.iter(legal)) {
       const destRank = squareRank(to);
       const isPawnPromo = piece.role === Role.Pawn && ((piece.color === Color.White && destRank === 7) || (piece.color === Color.Black && destRank === 0));
       if (isPawnPromo) {
-        // generate 4 promotions
+        // generate 4 promotions (legality is promotion-independent: every
+        // promoted piece lands on the same square, so king safety is identical)
         for (const promo of [Role.Queen, Role.Rook, Role.Bishop, Role.Knight]) {
           const isEnPassant = false; // promotion capture can't be en passant (ep rank not back rank)
-          const mv: Move = { from, to, promotion: promo, isPromotion: true, isEnPassant, isCastling: false };
-          // need to check legality via makeMove
-          // For performance, test with makeMove and king check
-          if (isMoveLegal(pos, mv)) moves.push(mv);
+          moves.push({ from, to, promotion: promo, isPromotion: true, isEnPassant, isCastling: false });
         }
       } else {
         // determine flags
@@ -699,8 +808,7 @@ function genLegalMoves(pos: Position): Move[] {
         if (piece.role === Role.King && (to === 6 || to === 2 || to === 62 || to === 58)) {
           // check if this was generated as castling pseudo
           // Determine if from is king square and to is castling dest
-          const ks = board.kingSquare(pos.board, pos.turn);
-          if (from === ks) {
+          if (from === ctx.ksq) {
             // Check if castling right exists for this side
             let found = false;
             if (pos.turn === Color.White) {
@@ -730,14 +838,30 @@ function genLegalMoves(pos: Position): Move[] {
 function isMoveLegal(pos: Position, mv: Move): boolean {
   // quick check: dest must be in pseudo? Already ensured via gen, but for external isLegal we check via dests.
   // Here we test if after play king not in check
-  try {
-    const next = makeMove(pos, mv);
-    const ksq = board.kingSquare(next.board, pos.turn);
-    if (ksq === undefined) return false;
-    return !attacks.isAttacked(next.board, ksq, opposite(pos.turn));
-  } catch {
-    return false;
+  const piece = board.pieceAt(pos.board, mv.from);
+  if (!piece) return false; // makeMove would throw → previously caught → false
+  // Derive flags/normalization exactly like makeMove (the edit sequence itself
+  // has a single source of truth in applyBoardEdits).
+  let to = mv.to;
+  let isCastling = !!mv.isCastling;
+  const isEnPassant = !!mv.isEnPassant;
+  if (piece.role === Role.King) {
+    const target = board.pieceAt(pos.board, to);
+    if (target && target.color === piece.color && target.role === Role.Rook) {
+      const hasRight = piece.color === Color.White ? pos.castling.white.has(to) : pos.castling.black.has(to);
+      // Check if this rook is on same rank as king (castling rook must be on same rank)
+      if (hasRight && squareRank(mv.from) === squareRank(to)) {
+        const kf = squareFile(mv.from);
+        const rf = squareFile(to);
+        const isKingSide = rf > kf;
+        to = piece.color === Color.White ? (isKingSide ? 6 : 2) : (isKingSide ? 62 : 58);
+        isCastling = true;
+      }
+    }
   }
+  const isPromotion = !!mv.isPromotion || mv.promotion !== undefined && mv.promotion !== null;
+  // Hot-loop scratch legality test — see board.ts WritableBoard FP policy.
+  return moveLeavesKingSafe(pos, piece, mv.from, to, mv.to, isEnPassant, isCastling, isPromotion, mv.promotion ?? null);
 }
 
 // Chess class wrapper for convenience

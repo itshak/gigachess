@@ -269,6 +269,42 @@ export function between(from: number, to: number): SquareSet {
 }
 
 // ---------- isAttacked / kingAttackers ----------
+/**
+ * All pieces of `attacker` color attacking `square`. `occ` overrides the
+ * occupancy used for slider rays (hot-loop variant: king-safety masks
+ * evaluate attackedness with the moving king removed from the occupancy so
+ * that sliders x-raying the king stay "attacking" through its old square).
+ */
+export function attackersTo(
+  board: import("./board.js").Board,
+  square: number,
+  attacker: Color,
+  occ: SquareSet = board.occupied,
+): SquareSet {
+  const colorOcc = attacker === Color.White ? board.white : board.black;
+  // pawn origins: pawnAttacks(opposite, square) mirrors the attacker pawns that hit square
+  const oppPawnAtt = pawnAttacks(attacker === Color.White ? Color.Black : Color.White, square);
+  const attackerPawns = attacker === Color.White ? sq.and(board.white, board.pawn) : sq.and(board.black, board.pawn);
+  let attackers = sq.and(attackerPawns, oppPawnAtt);
+  const nAtt = knightAttacks(square);
+  const attackerKnights = attacker === Color.White ? sq.and(board.white, board.knight) : sq.and(board.black, board.knight);
+  attackers = sq.or(attackers, sq.and(attackerKnights, nAtt));
+  const attackerBishopsQueens = sq.or(
+    attacker === Color.White ? sq.and(board.white, board.bishop) : sq.and(board.black, board.bishop),
+    attacker === Color.White ? sq.and(board.white, board.queen) : sq.and(board.black, board.queen),
+  );
+  attackers = sq.or(attackers, sq.and(attackerBishopsQueens, bishopAttacks(square, occ)));
+  const attackerRooksQueens = sq.or(
+    attacker === Color.White ? sq.and(board.white, board.rook) : sq.and(board.black, board.rook),
+    attacker === Color.White ? sq.and(board.white, board.queen) : sq.and(board.black, board.queen),
+  );
+  attackers = sq.or(attackers, sq.and(attackerRooksQueens, rookAttacks(square, occ)));
+  const kAtt = kingAttacks(square);
+  const attackerKings = attacker === Color.White ? sq.and(board.white, board.king) : sq.and(board.black, board.king);
+  attackers = sq.or(attackers, sq.and(attackerKings, kAtt));
+  return attackers;
+}
+
 export function isAttacked(board: import("./board.js").Board, square: number, attacker: Color): boolean {
   // Check if square is attacked by attacker color
   // Use board to find attacker pieces
