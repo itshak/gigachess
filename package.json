@@ -37,7 +37,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "echo \"no tests yet (baseline)\" && exit 0",
+    "test": "npm run typecheck && node tests/perft.mjs && node tests/parity.mjs",
     "bench": "node bench/bench-sliding.mjs --iters 1000000 && node bench/bench-perft.mjs --depth 5 && node bench/bench-pgn.mjs --games 1000 && node bench/bench-fen-san.mjs --iters 1000 && node bench/bench-bundle.mjs --entry core",
     "bench:sliding": "node bench/bench-sliding.mjs",
     "bench:perft": "node bench/bench-perft.mjs",
@@ -49,11 +49,9 @@
     "test:parity": "npm run build && node tests/parity.mjs",
     "test:perft": "npm run build && node tests/perft.mjs"
   },
-  "dependencies": {
-    "chessops": "0.15.1"
-  },
   "devDependencies": {
     "@types/node": "^26.4.0",
+    "chessops": "0.15.1",
     "esbuild": "^0.25.0",
     "rescript": "^12.3.1",
     "typescript": "^5.7.0"
