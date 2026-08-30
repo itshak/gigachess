@@ -1,8 +1,9 @@
-## Purpose
+# purechess-board-movegen Specification
 
+## Purpose
 Defines the immutable board encoding, 64-bit SquareSet pair, leaper and Black Magic sliding attack primitives, and higher-level movegen helpers that power legal move generation for the PureChess workstation; forbids BigInt in the hot path and references ADR-012 plain fixed-shift tables for 441% speedup over hyperbola.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: SquareSet SHALL be {lo,hi} pair with pure ops and no BigInt in hot path
 
@@ -69,9 +70,14 @@ The system SHALL provide `knightAttacks(sq: Square): SquareSet`, `kingAttacks(sq
 - **WHEN** `knightAttacks(D4)` is called twice with different board occupancies
 - **THEN** both calls return same `SquareSet` (knight jumps regardless), and input `SquareSet` not mutated
 
-### Requirement: Black Magic sliding SHALL use per-square mask/magic/shift/offset + flat attackTable (Fancy per-square, ADR-012 plain fixed-shift wins)
+### Requirement: Black Magic sliding SHALL use plain fixed-shift uniform 11 (Fancy per-square is allowed alternative)
 
-The system SHALL provide `bishopAttacks(sq: Square, occupied: SquareSet): SquareSet`, `rookAttacks(sq: Square, occupied: SquareSet): SquareSet`, `queenAttacks = or(bishopAttacks, rookAttacks)` via Black Magic plain fixed-shift Fancy: for each `sq`, `mask = relevantOccupancies(sq)` (edges excluded), `magic: uint64` (hex `magicHex` plus `magicLo/magicHi` split), `shift = 64 - popcount(mask)` (Fancy per-square, 52..59 for rook, 55..59 for bishop), `offset` cumulative, `attackTable: SquareSet[]` flat (rook 102400, bishop 5248, total 107648, generated offline via MIT `RecklessMagics`/`magic-bits`, JSON at `bench/magic-tables/{rook,bishop}.json`, **not GPL**). Computation SHALL be `index = ((occ64 & mask64) * magic64 >> shift) + offset` emulated without `BigInt` via `Math.imul` split of `lo/hi`: `hashLo = Math.imul(occLo & maskLo, magicLo) + ...` then `>>> shiftLow` etc (spec defines 64-bit formula, impl emulates with two `Math.imul` and carry, never `BigInt` in hot path). `occ` masked via `and(occupied, mask)` first. Tables SHALL be `sideEffects:false` and tree-shakeable. Uniform shift-11 stub (8192 entries) was baseline; per-square Fancy is size opt that keeps +441% win over HQ (9.35→51.73 MQueens/s) per `bench/results/sliding-2026-08-30.md`.
+The system SHALL provide `bishopAttacks(sq: Square, occupied: SquareSet): SquareSet`, `rookAttacks(sq: Square, occupied: SquareSet): SquareSet`, `queenAttacks = or(bishopAttacks, rookAttacks)` via Black Magic **plain fixed-shift uniform 11 (default, most performant for JS)**. **Fancy per-square variable shift (`shift = 64 - popcount(mask)`, 52..59) with per-square `offset` is an allowed alternative** for Stockfish-table compatibility, but default SHALL be plain uniform.
+
+- **Plain uniform (default):** For each `sq`, `mask = relevantOccupancies(sq)` (edges excluded), `magic: uint64` (hex `magicHex` plus `magicLo/magicHi` split), `shift = 11` fixed for all squares (homogeneous), `offset = sq * 2048` uniform, `attackTable: SquareSet[]` flat `64*2048=131072` (or 8192 slice for harness). Computation `index = ((occ64 & mask64) * magic64 >>> 11) + offset` emulated without `BigInt` via `Math.imul` split of `lo/hi`. Homogeneous `>>> 11` is most JIT-friendly (stable shape, `bench/results/sliding-2026-08-30-plain-vs-fancy.md`: plain 47.86 vs Fancy 45.84 → plain +4.4% @10M, both `>330%` vs HQ 10.50). GopherCheck baseline, ADR-012.
+- **Fancy per-square (alternative):** `shift = 64 - popcount(mask)` variable 52..59, `offset` cumulative, flat `attackTable` rook 102400 bishop 5248 total 107648, same `RecklessMagics` generator, same `bench/magic-tables/{rook,bishop}.json` schema (**not GPL**). Computation `index = ((occ64 & mask64) * magic64 >> perSquareShift) + perSquareOffset` via `Math.imul` split. Generates identical attacks; `bench/results/sliding-2026-08-30-plain-vs-fancy.md` shows plain vs Fancy are parity (plain +4.4% @10M, Fancy +18% @1M → noise), so either keeps the `+30%` gate (`bench/results/sliding-2026-08-30.md` Black Magic +441% vs HQ 9.35→51.73). Plain is default for `purechess` because it is leanest.
+
+Fancy and plain generate byte-identical `bishopAttacks`/`rookAttacks` vs naive ray for all 1000 random occupancies; harness `D: bigint` at 3.47 MQueens/s proves BigInt not viable. Tables SHALL be `sideEffects:false` and tree-shakeable. `bench/magic-tables/{rook,bishop}.json` SHALL contain per-square `mask`/`magic`/`shift`/`offset` + flat `attackTable` (MIT, not GPL) — impl may use plain uniform `shift=11` subset or full Fancy; both satisfy spec if GWT below passes.
 
 | Field | Type | Example (Rook A1) |
 |-------|------|-------------------|
@@ -138,4 +144,3 @@ Any movegen error string (illegal move `purechess.move.illegal`, `purechess.cast
 #### Scenario: Illegal move error is localized
 - **WHEN** `isLegal` returns false for `E1→E2` where king would move into check
 - **THEN** error code `purechess.move.leavesKingInCheck` has translations in `en, ru, he` and `AriaLiveAnnouncer` announces short queue-safe "Illegal move: leaves king in check" (localized) without disrupting focus
-
