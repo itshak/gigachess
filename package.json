@@ -1,0 +1,30 @@
+{
+  "name": "purechess-workstation",
+  "version": "0.1.0",
+  "description": "PureChess — native, local-first, accessible chess workstation (AGPL-3.0-or-later). Baseline for MIT purechess library.",
+  "type": "module",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"no tests yet (baseline)\" && exit 0",
+    "bench": "node bench/bench-sliding.mjs --iters 1000000 && node bench/bench-perft.mjs --depth 5 && node bench/bench-pgn.mjs --games 1000 && node bench/bench-fen-san.mjs --iters 1000 && node bench/bench-bundle.mjs --entry core",
+    "bench:sliding": "node bench/bench-sliding.mjs",
+    "bench:perft": "node bench/bench-perft.mjs",
+    "bench:pgn": "node bench/bench-pgn.mjs",
+    "bench:fen-san": "node bench/bench-fen-san.mjs",
+    "bench:bundle": "node bench/bench-bundle.mjs",
+    "bench:ci": "node bench/bench-ci.mjs"
+  },
+  "dependencies": {
+    "chessops": "0.15.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0"
+  }
+}

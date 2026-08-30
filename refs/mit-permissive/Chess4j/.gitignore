@@ -1,0 +1,14 @@
+target
+logs
+*.log
+test.csv
+network-*
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### VSCode
+.vscode

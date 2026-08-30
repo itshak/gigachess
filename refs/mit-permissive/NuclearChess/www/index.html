@@ -1,0 +1,446 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="format-detection" content="telephone=no" />
+		<!-- WARNING: for iOS 7, remove the width=device-width and height=device-height attributes. See https://issues.apache.org/jira/browse/CB-4323 -->
+<!--	<meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width, height=device-height, target-densitydpi=device-dpi" />-->
+				<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, target-densitydpi=medium-dpi, user-scalable=0" />
+		<link rel="stylesheet" type="text/css" href="css/bootstrap.min.css" />
+		<title>Nuclear Chess</title>
+
+		<script type="text/javascript" src="js/jquery.min.js" ></script>
+		<script type="text/javascript" src="js/bootstrap.min.js" ></script>
+		<script type="text/javascript" src="js/atomschach.js" ></script>
+		<script type="text/javascript" src="lib/chessboardjs/js/chessboard.js" ></script>
+		<script type="text/javascript" src="js/main.js" ></script>
+		<script type="text/javascript" src="js/game.js" ></script>
+		<link rel="stylesheet" href="css/default.css" />
+		<link rel="stylesheet" href="lib/chessboardjs/css/chessboard-0.3.0.min.css" />
+
+		<!-- favicons -->
+		<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+		<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+		<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+		<link rel="manifest" href="site.webmanifest">
+		<link rel="mask-icon" href="safari-pinned-tab.svg" color="#a9a41a">
+		<meta name="apple-mobile-web-app-title" content="Nuclear Chess">
+		<meta name="application-name" content="Nuclear Chess">
+		<meta name="msapplication-TileColor" content="#ffc40d">
+		<meta name="theme-color" content="#fffdca">
+
+		<style>
+			html, body {
+				min-height: 100%
+			}
+			body {
+				background: #ddd963; /* Old browsers */
+				background: radial-gradient(ellipse at 100% 80%, #FFFC83 0%, #9E9E9E 100%);
+			}
+			.body {
+				margin: 0 auto;
+				max-width: 500px;
+			}
+			#logo {
+				margin-top: 30px;
+				height: 90px;
+				max-height: 16.5vw;
+			}
+			#logo img {
+				height: 100%;
+				float: left;
+				margin-right: 10px;
+			}
+			.logo-name {
+				font-family: 'Rock Salt';
+				font-size: 6.8vw;
+				white-space: nowrap;
+				margin-top: 3.5vw;
+			}
+			@media all and (min-width: 500px) {
+				.logo-name {
+					font-size: 37px;
+					margin-top: 19px;
+				}
+			}
+			#game {
+				position: relative;
+			}
+			h2, h4, #game .btn, .back.btn, .button-col .btn {
+				font-family: 'Rock Salt';
+			}
+			h2 {
+				margin-left: 20px;
+				padding-bottom: 10px;
+			}
+			.button-col {
+				margin: 30px 0;
+			}
+			.button-col .btn {
+				width: 100%;
+				margin: 6px 0;
+			}
+			#start, #play {
+				//padding: 15px 10px;
+			}
+			#play-now {
+				margin: 30px 0;
+			}
+			.hint {
+				background: #ff7777;
+			}
+			#example-board .board-b72b1 {
+				border: none;
+			}
+			#example-board img {
+				transition: opacity 0.5s ease;
+			}
+			#example-board.done.keep-pawns-false [data-square=a7] img,
+			#example-board.done.keep-pawns-false [data-square=c7] img,
+			#example-board.done [data-square=a8] img,
+			#example-board.done [data-square=b8] img,
+			#example-board.done [data-square=c8] img
+			{
+				opacity: 0.15;
+			}
+
+			h4 {
+				margin-top: 20px;
+			}
+		</style>
+		<script>
+			var play_config = {
+				depth: 0,
+				player_color: 'white',
+				shuffle: false,
+				keep_pawns: false,
+				dead_squares: false,
+			};
+			function hselect(id, callback) {
+				var el = $('#' + id);
+				var as = el.find('a');
+				as.click(function () {
+					// unselect
+					el.find('a.btn-primary')
+						.removeClass('btn-primary')
+						.addClass('btn-default') ;
+
+					// select 
+					var data_change = $(this)
+						.removeClass('btn-default')
+						.addClass('btn-primary').data();
+					$.extend(play_config, data_change);
+
+					// callback
+					if (callback) {
+						callback(this.text);
+					}
+
+					return false;
+				});
+			}
+
+			function page(id, push_state) {
+				$('#start, #play, #game, #rules, #credits').hide();
+				$('#' + id).show();
+				if (push_state !== false) {
+					history.pushState({}, '', '#' + id);
+				}
+				if (id === 'play') {
+					// Show example board to help understand game modes
+					show_example();
+				}
+			}
+
+			function show_example() {
+				if (typeof variable !== 'undefined') {
+					ex_board.destroy();
+				}
+				ex_board = ChessBoard('example-board', {
+					showNotation: false,
+					position: 'rnbqkbnr/pppppppp/8/2N5/8/8/8/8',
+					pieceTheme: 'lib/chessboardjs/img/chesspieces/wikipedia/{piece}.png',
+					moveSpeed: 1000,
+					onMoveEnd: function () {
+						setTimeout(function() {
+							$('#example-board')
+								.addClass('done')
+								.addClass('keep-pawns-' + play_config.keep_pawns);
+						}, 100);
+						if (play_config.dead_squares) {
+							$('[data-square=b7] img').attr('src', 'lib/chessboardjs/img/chesspieces/wikipedia/nuke.png');
+						}
+					},
+				});
+				ex_board.move('c5-b7');
+			}
+
+			function read_hash() {
+				var active_page = window.location.hash.split('-')[0].slice(1);
+				if ($.inArray(active_page, ['start', 'play', 'rules', 'credits']) != -1) {
+					page(active_page, false);
+				} else if (window.location.hash) {
+					var url_data = window.location.hash.slice(1).split('-');
+					var fen = url_data[0];
+					play_config = {
+						depth: parseInt(url_data[1]),
+						player_color: (url_data[2] === 'w') ? 'white' : 'black',
+						keep_pawns: url_data[3] === 't',
+						dead_squares: url_data[4] === 't',
+						shuffle: false
+					}
+					page('game', false);
+					game.new_game(play_config, fen);
+				} else {
+					page('start', false);
+				}
+			}
+
+			$(function() {
+				// read data from URL hash
+				read_hash();
+				window.onhashchange = read_hash;
+
+				// click events
+				$('#play-btn').click(function() { page('play'); });
+				$('#rules-btn').click(function() { page('rules'); });
+				$('#credits-btn').click(function() { page('credits'); });
+				$('.back').click(function() { page('start'); });
+				$('#play-now').click(function() {
+					page('game');
+					game.new_game(play_config);
+				});
+
+				// horizontal selects on play settings page
+				hselect('game-mode', function (game_mode) {
+					$('#example-board')
+						.removeClass('done keep-pawns-false keep-pawns-true');
+					show_example();
+					$('#explanation div').hide()
+						.filter('.' + game_mode.toLowerCase().replace(' ', '-')).show();
+				});
+				hselect('difficulty');
+				hselect('play-as');
+				hselect('starting-positions');
+
+				// set active buttons
+				for (key in play_config) {
+					if (key !== 'keep_pawns' && key !== 'dead_squares') {
+						$('[data-' + key + '=' + play_config[key] + ']').click();
+					}
+				}
+				if (play_config.keep_pawns) {
+					$('[data-keep_pawns=true]').click();
+				} else if (play_config.dead_squares) {
+					$('[data-dead_squares=true]').click();
+				} else {
+					$('[data-keep_pawns=false][data-dead_squares=false]').click();
+				}
+			});
+		</script>
+	</head>
+	<body><div class="body">
+
+		<!-- translunary -->
+		<script type="text/javascript">
+		// <![CDATA[
+		try{
+		    (function(){
+		        var p=/^(?:(?![^:@]+:[^:@\/]*@)([^:\/?#.]+):)?(?:\/\/)?((?:(([^:@]*)(?::([^:@]*))?)?@)?([^:\/?#]*)(?::(\d*))?)/;
+		        if (document.referrer && (p.exec(document.referrer)[6] !== document.location.hostname))
+		        {
+		            var x = new XMLHttpRequest();
+		            x.open('POST',"http://www.translunary.com/api/v1.0/refer/karl/karlb.github.io",true);
+		            x.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+		            x.send("ref="+encodeURIComponent(document.referrer));
+		        }
+		    })();
+		}finally{}
+		// ]]>
+		</script>
+
+
+		<!------------------ Start Screen -------------->
+		<div class="container-fluid" id="start">
+			<div class="clearfix" id="logo">
+				<img src="img/logo.svg">
+				<div class="logo-name">Nuclear Chess</div>
+			</div>
+
+			<div class="row button-col">
+				<input id="play-btn" class="btn btn-lg btn-primary" type="button" value="Play">
+				<input id="rules-btn" class="btn btn-lg btn-default" type="button" value="Rules">
+				<input id="credits-btn" class="btn btn-lg btn-default" type="button" value="Credits">
+			</div>
+
+			<a href="https://play.google.com/store/apps/details?id=com.github.elastic" class="app-store" id="google-play">
+			  <img alt="Android app on Google Play"
+				   src="https://developer.android.com/images/brand/en_app_rgb_wo_45.png"
+				   style="" />
+			</a>
+			<!--a
+				class="app-store"
+				href="https://itunes.apple.com/us/app/nuclear-chess/id887150220?mt=8&uo=4"
+				target="itunes_store"
+				style="display:inline-block;overflow:hidden;background:url(img/app-store.png)
+				no-repeat;width:129px;height:38px;@media only
+				screen{background-image:url(https://linkmaker.itunes.apple.com/htmlResources/assets/en_us//images/web/linkmaker/badge_appstore-lrg.svg);}">
+			</a-->
+			
+		</div>
+
+
+		<!------------------ Game Settings -------------->
+		<div class="container-fluid" id="play">
+			<h4>Game Mode</h4>
+			<div class="btn-group btn-group-justified" role="group" id="game-mode">
+				<a class="btn btn-primary" role="button" data-keep_pawns="false" data-dead_squares="false">Full Blast</a>
+				<a class="btn btn-default" role="button" data-keep_pawns="true" data-dead_squares="false">Keep Pawns</a>
+				<a class="btn btn-default" role="button" data-keep_pawns="false" data-dead_squares="true">Dead Square</a>
+			</div>
+
+			<div class="media">
+				<div class="media-left">
+						<!--img class="media-object" src="..." alt="..." width="70px" height="70px"-->
+					<div class="media-object" style="width:88px; height:88px; overflow: hidden">
+						<div style="width:200%; height:200%" id="example-board"></div>
+					</div>
+				</div>
+				<div class="media-body" id="explanation">
+					<div class="full-blast">
+						When a capture is made, both pieces and all pieces on adjacent squares are removed from play.
+					</div>
+					<div class="keep-pawns">
+						When a capture is made, both pieces and all non-pawn pieces on adjacent squares are removed from play.
+					</div>
+					<div class="dead-square">
+						When a capture is made, the square becomes a Dead Square. All pieces on adjacent squares are removed from play. No piece can move on or through a Dead Square.
+					</div>
+				</div>
+			</div>
+
+			<h4 style="float: left">Easy</h4>
+			<h4 style="float: right">Hard</h4>
+			<h4 style="text-align: center">Difficulty</h4>
+			<div class="btn-group btn-group-justified" role="group" id="difficulty">
+				<a href="#" class="btn btn-default" role="button" data-depth="0">0</a>
+				<a href="#" class="btn btn-primary" role="button" data-depth="1">1</a>
+				<a href="#" class="btn btn-default" role="button" data-depth="2">2</a>
+				<a href="#" class="btn btn-default" role="button" data-depth="3">3</a>
+				<a href="#" class="btn btn-default" role="button" data-depth="4">4</a>
+				<a href="#" class="btn btn-default" role="button" data-depth="5">5</a>
+			</div>
+
+			<h4>Play As</h4>
+			<div class="btn-group btn-group-justified" role="group" id="play-as">
+				<a href="#" class="btn btn-primary" role="button" data-player_color="white">White</a>
+				<a href="#" class="btn btn-default" role="button" data-player_color="black">Black</a>
+			</div>
+
+			<h4>Starting Positions</h4>
+			<div class="btn-group btn-group-justified" role="group" id="starting-positions">
+				<a href="#" class="btn btn-primary" role="button" data-shuffle="false">Normal Start</a>
+				<a href="#" class="btn btn-default" role="button" data-shuffle="true">Shuffle Pieces</a>
+			</div>
+
+			<div style="text-align:center">
+				<button class="btn btn-primary btn-lg" id="play-now">Play Now</button>
+			</div>
+		</div>
+
+
+		<!------------------ Game ---------------------->
+		<div id="game">
+			<div id="top-bar">
+				<div>
+					<div>
+						<button class="btn btn-default" id='undo'>Undo</button>
+						<button class="btn btn-default" id='hint'>Hint</button>
+					</div>
+					<div style="width: 90%; vertical-align: middle">
+						<div id="thinking" class="progress progress-striped active" style="margin: 0 10%; display: none">
+							  <div class="progress-bar" role="progressbar" style="width:100%"></div>
+						</div>
+					</div>
+					<div style="text-align: right">
+						<button class="btn btn-default" id="new-game">New Game</button>
+					</div>
+				</div>
+			</div>
+			<div>
+				<div id="winner">Draw Game</div>
+				<div id="board"></div>
+			</div>
+		</div>
+
+
+		<!------------------ Rules -------------->
+		<div class="container-fluid" id="rules">
+			<h2>Rules</h2>
+			<div class="well">
+				<p>When a capture is made, both pieces and all pieces on adjacent squares are removed from play. Selecting a another game mode will result in slightly different behavior.</p>
+				<p>
+					All other chess rules apply, with the following simplifications:
+					<ul>
+						<li>There is no en passent capturing.
+						<li>When a pawn reaches the last rank he becomes a queen.
+						<li>Castling is allowed if the king and the rook are on their start position and there are no pieces between them.
+						<li>There is no check</li>
+					</ul>
+				</p>
+			</div>
+
+			<div style="text-align:center">
+				<button class="back btn btn-primary btn-lg">back</button>
+			</div>
+		</div>
+
+
+		<!------------------ Credits -------------->
+		<div class="container-fluid" id="credits">
+			<h2>Credits</h2>
+			<div class="well">
+				<h4 style="margin-top: 0">Nuclear Chess implementation</h4>
+				<ul class="list-unstyled">
+					<li><a href="http://www.karl.berlin">Karl Bartel</a>, code on <a href="https://github.com/karlb/nuclearchess">github</a></li>
+					<li><a href="http://www.berlincode.com">Ulf Bartel</a></li>
+					<li>Harald Bartel</li>
+				</ul>
+
+				<h4>Used libraries</h4>
+				<ul class="list-unstyled">
+					<li><a href="http://chessboardjs.com">chessboardjs</a> by Chris Oakman</li>
+					<li><a href="https://www.google.com/fonts/specimen/Rock+Salt">Rock Salt</a> font by Font Diner</li>
+					<li><a href="https://elrumordelaluz.github.io/csshake/">cssshake</a> by Lionel</li>
+				</ul>
+
+				<h4>Game Rules</h4>
+				<ul class="list-unstyled">
+					<li>Full Blast by unknown</li>
+					<li>Keep Pawns by unknown</li>
+					<li>Dead Square by Jason Shields</li>
+				</ul>
+			</div>
+
+			<div style="text-align:center">
+				<button class="back btn btn-primary btn-lg">back</button>
+			</div>
+		</div>
+
+	</div>
+
+	<script>
+		if ('serviceWorker' in navigator) {
+			navigator.serviceWorker
+				.register('/service-worker.js')
+				.then(() => {
+					console.log('Service worker registered');
+				})
+				.catch(err => {
+					console.log('Service worker registration failed: ' + err);
+				});
+		}
+	</script>
+	</body>
+</html>
+

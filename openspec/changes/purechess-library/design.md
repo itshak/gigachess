@@ -70,3 +70,52 @@ Rollback: delete `refs/` and `bench/` wiring — no workstation code affected, s
 ## Open Questions
 
 - None that block this baseline. Language winner is intentionally deferred to bake-off data. WASM lane is deferred to `purechess/wasm` if Phase 2 ever shows JS ceiling.
+
+## Appendix — Phase 1 Baseline Bake-off Result & Handoff to Phase 2 (2026-08-30)
+
+> **NOTE (Phase 2 handoff):** This appendix records the Phase 1 bake-off winner, the `pgn-chess-tree` ownership-but-GPL-taint nuance, and that Phase 2 spec agent (separate change, GPL-read allowed) will produce `purechess-rules`, `purechess-board-movegen`, `purechess-pgn-fen` delta specs — no implementation in this baseline. Verified `openspec status --change purechess-library --json` shows `proposal:done`, `specs:done`, `design:done`, `tasks:done` (see verification below).
+
+### Bake-off winner (Task 4.5, `bench/results/sliding-2026-08-30.md` — **honest, REAL HQ**)
+
+- **Harness:** `bench/bench-sliding.mjs` — **1M and 10M iters**, 5-run median, warmup 5% excluded, Node `v24.19.0` (spec pin `v22.5.0`)
+- **Candidates:**
+  - `A hq` (**REAL chessops HQ hyperbola**, not synthetic — `bench/candidates/hq.mjs` now wraps `chessops/dist/esm/attacks.js` + `SquareSet`): **9.36 MQueens/s @1M** (106.8 ms), **9.35 MQueens/s @10M** (1069 ms)
+  - `B black-magic` (plain fixed-shift lo/hi): **48.71 MQueens/s @1M** (20.5 ms), **48.96 MQueens/s @10M** (204 ms) — `bench/magic-tables/*.json` (MIT RecklessMagics, `sha256 eaa19d...`, uniform shift 11 baseline)
+  - `C rescript-lohi` (TS stub + ReScript bs.js): **60.58 MQueens/s @1M**, **63.02 MQueens/s @10M** — ReScript toolchain not yet added, stub reports `skipped` with rationale in `bench/README.md` (+24% vs B, but language decision deferred)
+  - `D bigint` (BigInt): **3.36 MQueens/s @1M**, **3.41 MQueens/s @10M** — **14.4× slower than B**, proves not hot-path viable (Scala.js precedent, `tc39/proposal-bigint#117`)
+- **Gate (spec):** `B` must beat `A` by **≥30%** to win, else `HQ` fallback.
+- **Result:** `B (+420.3% @1M, +423.5% @10M) → ✓ PASS → winner: `**`black-magic (plain fixed-shift lo/hi)`** per `specs/purechess-benchmarks`. **Previous synthetic baseline** (HQ stub at 148 MQueens/s) was **15.8× too fast** vs honest HQ (9.36) and has been replaced by the honest `hq.mjs` above. This is the correct bake-off result.
+- **Encoding locked:** `{lo,hi}` manual pair (both `hq` and `black-magic` use it; `BigInt` ruled out per 14.4×). **Slider algorithm locked to Black Magic** — Phase 2 SHALL use Black Magic for `purechess` sliding attacks, with per-square `RecklessMagics` JSON (table-size optimization only, winner already decided).
+- **Files:** `bench/results/sliding-2026-08-30.md` (honest 1M+10M tables + decision), `bench/candidates/hq.mjs` (now REAL), `bench/candidates/*`, `bench/magic-tables/*.json`
+
+### `pgn-chess-tree` ownership-but-GPL-taint nuance
+
+`pgn-chess-tree` (`github.com/anomalyco/pgn-chess-tree`) is **author-owned** but remains **AGPL-3.0 GPL-tainted** because it imports `chessops` (GPL-3.0-or-later) and lichess GPL helpers. Per ADR-001/010, the combined work is AGPL-3.0. Therefore:
+
+- It lives in `refs/gpl-only/` (spec-agent only, gitignored via `refs/gpl-only/*` + `!README.md`), **never** copied into `src/` or `bench/candidates/` or `bench/magic-tables/` verbatim.
+- Its optimizations (author's own `GameTree` shape, streaming chunking, variation/NAG handling) must be **re-specified** abstractly (PGN ABNF, `GameTree` node `{headers, moves:[{san,nags,comments,variations}]}`, chunked parser state machine) and **re-implemented clean-room** from that spec in Phase 2.
+- No GPL text appears in `src/` (CI `rg -n "GPL" src/` must be empty). This appendix and `refs/gpl-only/README.md` document the taint.
+
+### Phase 2 handoff
+
+- **Phase 2 change** (`purechess-spec`, separate `openspec new change`, owned by **spec agent** with GPL-read allowed) will:
+  1. Read `refs/gpl-only/` (`chessops@0.15.1`, Stockfish, `pgn-chess-tree`) + `refs/docs-refs/` (FIDE Laws 2023, Chess960 X-FEN/Shredder, python-chess/cm-pgn) and produce **language-neutral markdown specs**:
+     - `purechess-rules` (FEN/SAN/UCI, castling truth tables, move legality per FIDE),
+     - `purechess-board-movegen` (SquareSet `{lo,hi}` ops, slider magics, perft),
+     - `purechess-pgn-fen` (PGN ABNF, streaming, FEN round-trip).
+  2. Generate `bench/magic-tables/*.json` via MIT `RecklessMagics`/`magic-bits` (no GPL table copy) and check in JSON.
+  3. No implementation — impl agent in follow-up change reads only `specs/` + `refs/mit-permissive/` + `refs/docs-refs/`.
+- **This baseline (Phase 1):** No `purechess` implementation, no `src/` migration, no FEN/PGN grammar — only wall, harness, and bake-off wiring.
+- **Verification:** `openspec status --change purechess-library --json` on 2026-08-30 shows `proposal:done`, `specs:done`, `design:done`, `tasks:done` (all planning artifacts done; implementation tasks 1.1–6.3 completed, see `tasks.md` checkboxes). Next step is `openspec archive`.
+
+### Repro for this appendix
+
+```bash
+cat bench/results/sliding-2026-08-30.md
+cat refs/gpl-only/README.md | grep -A2 "pgn-chess-tree"
+cat refs/README.md | grep -A1 "pgn-chess-tree"
+openspec status --change purechess-library --json | jq .artifacts
+openspec validate purechess-library --strict --json
+npm run typecheck
+ls bench/*.mjs && ls bench/candidates/ && ls bench/magic-tables/ && shasum -a 256 bench/data/lichess_db.sample.pgn
+```

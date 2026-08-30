@@ -1,0 +1,7 @@
+# FIDE Laws of Chess 2023 — canonical URL
+# Do not vendor PDF binary in baseline (keeps repo <1 MB). Phase 2 spec agent will curl + shasum.
+URL=https://handbook.fide.com/files/handbook/LawsOfChess2023.pdf
+FILENAME=FIDE-Laws-2023.pdf
+SOURCE=FIDE Handbook, effective 2023-01-01
+SHA256=PLACEHOLDER_FIDE_7d0c3a6e_phase2_will_fill
+# Alternate: https://cloud.fide.com/s/laws2023 (if handbook path moves)
