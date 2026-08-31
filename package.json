@@ -1,10 +1,26 @@
 {
   "name": "turbochess",
   "version": "0.2.0",
-  "description": "turbochess \u2014 fast, clean-room, MIT-licensed chess engine library (functional public API, imperative inside). Formerly published as purechess (alias kept for one release).",
+  "description": "The fastest JavaScript/TypeScript chess engine & library. Zero-BigInt bitboards, 100% chess.js drop-in replacement, chesstree variation trees, Polyglot Zobrist hashing, and 100% MIT licensed.",
   "type": "module",
-  "private": true,
   "license": "MIT",
+  "author": "Itshak <aistreltsov@outlook.com>",
+  "keywords": [
+    "chess",
+    "chess-engine",
+    "chess-library",
+    "bitboard",
+    "stockfish",
+    "chesstree",
+    "chessops",
+    "chessjs",
+    "pgn",
+    "fen",
+    "san",
+    "uci",
+    "zobrist",
+    "chessground"
+  ],
   "sideEffects": false,
   "repository": {
     "type": "git",

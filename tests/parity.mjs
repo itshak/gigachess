@@ -49,7 +49,7 @@ for (const [name, [fen, counts]] of Object.entries(PERFT_POS)) {
 }
 
 console.log("== 2. FEN round-trip + dests parity (samplefen1000.epd) ==");
-const fenLines = readFileSync(new URL("../refs/mit-permissive/Chess4j/src/test/resources/samplefen1000.epd", import.meta.url).pathname, "utf8")
+const fenLines = readFileSync(new URL("../bench/data/samplefen1000.epd", import.meta.url).pathname, "utf8")
   .split("\n").map(l => l.trim()).filter(Boolean).slice(0, 1000);
 let fenRt = 0, fenParity = 0, fenFailPc = 0, fenFailCo = 0, fenN = 0; const fenBad = [];
 for (const line of fenLines) {

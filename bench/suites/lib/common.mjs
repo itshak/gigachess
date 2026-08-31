@@ -36,15 +36,15 @@ export const CORPORA = {
     sha256: "f5c0644769394e3169828dd6f224ab3204bb83f40fb535396e3de076ed7dc0f8",
   },
   perftsuite: {
-    path: "refs/mit-permissive/GopherCheck/test_suites/perftsuite.epd",
+    path: "bench/data/perftsuite.epd",
     sha256: "cb27ea3a61e11e8466ab4f76305e5db8f5de47eb413a723398217d490dfdab41",
   },
   wac150: {
-    path: "refs/mit-permissive/GopherCheck/test_suites/wac_150.epd",
+    path: "bench/data/wac_150.epd",
     sha256: "54a984ab7a1ba74ae021ab2a646fc157933995722b90321ea9de9a33d1ed381c",
   },
   samplefen1000: {
-    path: "refs/mit-permissive/Chess4j/src/test/resources/samplefen1000.epd",
+    path: "bench/data/samplefen1000.epd",
     // hash recorded in bench/README.md; verified when the corpus is used
     sha256: "88ff90cfa8bd67593d044ea245ccdc1b3f82be2a3c9ea2d8c2b3efe6166b72aa",
   },
