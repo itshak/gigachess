@@ -301,15 +301,11 @@ export function parseSan(san: string, pos: Position): Result<Move, SanError> {
       if (fromPiece.role !== Role.Pawn) continue;
     }
     if (m.to !== to) continue;
-    // capture match
-    const target = board.pieceAt(pos.board, to);
-    const isCap = (target && target.color !== pos.turn) || !!m.isEnPassant;
-    if (isCapture !== isCap) {
-      // For pawn, SAN may omit 'x' for capture? But spec says capture is 'x', we enforce.
-      // However for leniency, we could allow if isCapture false but move is capture and SAN is pawn? But spec requires 'x' for pawn capture, so mismatch should be error
-      // We'll enforce strict: if SAN indicates capture but move not capture -> not candidate; if SAN no capture but move is capture -> not candidate
-      continue;
-    }
+    // Capture flag in the SAN is cosmetic on INPUT (chessops parity): a legal
+    // move matching piece + destination is accepted whether or not the SAN's
+    // 'x' matches an actual capture (e.g. chessops accepts "Nxb5" for a quiet
+    // knight move when b5 is empty). Output (makeSan) still renders 'x' only
+    // for real captures, so announcer output is unchanged.
     // promotion
     if (promotion !== undefined) {
       if (m.promotion !== promotion) continue;
