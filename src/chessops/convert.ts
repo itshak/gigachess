@@ -1,4 +1,4 @@
-// src/chessops/convert.ts — internal engine <-> facade converters (ADR-014).
+// src/baseline/convert.ts — internal engine <-> facade converters (ADR-014).
 // Not part of the public API. The facade never mutates caller-provided values;
 // conversions produce fresh engine positions (the engine itself is immutable).
 import * as engineBoardMod from "../board.js";
@@ -64,7 +64,7 @@ export function engineCastling(sets: { white: Set<number>; black: Set<number> })
   };
 }
 
-/** chessops Setup -> engine Position. */
+/** baseline Setup -> engine Position. */
 export function setupToEngine(setup: Setup): EnginePosition {
   const sets = castlingSetsFromRights(setup.castlingRights, setup.board);
   return {
@@ -77,10 +77,10 @@ export function setupToEngine(setup: Setup): EnginePosition {
   };
 }
 
-/** engine Position -> chessops Setup. */
+/** engine Position -> baseline Setup. */
 export function setupFromEngine(pos: EnginePosition): Setup {
   const board = boardFromEngine(pos.board);
-  // chessops stores set bits as signed int32 — mirror that on the facade side
+  // baseline stores set bits as signed int32 — mirror that on the facade side
   const rights = new SquareSet(
     [...pos.castling.white].reduce((a, s) => a | (1 << s), 0) | 0,
     [...pos.castling.black].reduce((a, s) => a | (1 << (s - 32)), 0) | 0,

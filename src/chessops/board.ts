@@ -1,5 +1,5 @@
-// src/chessops/board.ts — chessops-exact Board class (ADR-014). Mutability
-// matches chessops (set/take/clear/reset mutate this instance); the wrapper
+// src/baseline/board.ts — baseline-exact Board class (ADR-014). Mutability
+// matches baseline (set/take/clear/reset mutate this instance); the wrapper
 // delegates to the immutable engine board, so caller-provided boards are
 // never mutated by engine operations.
 import * as engine from "../board.js";
@@ -65,7 +65,7 @@ export class Board implements Iterable<[Square, Piece]>, ByRole<SquareSet>, ByCo
   get king(): SquareSet {
     return new SquareSet(this._b.king.lo | 0, this._b.king.hi | 0);
   }
-  // Write-through property setters (chessops allows direct field mutation);
+  // Write-through property setters (baseline allows direct field mutation);
   // each setter replaces the role/color field in the engine board.
   private replace(name: keyof engine.Board, s: SquareSet): void {
     // normalize to unsigned before handing bits to the engine

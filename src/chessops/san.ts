@@ -1,4 +1,4 @@
-// src/chessops/san.ts — chessops-exact SAN API (ADR-014): position-first
+// src/baseline/san.ts — baseline-exact SAN API (ADR-014): position-first
 // signatures, `parseSan` returns `Move | undefined`.
 import * as engineSan from "../san.js";
 import type { Position } from "./chess.js";

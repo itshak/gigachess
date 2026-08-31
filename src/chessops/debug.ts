@@ -1,4 +1,4 @@
-// src/chessops/debug.ts — chessops-exact debug helpers (ADR-014).
+// src/baseline/debug.ts — baseline-exact debug helpers (ADR-014).
 import type { Position } from "./chess.js";
 import type { Board } from "./board.js";
 import type { SquareSet } from "./squareSet.js";

@@ -112,13 +112,13 @@ function positionsEqualForRepetition(a: Position, b: Position): boolean {
 
 // ---------- castling: one detect/apply path (ADR-013 as amended) ----------
 // ADR-013 bake-off result (change purechess-gates-green, task 1.1): the
-// chessops-style king-captures-rook representation (e1h1) is the single
+// baseline-style king-captures-rook representation (e1h1) is the single
 // canonical OUTPUT encoding used by dests/allDests/genLegalMoves (and hence
 // makeUci). It measured equal-or-faster than the normalized-landing encoding
 // (perft d3 11.26 vs 11.42 ms median; makeMove walk 425 vs 430 ms; allDests
 // 6.27 vs 6.39 ms — see bench/castling-bakeoff.mjs) and deletes the
 // canonicalization layer: standard-chess and Chess960 handling converge and
-// dests are byte-identical to chessops. Both INPUT forms are still accepted
+// dests are byte-identical to baseline. Both INPUT forms are still accepted
 // by detectCastling (king→rook square e1h1, and king→landing e1g1 as a
 // two-file step) so `parseUci("e1g1")` in standard chess and 960 `e1h1`
 // input keep working (UCI protocol boundary documented in ADR-013: engines
@@ -158,7 +158,7 @@ function planForDest(plans: CastlingPlan[], to: number): CastlingPlan | null {
  * Single source of truth for castling detection, shared by makeMove, isLegal,
  * makeSan, destsFast and genLegalMoves (design D2). Accepts both input
  * representations:
- *  - king→own-rook square (chessops / 960 input, e1h1), and
+ *  - king→own-rook square (baseline / 960 input, e1h1), and
  *  - king→normalized landing square (e1g1; a two-file king step),
  * provided the corresponding castling right exists and the rook is actually
  * on its origin square. Returns null for every non-castling move — in
@@ -173,7 +173,7 @@ export function detectCastling(pos: Position, from: number, to: number): Castlin
   const rights = piece.color === Color.White ? pos.castling.white : pos.castling.black;
   if (rights.size === 0) return null;
   const rank = squareRank(from);
-  // Input form 1: king captures own rook on its origin square (chessops/960).
+  // Input form 1: king captures own rook on its origin square (baseline/960).
   if (rights.has(to) && squareRank(to) === rank) {
     const target = board.pieceAt(pos.board, to);
     if (target && target.color === piece.color && target.role === Role.Rook) {
@@ -273,12 +273,12 @@ export function makeMove(pos: Position, move: Move): Position {
   let piece = board.pieceAt(pos.board, from);
   if (!piece) throw new Error("no piece at from");
   // Single castling detection for BOTH input representations (normalized
-  // landing e1g1 and chessops/960 king-captures-rook e1h1) — fixes the defect
+  // landing e1g1 and baseline/960 king-captures-rook e1h1) — fixes the defect
   // where `makeMove(pos, {from: king, to: landing})` moved only the king and
   // left the rook behind.
   let isEnPassant = !!move.isEnPassant;
   // Single castling detection for BOTH input representations (normalized
-  // landing e1g1 and chessops/960 king-captures-rook e1h1) — fixes the defect
+  // landing e1g1 and baseline/960 king-captures-rook e1h1) — fixes the defect
   // where `makeMove(pos, {from: king, to: landing})` moved only the king and
   // left the rook behind. detectCastling is the ONLY castling apply path
   // (design D2: no second castling code path); a move explicitly flagged
@@ -563,7 +563,7 @@ function moveLeavesKingSafe(
   return !attacks.isAttacked(destScratch, ksq, opposite(pos.turn));
 }
 
-// ---- Per-position check/pin-mask analysis (chessops-style legality) --------
+// ---- Per-position check/pin-mask analysis (baseline-style legality) --------
 // Computed ONCE per position, then reused for every piece's dests. This
 // replaces per-pseudo-move play-and-test for the common cases; the exact
 // play-and-test (moveLeavesKingSafe) remains only for the rare trap cases:
@@ -742,7 +742,7 @@ export function allDests(pos: Position): Map<number, SquareSet> {
 
 export function isLegal(pos: Position, move: Move): boolean {
   // Single castling path (design D2): both the normalized (e1g1) and the
-  // chessops/960 (e1h1) input forms resolve through detectCastling.
+  // baseline/960 (e1h1) input forms resolve through detectCastling.
   const castling = detectCastling(pos, move.from, move.to);
   if (castling) {
     const d = dests(pos, move.from);

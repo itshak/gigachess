@@ -75,7 +75,7 @@ export function makeSan(move: Move, pos: Position): string {
     const target = board.pieceAt(pos.board, move.to);
     if (target && target.color !== pos.turn) return true;
     if (move.isEnPassant) return true;
-    // en-passant capture onto the empty ep square (chessops output parity):
+    // en-passant capture onto the empty ep square (baseline output parity):
     // a pawn moving DIAGONALLY onto the ep square is a capture even when the
     // caller did not set the isEnPassant flag (external move objects). A
     // straight push to the ep square remains a quiet move.
@@ -209,7 +209,7 @@ export function parseSan(san: string, pos: Position): Result<Move, SanError> {
     if (kingSq === undefined) return Err({ code: "san/noKing" });
     // Find if castling is legal via dests. The generated dest is the
     // representation's castling square: normalized landing (6/2/62/58) or the
-    // right's rook square (chessops/960 form). Both are accepted.
+    // right's rook square (baseline/960 form). Both are accepted.
     const d = chess.dests(pos, kingSq);
     const normDest = pos.turn === Color.White ? (isKingSide ? 6 : 2) : (isKingSide ? 62 : 58);
     let dest: number | undefined;
@@ -301,9 +301,9 @@ export function parseSan(san: string, pos: Position): Result<Move, SanError> {
       if (fromPiece.role !== Role.Pawn) continue;
     }
     if (m.to !== to) continue;
-    // Capture flag in the SAN is cosmetic on INPUT (chessops parity): a legal
+    // Capture flag in the SAN is cosmetic on INPUT (baseline parity): a legal
     // move matching piece + destination is accepted whether or not the SAN's
-    // 'x' matches an actual capture (e.g. chessops accepts "Nxb5" for a quiet
+    // 'x' matches an actual capture (e.g. baseline accepts "Nxb5" for a quiet
     // knight move when b5 is empty). Output (makeSan) still renders 'x' only
     // for real captures, so announcer output is unchanged.
     // promotion

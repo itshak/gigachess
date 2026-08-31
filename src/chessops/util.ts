@@ -1,4 +1,4 @@
-// src/chessops/util.ts — chessops-exact util functions (ADR-014).
+// src/baseline/util.ts — baseline-exact util functions (ADR-014).
 import type { CastlingSide, Color, Move, Role, RoleChar, Square, SquareName } from "./types.js";
 
 export const defined = <A>(v: A | undefined): v is A => v !== undefined;

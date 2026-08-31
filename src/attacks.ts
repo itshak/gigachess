@@ -158,8 +158,8 @@ export function pawnAttacks(color: Color, sqIdx: number): SquareSet {
 // The table modules are NEVER in the static import graph of `purechess/core`
 // (bundle gate): they load via dynamic `import()` behind
 // `ensureMagicTablesLoaded()`. Until loaded — or if loading fails — the naive
-// ray-walk fallback serves; it is measured at 1.66× chessops, so a
-// chessops-beating guarantee holds from the very first call. Each attack call
+// ray-walk fallback serves; it is measured at 1.66× baseline, so a
+// baseline-beating guarantee holds from the very first call. Each attack call
 // returns a FRESH `{lo, hi}` object: typed-array storage removes the
 // shared-mutable-entry aliasing hazard of the old object table (ADR-012 §4)
 // and is measured faster despite the per-call allocation.
@@ -182,7 +182,7 @@ function decodeMagicViews(b64: string): Promise<MagicViews> {
   // gzip-decompress via DecompressionStream (Node 18+/all modern browsers —
   // the package requires Node ≥22.5). On the rare platform without it, the
   // load fails and the naive fallback keeps serving (never slower than
-  // chessops), so no hard dependency is introduced.
+  // baseline), so no hard dependency is introduced.
   const DS = (globalThis as { DecompressionStream?: typeof DecompressionStream }).DecompressionStream;
   if (!DS) return Promise.reject(new Error("DecompressionStream unavailable"));
   const stream = new Blob([gzBytes]).stream().pipeThrough(new DS("gzip"));
@@ -201,7 +201,7 @@ function decodeMagicViews(b64: string): Promise<MagicViews> {
  * the naive fallback to the magic tables. Idempotent and concurrency-safe:
  * concurrent callers share one in-flight load. Callers may `await` it or
  * fire-and-forget (pre-warm at app startup, non-blocking); until it resolves,
- * the naive ray-walk fallback serves and stays ≥1.5× chessops.
+ * the naive ray-walk fallback serves and stays ≥1.5× baseline.
  */
 export function ensureMagicTablesLoaded(): Promise<void> {
   if (tablesLoadPromise === null) {
@@ -230,7 +230,7 @@ export function magicTablesLoaded(): boolean {
 // ---------- sliding attacks via magic (blob views) or naive fallback ----------
 export function bishopAttacks(sqIdx: number, occupied: SquareSet): SquareSet {
   // Until the blob tables load (ensureMagicTablesLoaded), the naive ray-walk
-  // fallback serves — measured 1.66× chessops, never slower than chessops.
+  // fallback serves — measured 1.66× baseline, never slower than baseline.
   const v = bishopViews;
   if (v === null) return bishopAttacksNaive(sqIdx, occupied);
   const b = sqIdx * MAGIC_META_STRIDE;

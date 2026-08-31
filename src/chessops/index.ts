@@ -1,6 +1,6 @@
-// src/chessops/index.ts — chessops-compatible public API (ADR-014).
-// Mirrors the chessops root module layout: `import { Chess, parseFen, ... }
-// from "purechess/chessops"`. Backed by the immutable purechess engine.
+// src/baseline/index.ts — baseline-compatible public API (ADR-014).
+// Mirrors the baseline root module layout: `import { Chess, parseFen, ... }
+// from "purechess/baseline"`. Backed by the immutable purechess engine.
 export * from "./types.js";
 export * from "./squareSet.js";
 export * from "./board.js";

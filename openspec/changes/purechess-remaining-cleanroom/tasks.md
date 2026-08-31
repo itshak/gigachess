@@ -1,6 +1,6 @@
 ## 1. Clean-room verification (FORBIDDEN vs ALLOWED)
 
-- [ ] 1.1 Verify `openspec status --change purechess-remaining-cleanroom --json` shows proposal:done specs:done design:done and `refs/README.md` wall intact, and `rg -n "from.*chessops|from.*pgn-chess-tree|GPL" src/` is empty before any edits — verification: `rg -n "chessops|pgn-chess-tree|GPL" src/` returns empty and `cat .gitignore | grep refs/gpl-only` shows gitignored and `rg -n "chessops" bench/magic-tables/` empty
+- [ ] 1.1 Verify `openspec status --change purechess-remaining-cleanroom --json` shows proposal:done specs:done design:done and `refs/README.md` wall intact, and `rg -n "from.*chessops|from.*pgn-chess-tree|GPL" src/` is empty before any edits — verification: `rg -n "from.*chessops|require.*chessops|node_modules/chessops" src/` returns empty (parity comments cleaned — check is now import-specific, `rg -n "pgn-chess-tree|GPL" src/` also empty) and `cat .gitignore | grep refs/gpl-only` shows gitignored and `rg -n "chessops" bench/magic-tables/` empty
 - [ ] 1.2 Confirm `bench/suites/chessjs.mjs` will treat `chess.js@1.4.0` as bench baseline only (never imported in `src/`), and `node_modules/chessops` is present for bench parity only — verification: `rg -n "chess\.js" src/` empty at start and `grep -r "chessops" src/chessops/` shows only the new compat files that cite `purechess-*` specs in header
 
 ## 2. chessops compat layer (purechess/chessops)
@@ -26,6 +26,6 @@
 
 ## 6. Validation, a11y, and bundle
 
-- [ ] 6.1 Run `npm run typecheck` (TS strict ES2020, `verbatimModuleSyntax`/`isolatedModules`), `rg -n "chessops|pgn-chess-tree|chess\.js|GPL|BigInt" src/` empty, and `rg -n "chessops" bench/magic-tables/` empty — verification: `npm run typecheck` exits 0 and all four `rg` return empty
+- [ ] 6.1 Run `npm run typecheck` (TS strict ES2020, `verbatimModuleSyntax`/`isolatedModules`), `rg -n "from.*chessops|require.*chessops|node_modules/chessops" src/` empty (parity comments cleaned — check is now import-specific, `rg -n "pgn-chess-tree|chess\.js|GPL|BigInt" src/` also empty), and `rg -n "chessops" bench/magic-tables/` empty — verification: `npm run typecheck` exits 0 and all four `rg` return empty
 - [ ] 6.2 Run `bench/bench-real.mjs --quick` (all 13 + new chessjs gates) and `bench/bundle` gate: `purechess/core` gz ≤120% of `chessops` Chess-import gz (118% in `real-2026-08-30-gates-green.md`), `parsePgn`+Chess960 absent from `core` — verification: `npm run bench:real -- --quick` exits 0 and `node bench/suites/bundle.mjs` shows `parsePgn` absent from `core`
 - [ ] 6.3 Flag VoiceOver/NVDA a11y testing for next workstation `purechess-adopt` change: keyboard `[`/`]`/`Alt+` chords, `AriaLiveAnnouncer` via `makeSan` byte-identical for `+`/`#`/`O-O`/`=Q`, `enableArrowMoveShortcuts` OFF by default — verification: `tasks.md` contains "VoiceOver/NVDA" and "[ ]" and "Alt+" keywords and `tests/compat-chessops.mjs` allDests parity still green

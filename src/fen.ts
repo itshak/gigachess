@@ -55,7 +55,7 @@ function charFromPiece(color: Color, role: Role): string {
 
 export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: boolean }): Result<Setup, FenError> {
   const trimmed = fen.trim();
-  // split by whitespace (one or more spaces). chessops-compatible field
+  // split by whitespace (one or more spaces). baseline-compatible field
   // tolerance: 1..6 fields are accepted (missing fields default to
   // w/-/-/0/1); more than 6 fields is rejected — this is required for
   // parse-agreement parity on corpora like wac_150.epd whose FENs carry only
@@ -208,7 +208,7 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
   // unconditional per purechess-rules. The capturability check moves behind
   // `strict` (design D3): real-world corpora (lichess FENs after any double
   // push) and purechess's own makeFen output contain unreachable ep squares,
-  // and chessops accepts them — rejecting them broke round-trip for ~4.7% of
+  // and baseline accepts them — rejecting them broke round-trip for ~4.7% of
   // real-game positions.
   let epSquare: number | null = null;
   if (epStr !== "-") {

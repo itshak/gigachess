@@ -1,4 +1,4 @@
-// src/chessops/setup.ts — chessops-exact Setup interface and helpers (ADR-014).
+// src/baseline/setup.ts — baseline-exact Setup interface and helpers (ADR-014).
 // Pockets/remainingChecks are always undefined: purechess implements standard
 // chess only (no Crazyhouse/3check — variants are out of project scope).
 import { Board } from "./board.js";
@@ -121,7 +121,7 @@ export class RemainingChecks implements ByColor<number> {
   }
 }
 
-/** A not necessarily legal standard-chess position (chessops-exact shape). */
+/** A not necessarily legal standard-chess position (baseline-exact shape). */
 export interface Setup {
   board: Board;
   pockets: Material | undefined;

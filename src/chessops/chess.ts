@@ -1,6 +1,6 @@
-// src/chessops/chess.ts — chessops-exact Position/Chess/Castles classes (ADR-014).
-// The facade keeps the chessops mutable-instance semantics (play() mutates the
-// position, exactly like chessops) while delegating all rules to the immutable
+// src/baseline/chess.ts — baseline-exact Position/Chess/Castles classes (ADR-014).
+// The facade keeps the baseline mutable-instance semantics (play() mutates the
+// position, exactly like baseline) while delegating all rules to the immutable
 // purechess engine. Caller-provided values (Setup, Move) are never mutated.
 import { Result } from "@badrap/result";
 import * as engine from "../chess.js";
@@ -166,7 +166,7 @@ export abstract class Position {
 
   /** Lazily rebuilt engine position (rebuilt after every mutation). Built
    * directly from the raw fields — NOT via toSetup(), whose legalEpSquare
-   * filter would recurse. The raw ep square is what chessops keeps on the
+   * filter would recurse. The raw ep square is what baseline keeps on the
    * position too; the legal-ep filter only applies to toSetup(). */
   private epos(): EnginePosition {
     if (this._epos === null) {
@@ -180,7 +180,7 @@ export abstract class Position {
     return this._epos;
   }
 
-  /** chessops keeps the RAW ep square on the position (toSetup() applies the
+  /** baseline keeps the RAW ep square on the position (toSetup() applies the
    * legalEpSquare filter); this internal view mirrors that. */
   private toSetupRaw(): Setup {
     return {
@@ -211,7 +211,7 @@ export abstract class Position {
     };
   }
 
-  /** chessops legalEpSquare: the ep square survives into a Setup only when a
+  /** baseline legalEpSquare: the ep square survives into a Setup only when a
    * legal ep capture exists. */
   private legalEpSquare(): Square | undefined {
     if (this.epSquare === undefined) return undefined;
@@ -375,7 +375,7 @@ export abstract class Position {
   }
 
   allDests(_ctx?: Context): Map<Square, SquareSet> {
-    // chessops-exact: one entry per OWN piece, including empty dests for
+    // baseline-exact: one entry per OWN piece, including empty dests for
     // pieces with no legal moves (e.g. the black backrank after 1.d4).
     const epos = this.epos();
     const out = new Map<Square, SquareSet>();

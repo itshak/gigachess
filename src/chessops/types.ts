@@ -1,5 +1,5 @@
-// src/chessops/types.ts — chessops-exact public types (string enums, constants)
-// Part of the chessops-compatible public API (ADR-014). Backed by the
+// src/baseline/types.ts — baseline-exact public types (string enums, constants)
+// Part of the baseline-compatible public API (ADR-014). Backed by the
 // immutable purechess engine; callers' inputs are never mutated.
 
 export const FILE_NAMES = ["a", "b", "c", "d", "e", "f", "g", "h"] as const;

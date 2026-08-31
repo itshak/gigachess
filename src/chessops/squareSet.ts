@@ -1,4 +1,4 @@
-// src/chessops/squareSet.ts — chessops-exact immutable SquareSet class over
+// src/baseline/squareSet.ts — baseline-exact immutable SquareSet class over
 // the engine's {lo,hi} bitboards (ADR-014). Same bit layout: square s is
 // `lo` bit s for s < 32, `hi` bit s-32 otherwise; iteration is ascending.
 import type { Color, Square } from "./types.js";
@@ -8,8 +8,8 @@ export class SquareSet implements Iterable<Square> {
   readonly hi: number;
 
   constructor(lo: number, hi: number) {
-    // chessops stores lo/hi as SIGNED int32 — coerce identically so `.hi`
-    // reads compare equal to chessops (e.g. full() is -1/-1, not 0xffffffff).
+    // baseline stores lo/hi as SIGNED int32 — coerce identically so `.hi`
+    // reads compare equal to baseline (e.g. full() is -1/-1, not 0xffffffff).
     this.lo = lo | 0;
     this.hi = hi | 0;
   }
@@ -103,7 +103,7 @@ export class SquareSet implements Iterable<Square> {
     return new SquareSet(outLo, outHi);
   }
   minus64(other: SquareSet): SquareSet {
-    // 64-bit integer subtraction a - b (signed representation, chessops-exact)
+    // 64-bit integer subtraction a - b (signed representation, baseline-exact)
     const lo = this.lo - other.lo;
     const hi = this.hi - other.hi - (this.lo < other.lo ? 1 : 0);
     return new SquareSet(lo, hi);

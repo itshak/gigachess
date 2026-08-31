@@ -1,4 +1,4 @@
-// src/chessops/fenInternal.ts — engine bridge shared by the chessops-compatible
+// src/baseline/fenInternal.ts — engine bridge shared by the baseline-compatible
 // facade modules (ADR-014). Not part of the public API.
 import * as engine from "../board.js";
 
