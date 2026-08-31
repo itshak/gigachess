@@ -1,7 +1,7 @@
 {
   "name": "turbochess",
   "version": "0.2.0",
-  "description": "The fastest JavaScript/TypeScript chess engine & library. Zero-BigInt bitboards, 100% chess.js drop-in replacement, chesstree variation trees, Polyglot Zobrist hashing, and 100% MIT licensed.",
+  "description": "The fastest chess engine in JavaScript. 1-line drop-in upgrade for chess.js and chessops with 3.5x faster move validation, 120,000 games/sec PGN parsing, and built-in variation trees.",
   "type": "module",
   "license": "MIT",
   "author": "Itshak <aistreltsov@outlook.com>",

@@ -5,8 +5,9 @@
 <h1 align="center">TurboChess</h1>
 
 <p align="center">
-  <strong>The fastest JavaScript and TypeScript chess engine and workstation library on Earth.</strong><br>
-  Zero-BigInt bitboards, Stockfish-derived move generation, 100% <code>chess.js</code> ergonomic drop-in replacement, full <code>chesstree</code> variation tree analysis, 64-bit Polyglot Zobrist hashing, and 100% MIT licensed.
+  <strong>The fastest chess engine in JavaScript.</strong><br>
+  A 1-line drop-in upgrade for <code>chess.js</code> and <code>chessops</code> delivering 3.5x faster move validation, 
+  120,000 games/sec PGN parsing, and interactive variation trees.
 </p>
 
 <p align="center">
@@ -21,14 +22,14 @@
 
 ## ⚡ Why TurboChess?
 
-Until today, JavaScript chess developers had to choose between two compromises:
+Until today, chess developers had to choose between two compromises:
 1. **`chess.js`**: Intuitive API, but slow (array-based board scans, string allocations on every move, no bitboards, no variation trees).
 2. **`chessops`**: Fast bitboards, but restrictive GPL licensing, functional-only syntax with no single class, and lack of variation trees or transposition hashing.
 
-**TurboChess eliminates this compromise.** It provides:
+**TurboChess eliminates this compromise.** It gives you:
 - 🚀 **3.5x Faster than `chess.js`** across all standard operations.
 - ⚡ **Up to 3.3x Faster than `chessops`** on real-world workstation workloads.
-- 🔄 **100% 1-Line Drop-in Replacement** for `chess.js` (`import { Chess } from 'turbochess'`).
+- 🔄 **1-Line Drop-in Replacement** for `chess.js` (`import { Chess } from 'turbochess'`) and `chessops` (`import * as chessops from 'turbochess/chessops'`).
 - 🌳 **Built-in `chesstree` Variation Trees** (`game.toTree()` and `Chess.loadTree(pgn)`).
 - 🔑 **Instant $O(1)$ 64-bit Polyglot Zobrist Hashing** (`game.zobrist()`).
 - 📦 **16-bit Binary Move Streams (`moves2`)** (25x smaller memory footprint per game).
@@ -67,12 +68,12 @@ npm install turbochess
 ## 🏎️ 1-Line Drop-in Migrations
 
 ### From `chess.js`
-Replace your import statement. Every method, property, and type signature works out of the box:
+Replace your import statement. Every method, property, and type signature works out of the box with an instant 3.5x speed boost:
 ```ts
 // Before:
 // import { Chess } from 'chess.js';
 
-// After (Instant 3.5x speed boost!):
+// After:
 import { Chess } from 'turbochess';
 
 const chess = new Chess();
@@ -89,7 +90,7 @@ Import the high-performance compatibility module with exact API shape and 100% M
 // import { Chess } from 'chessops/chess';
 // import { parseFen } from 'chessops/fen';
 
-// After (100% MIT, 3x faster UI dests):
+// After:
 import { Chess } from 'turbochess/chessops/chess';
 import { parseFen } from 'turbochess/chessops/fen';
 ```
