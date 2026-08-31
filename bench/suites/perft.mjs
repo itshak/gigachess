@@ -38,7 +38,6 @@ function parseWac(abs, depth) {
 }
 
 export const name = "perft";
-
 export async function run(opts) {
   const o = { ...parseSuiteArgs(process.argv.slice(2)), ...opts };
   const depthCap = o.depth ?? 4;
@@ -52,7 +51,13 @@ export async function run(opts) {
   const parityFailures = [];
   let comparisons = 0;
   const positions = [];
+  let parityEntry = 0;
   for (const entry of all) {
+    parityEntry++;
+    if (parityEntry % 25 === 0 || parityEntry === all.length) {
+      process.stdout.write(`\r    parity: FEN ${parityEntry}/${all.length} (${comparisons} comparisons)   `);
+      if (parityEntry === all.length) process.stdout.write("\r" + " ".repeat(60) + "\r");
+    }
     const pc = parseFen(entry.fen);
     const coSetup = coParseFen(entry.fen);
     if (!pc.ok || coSetup.isErr) {
@@ -104,8 +109,8 @@ export async function run(opts) {
     return n;
   };
 
-  const pcM = measure(runPc);
-  const coM = measure(runCo);
+  const pcM = measure(runPc, "turbochess");
+  const coM = measure(runCo, "chessops");
   const pcNps = thr(totalNodes, pcM.median);
   const coNps = thr(totalNodes, coM.median);
   const ratio = pcNps / coNps;

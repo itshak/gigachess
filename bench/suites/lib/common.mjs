@@ -83,7 +83,7 @@ export function sha256File(abs) {
 // Measurement: 3 warmups excluded, median of 20 runs, global.gc() forced
 // between iterations, performance.now() clock.
 // ---------------------------------------------------------------------------
-export function measure(fn) {
+export function measure(fn, label = "") {
   for (let i = 0; i < WARMUPS; i++) {
     global.gc();
     fn();
@@ -94,7 +94,15 @@ export function measure(fn) {
     const t0 = performance.now();
     fn();
     samples[i] = performance.now() - t0;
+    // Real-time progress (turbochess-unified-api-and-perf, task 4.2 / spec:
+    // the harness SHALL emit live progress during long measurement cycles so
+    // contributors and CI never perceive a hang). Suites that don't pass a
+    // label keep the previous silent behavior.
+    if (label) {
+      process.stdout.write(`\r    ${label} run ${String(i + 1).padStart(2)}/${RUNS} — ${samples[i].toFixed(0)} ms   `);
+    }
   }
+  if (label) process.stdout.write("\r" + " ".repeat(60) + "\r");
   samples.sort((a, b) => a - b);
   const q = (p) => samples[Math.min(RUNS - 1, Math.floor(p * RUNS))];
   return { median: q(0.5), p10: q(0.1), p90: q(0.9), samples };

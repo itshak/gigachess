@@ -93,7 +93,9 @@ export function shr(set: SquareSet, n: number): SquareSet {
 function popcnt32(x: number): number {
   x = x - ((x >>> 1) & 0x55555555);
   x = (x & 0x33333333) + ((x >>> 2) & 0x33333333);
-  return (((x + (x >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24;
+  // Math.imul keeps the multiply in exact int32 domain (the old `*` went
+  // through double-precision and cost a ToNumber round-trip in V8).
+  return Math.imul((x + (x >>> 4)) & 0x0f0f0f0f, 0x01010101) >>> 24;
 }
 
 export function popcount(set: SquareSet): number {

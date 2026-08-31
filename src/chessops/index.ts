@@ -10,3 +10,27 @@ export * from "./fen.js";
 export * from "./san.js";
 export * from "./util.js";
 export * from "./debug.js";
+// Integrated tree analysis (change turbochess-unified-api-and-perf, task 3.3):
+// the workstation consumes chessops + chesstree from ONE package. Re-exports
+// the clean-room chesstree layer (buildTree / pgnImport / pgnExport /
+// TreeWrapper) alongside the chessops-shaped API.
+export {
+  buildTree,
+  pgnImport,
+  pgnExport,
+  build,
+  TreeWrapperImpl,
+} from "../chesstree.js";
+export type {
+  TreeWrapper,
+  TreeNode,
+  Path,
+  Comment,
+  Glyph,
+  Clock,
+  Shape,
+  Eval as TreeEval,
+  Game,
+  Player,
+  AnalyseData,
+} from "../chesstree.js";

@@ -119,9 +119,18 @@ export function makeSan(move: Move, pos: Position): string {
       }
     })();
     const sameRole = sq.and(own, roleSet);
+    // CheckContext reuse (design D4): the position's check/pin masks are
+    // computed ONCE per makeSan call and shared across every candidate
+    // piece's dest evaluation, instead of re-running the full
+    // analyzeCheckContext inside chess.dests() per candidate — O(N x movegen)
+    // becomes O(N) with one shared context. Zero allocation beyond the
+    // context itself; SAN output is byte-identical (same destsFast semantics).
+    const ctx = chess.analyzeCheckContext(pos);
     for (const sqIdx of sq.iter(sameRole)) {
       if (sqIdx === move.from) continue;
-      const d = chess.dests(pos, sqIdx);
+      const cand = board.pieceAt(pos.board, sqIdx);
+      if (!cand) continue;
+      const d = chess.destsFast(pos, sqIdx, cand, ctx);
       if (sq.has(d, move.to)) candidates.push(sqIdx);
     }
     // Include moving piece itself, total candidates +1 = all that can reach dest

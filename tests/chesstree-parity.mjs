@@ -198,5 +198,46 @@ compareExport("variation-lead-comment", r7.co, r7.tc);
     tcPgn.includes("1. e4 e5 (1... c5) 2. Nf3 *"));
 }
 
+// ---- unified Chess.toTree/loadTree (change turbochess-unified-api-and-perf,
+// task 3.1) — root Chess exposes native tree navigation + PGN rendering ----
+{
+  const { Chess: UnifiedChess, makeFen } = await import("../dist/index.js");
+  const g = new UnifiedChess();
+  for (const san of ["e4", "e5", "Nf3", "Nc6", "Bb5"]) g.move(san);
+  const tree = g.toTree();
+  check("toTree returns a TreeWrapper", typeof tree.nodeAtPath === "function" && typeof tree.pgn === "function");
+  check("toTree lastPly === 5", tree.lastPly() === 5, String(tree.lastPly()));
+  // build the mainline path by walking first children (ids are wrapper-assigned)
+  let mainPath = "";
+  let walker = tree.root;
+  while (walker.children.length > 0) {
+    walker = walker.children[0];
+    mainPath += walker.id;
+  }
+  const nodes = tree.getNodeList(mainPath);
+  check("toTree mainline node chain", nodes.length === 6 && nodes[1].san === "e4" && nodes[5].san === "Bb5");
+  check("toTree node FENs track the game", nodes[3].fen === makeFen(g.historyEntries[2].after));
+  check("toTree recursive PGN renders movetext", tree.pgn().includes("1. e4 e5 2. Nf3 Nc6 3. Bb5"));
+  // addNode / setCommentAt through the wrapper
+  const path = mainPath;
+  tree.setCommentAt({ id: "c1", text: "Ruy Lopez" }, path);
+  check("toTree wrapper setCommentAt", tree.nodeAtPath(path).comments?.[0]?.text === "Ruy Lopez");
+  // loadTree: import PGN, replay mainline into live state
+  const pgn = '[Event "t"]\n[Site "?"]\n[Result "*"]\n\n1. d4 d5 2. c4 *';
+  const g2 = new UnifiedChess();
+  const tree2 = g2.loadTree(pgn);
+  check("loadTree returns a wrapper", typeof tree2.pgn === "function");
+  check("loadTree replays mainline into the game", g2.history().length === 3 && g2.fen().startsWith("rnbqkbnr/ppp1pppp/8/3p4/2PP4/8/PP2PPPP/RNBQKBNR b KQkq"), g2.fen().slice(0, 30));
+  check("loadTree navigates imported tree", tree2.nodeAtPath(tree2.longestValidPath("zzzzzzzzzz")) !== undefined);
+  // chessops subpath exposes the integrated tree API (task 3.3)
+  const co = await import("../dist/chessops/index.js");
+  check("turbochess/chessops exposes buildTree + pgnImport", typeof co.buildTree === "function" && typeof co.pgnImport === "function");
+  const coData = co.pgnImport(pgn);
+  // mainline is a nested chain under the root (chesstree convention)
+  let chain = 0, node = coData.treeParts[0];
+  while (node.children.length > 0) { node = node.children[0]; chain++; }
+  check("chessops.pgnImport builds mainline chain", coData.treeParts.length > 0 && chain === 3);
+}
+
 console.log(`\n==== RESULT: ${pass} passed, ${fail} failed ====`);
 process.exit(fail === 0 ? 0 : 1);

@@ -56,6 +56,11 @@ export type Setup = {
   // aliases for spec naming
   readonly halfmove?: number;
   readonly fullmove?: number;
+  // 64-bit Zobrist key (zero-BigInt {lo,hi} halves; see src/zobrist.ts).
+  // Optional: present only when the Zobrist tables are loaded — makeMove
+  // maintains these fields incrementally whenever the input position has them.
+  readonly zobristLo?: number;
+  readonly zobristHi?: number;
 };
 
 export type Position = Setup;

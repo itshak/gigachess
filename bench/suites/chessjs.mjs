@@ -37,7 +37,7 @@ import {
   WARMUPS,
   RUNS,
 } from "./lib/common.mjs";
-import { Chess as PcChess } from "../../dist/chessjs.js";
+import { Chess as PcChess } from "../../dist/index.js";
 import { parsePgn as pcParsePgn } from "../../dist/pgn.js";
 import { Chess as JsChess } from "chess.js";
 

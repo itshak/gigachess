@@ -335,75 +335,57 @@ export function attackersTo(
   attacker: Color,
   occ: SquareSet = board.occupied,
 ): SquareSet {
-  const colorOcc = attacker === Color.White ? board.white : board.black;
+  // Inlined 32-bit {lo,hi} bitwise math (spec: zero intermediate SquareSet
+  // allocations in the attack hot paths). Semantics identical to the previous
+  // sq.and/sq.or composition: attackers = attackerOcc & roleSet & attackSet.
+  const w = attacker === Color.White;
+  const aLo = (w ? board.white.lo : board.black.lo) >>> 0;
+  const aHi = (w ? board.white.hi : board.black.hi) >>> 0;
   // pawn origins: pawnAttacks(opposite, square) mirrors the attacker pawns that hit square
-  const oppPawnAtt = pawnAttacks(attacker === Color.White ? Color.Black : Color.White, square);
-  const attackerPawns = attacker === Color.White ? sq.and(board.white, board.pawn) : sq.and(board.black, board.pawn);
-  let attackers = sq.and(attackerPawns, oppPawnAtt);
+  const pAtt = pawnAttacks(w ? Color.Black : Color.White, square);
+  let lo = (aLo & board.pawn.lo & pAtt.lo) >>> 0;
+  let hi = (aHi & board.pawn.hi & pAtt.hi) >>> 0;
   const nAtt = knightAttacks(square);
-  const attackerKnights = attacker === Color.White ? sq.and(board.white, board.knight) : sq.and(board.black, board.knight);
-  attackers = sq.or(attackers, sq.and(attackerKnights, nAtt));
-  const attackerBishopsQueens = sq.or(
-    attacker === Color.White ? sq.and(board.white, board.bishop) : sq.and(board.black, board.bishop),
-    attacker === Color.White ? sq.and(board.white, board.queen) : sq.and(board.black, board.queen),
-  );
-  attackers = sq.or(attackers, sq.and(attackerBishopsQueens, bishopAttacks(square, occ)));
-  const attackerRooksQueens = sq.or(
-    attacker === Color.White ? sq.and(board.white, board.rook) : sq.and(board.black, board.rook),
-    attacker === Color.White ? sq.and(board.white, board.queen) : sq.and(board.black, board.queen),
-  );
-  attackers = sq.or(attackers, sq.and(attackerRooksQueens, rookAttacks(square, occ)));
+  lo = (lo | (aLo & board.knight.lo & nAtt.lo)) >>> 0;
+  hi = (hi | (aHi & board.knight.hi & nAtt.hi)) >>> 0;
+  const bqLo = (board.bishop.lo | board.queen.lo) >>> 0;
+  const bqHi = (board.bishop.hi | board.queen.hi) >>> 0;
+  const bAtt = bishopAttacks(square, occ);
+  lo = (lo | (aLo & bqLo & bAtt.lo)) >>> 0;
+  hi = (hi | (aHi & bqHi & bAtt.hi)) >>> 0;
+  const rqLo = (board.rook.lo | board.queen.lo) >>> 0;
+  const rqHi = (board.rook.hi | board.queen.hi) >>> 0;
+  const rAtt = rookAttacks(square, occ);
+  lo = (lo | (aLo & rqLo & rAtt.lo)) >>> 0;
+  hi = (hi | (aHi & rqHi & rAtt.hi)) >>> 0;
   const kAtt = kingAttacks(square);
-  const attackerKings = attacker === Color.White ? sq.and(board.white, board.king) : sq.and(board.black, board.king);
-  attackers = sq.or(attackers, sq.and(attackerKings, kAtt));
-  return attackers;
+  lo = (lo | (aLo & board.king.lo & kAtt.lo)) >>> 0;
+  hi = (hi | (aHi & board.king.hi & kAtt.hi)) >>> 0;
+  return { lo, hi };
 }
 
 export function isAttacked(board: import("./board.js").Board, square: number, attacker: Color): boolean {
-  // Check if square is attacked by attacker color
-  // Use board to find attacker pieces
-  const occ = board.occupied;
-  // pawn
-  const pawnAtt = pawnAttacks(attacker === Color.White ? Color.Black : Color.White, square);
-  // pawn attacks are from pawn's perspective; we invert: pawn that attacks square is one step opposite
-  // pawnAttacks(color, sq) gives squares that pawn on sq attacks. So to see if square is attacked by pawn, we need pawns of attacker that have square in their attack set.
-  // Equivalent to: pawns = board.pawn & board[attacker]; check if any pawn attacks square
-  // So compute pawn attackers by checking pawns that attack square via pawnTable inverse
-  // Simplest: iterate pawn squares
-  // But we can use pawnAttacks of opposite color square to find pawn origins: pawns that attack square are those on squares that pawn of attacker would attack from opposite direction
-  // Actually pawnAttacks(attacker, pawnSq) includes target squares. So pawnSq attacks square iff square in pawnAttacks(attacker, pawnSq). Equivalent to pawnSq in pawnAttacks(opposite, square)
-  const oppPawnAtt = pawnAttacks(attacker === Color.White ? Color.Black : Color.White, square);
-  // oppPawnAtt is squares from which opponent pawn would attack square if pawn were opposite color; but pawns attack forward, so attack set from square's perspective opposite color gives origin squares
-  // Let's use direct: pawn attackers = pawns & oppPawnAtt
-  const attackerPawns = attacker === Color.White ? sq.and(board.white, board.pawn) : sq.and(board.black, board.pawn);
-  if (!sq.isEmpty(sq.and(attackerPawns, oppPawnAtt))) return true;
-
-  // knight
+  // Inlined bitwise attack test (spec: no intermediate SquareSet allocations).
+  // A pawn of `attacker` attacks `square` iff it stands on a square returned by
+  // pawnAttacks(opposite color, square) (the mirror of the forward attack set).
+  const w = attacker === Color.White;
+  const aLo = (w ? board.white.lo : board.black.lo) >>> 0;
+  const aHi = (w ? board.white.hi : board.black.hi) >>> 0;
+  const pAtt = pawnAttacks(w ? Color.Black : Color.White, square);
+  if ((((aLo & board.pawn.lo & pAtt.lo) | (aHi & board.pawn.hi & pAtt.hi)) >>> 0) !== 0) return true;
   const nAtt = knightAttacks(square);
-  const attackerKnights = attacker === Color.White ? sq.and(board.white, board.knight) : sq.and(board.black, board.knight);
-  if (!sq.isEmpty(sq.and(attackerKnights, nAtt))) return true;
-
-  // bishop / queen diagonal
+  if ((((aLo & board.knight.lo & nAtt.lo) | (aHi & board.knight.hi & nAtt.hi)) >>> 0) !== 0) return true;
+  const occ = board.occupied;
+  const bqLo = (board.bishop.lo | board.queen.lo) >>> 0;
+  const bqHi = (board.bishop.hi | board.queen.hi) >>> 0;
   const bAtt = bishopAttacks(square, occ);
-  const attackerBishopsQueens = sq.or(
-    attacker === Color.White ? sq.and(board.white, board.bishop) : sq.and(board.black, board.bishop),
-    attacker === Color.White ? sq.and(board.white, board.queen) : sq.and(board.black, board.queen),
-  );
-  if (!sq.isEmpty(sq.and(attackerBishopsQueens, bAtt))) return true;
-
-  // rook / queen orthogonal
+  if ((((aLo & bqLo & bAtt.lo) | (aHi & bqHi & bAtt.hi)) >>> 0) !== 0) return true;
+  const rqLo = (board.rook.lo | board.queen.lo) >>> 0;
+  const rqHi = (board.rook.hi | board.queen.hi) >>> 0;
   const rAtt = rookAttacks(square, occ);
-  const attackerRooksQueens = sq.or(
-    attacker === Color.White ? sq.and(board.white, board.rook) : sq.and(board.black, board.rook),
-    attacker === Color.White ? sq.and(board.white, board.queen) : sq.and(board.black, board.queen),
-  );
-  if (!sq.isEmpty(sq.and(attackerRooksQueens, rAtt))) return true;
-
-  // king
+  if ((((aLo & rqLo & rAtt.lo) | (aHi & rqHi & rAtt.hi)) >>> 0) !== 0) return true;
   const kAtt = kingAttacks(square);
-  const attackerKings = attacker === Color.White ? sq.and(board.white, board.king) : sq.and(board.black, board.king);
-  if (!sq.isEmpty(sq.and(attackerKings, kAtt))) return true;
-
+  if ((((aLo & board.king.lo & kAtt.lo) | (aHi & board.king.hi & kAtt.hi)) >>> 0) !== 0) return true;
   return false;
 }
 
@@ -412,36 +394,9 @@ export function kingAttackers(board: import("./board.js").Board, kingColor: Colo
   const ksq = sq.first(ks);
   if (ksq === undefined) return sq.empty();
   const attacker = kingColor === Color.White ? Color.Black : Color.White;
-  // Collect all attacker pieces that attack king square
-  let attackers: SquareSet = sq.empty();
-  const occ = board.occupied;
-  // pawns
-  const oppPawnAtt = pawnAttacks(attacker === Color.White ? Color.Black : Color.White, ksq);
-  const attackerPawns = attacker === Color.White ? sq.and(board.white, board.pawn) : sq.and(board.black, board.pawn);
-  attackers = sq.or(attackers, sq.and(attackerPawns, oppPawnAtt));
-  // knights
-  const nAtt = knightAttacks(ksq);
-  const attackerKnights = attacker === Color.White ? sq.and(board.white, board.knight) : sq.and(board.black, board.knight);
-  attackers = sq.or(attackers, sq.and(attackerKnights, nAtt));
-  // bishops/queens
-  const bAtt = bishopAttacks(ksq, occ);
-  const attackerBishopsQueens = sq.or(
-    attacker === Color.White ? sq.and(board.white, board.bishop) : sq.and(board.black, board.bishop),
-    attacker === Color.White ? sq.and(board.white, board.queen) : sq.and(board.black, board.queen),
-  );
-  attackers = sq.or(attackers, sq.and(attackerBishopsQueens, bAtt));
-  // rooks/queens
-  const rAtt = rookAttacks(ksq, occ);
-  const attackerRooksQueens = sq.or(
-    attacker === Color.White ? sq.and(board.white, board.rook) : sq.and(board.black, board.rook),
-    attacker === Color.White ? sq.and(board.white, board.queen) : sq.and(board.black, board.queen),
-  );
-  attackers = sq.or(attackers, sq.and(attackerRooksQueens, rAtt));
-  // king
-  const kAtt = kingAttacks(ksq);
-  const attackerKings = attacker === Color.White ? sq.and(board.white, board.king) : sq.and(board.black, board.king);
-  attackers = sq.or(attackers, sq.and(attackerKings, kAtt));
-  return attackers;
+  // Inlined delegation: the attacker-set composition is exactly attackersTo
+  // over the full occupancy (no intermediate SquareSet allocations here).
+  return attackersTo(board, ksq, attacker);
 }
 
 // For testing sliding correctness

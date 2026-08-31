@@ -8,6 +8,7 @@ import { Color, Role, Err, Ok } from "./types.js";
 import type { Setup, CastlingRights, FenError, Result } from "./types.js";
 import { squareFile, squareRank, parseSquare, squareName } from "./util.js";
 import * as attacks from "./attacks.js";
+import { zobristTablesLoaded, calculateZobrist } from "./zobrist.js";
 
 // helpers to create CastlingRights
 function makeCastling(whiteSet: Set<number>, blackSet: Set<number>): CastlingRights {
@@ -53,70 +54,111 @@ function charFromPiece(color: Color, role: Role): string {
   return color === Color.White ? ch.toUpperCase() : ch;
 }
 
+/** Whitespace predicate for the single-pass FEN scanner (space, \t, \n, \v, \f, \r). */
+function isFenSpace(c: number): boolean {
+  return c === 32 || (c >= 9 && c <= 13);
+}
+
+/** Digits-only integer parse over fen[s..e); NaN when empty or non-digit. */
+function parseFenCount(fen: string, s: number, e: number): number {
+  if (s >= e) return NaN;
+  let v = 0;
+  for (let k = s; k < e; k++) {
+    const c = fen.charCodeAt(k);
+    if (c < 48 || c > 57) return NaN;
+    v = v * 10 + (c - 48);
+  }
+  return v;
+}
+
 export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: boolean }): Result<Setup, FenError> {
-  const trimmed = fen.trim();
-  // split by whitespace (one or more spaces). baseline-compatible field
-  // tolerance: 1..6 fields are accepted (missing fields default to
-  // w/-/-/0/1); more than 6 fields is rejected — this is required for
-  // parse-agreement parity on corpora like wac_150.epd whose FENs carry only
-  // four fields.
-  const parts = trimmed.split(/\s+/);
-  if (parts.length < 1 || parts.length > 6) {
+  // ----- single-pass field tokenization (zero regex, zero split arrays) -----
+  // Fields are whitespace-separated; 1..6 fields are accepted (missing fields
+  // default to w/-/-/0/1; more than 6 is rejected) — baseline-compatible
+  // field tolerance required for parse-agreement parity on corpora like
+  // wac_150.epd whose FENs carry only four fields.
+  const n = fen.length;
+  const fs: number[] = [];
+  const fe: number[] = [];
+  {
+    let pos = 0;
+    for (;;) {
+      while (pos < n && isFenSpace(fen.charCodeAt(pos))) pos++;
+      if (pos >= n) break;
+      const s = pos;
+      while (pos < n && !isFenSpace(fen.charCodeAt(pos))) pos++;
+      fs.push(s);
+      fe.push(pos);
+    }
+  }
+  const fieldCount = fs.length;
+  if (fieldCount < 1 || fieldCount > 6) {
     return Err({ code: "fen/invalidFen" });
   }
-  const [placement, active = "w", castlingStr = "-", epStr = "-", halfStr = "0", fullStr = "1"] = parts;
 
   // ----- piece placement -----
   // Single-pass build into a locally-owned scratch board (FP policy:
   // clone→mutate-clone) — ONE final immutable copy instead of the old
-  // per-piece `setPiece` (which cloned the whole board for every one of the
-  // up-to-32 pieces; task 5.1, allocation trimming).
+  // per-piece `setPiece`. The scanner walks the raw string with charCodeAt:
+  // '/' drops a rank, '1'..'8' skips empty squares, anything else must be a
+  // piece letter (color = uppercase ⇒ white).
   const scratch = board.newScratchBoard();
-  const ranks = placement.split("/");
-  if (ranks.length !== 8) return Err({ code: "fen/invalidFen" });
-
-  for (let r = 7; r >= 0; r--) {
-    const rankStr = ranks[7 - r]; // rank 8 first corresponds to r=7
-    let file = 0;
-    for (let i = 0; i < rankStr.length; i++) {
-      const ch = rankStr[i];
-      if (ch >= "1" && ch <= "8") {
-        const empty = ch.charCodeAt(0) - 48;
-        file += empty;
-      } else {
-        if (file >= 8) return Err({ code: "fen/invalidPiecePlacement" });
-        // inline role/color decode (no per-piece object allocation)
-        const code = ch.charCodeAt(0);
-        let role: Role;
-        switch (code | 32) {
-          case 112: role = Role.Pawn; break;   // p
-          case 110: role = Role.Knight; break; // n
-          case 98: role = Role.Bishop; break;  // b
-          case 114: role = Role.Rook; break;   // r
-          case 113: role = Role.Queen; break;  // q
-          case 107: role = Role.King; break;   // k
-          default: return Err({ code: "fen/invalidPiecePlacement" });
-        }
-        const color = code >= 97 ? Color.Black : Color.White; // lowercase ⇒ black
-        const sqIdx = r * 8 + file;
-        board.putPieceInPlace(scratch, sqIdx, { color, role });
-        file++;
-      }
+  let r = 7;
+  let file = 0;
+  for (let k = fs[0]; k < fe[0]; k++) {
+    const c = fen.charCodeAt(k);
+    if (c === 47) {
+      // '/': next rank down
+      if (file !== 8 || r === 0) return Err({ code: "fen/invalidPiecePlacement" });
+      r--;
+      file = 0;
+      continue;
     }
-    if (file !== 8) return Err({ code: "fen/invalidPiecePlacement" });
+    if (c >= 49 && c <= 56) {
+      // '1'..'8': consecutive empty squares
+      file += c - 48;
+      if (file > 8) return Err({ code: "fen/invalidPiecePlacement" });
+      continue;
+    }
+    if (file >= 8) return Err({ code: "fen/invalidPiecePlacement" });
+    // inline role/color decode (no per-piece object allocation)
+    let role: Role;
+    switch (c | 32) {
+      case 112: role = Role.Pawn; break;   // p
+      case 110: role = Role.Knight; break; // n
+      case 98: role = Role.Bishop; break;  // b
+      case 114: role = Role.Rook; break;   // r
+      case 113: role = Role.Queen; break;  // q
+      case 107: role = Role.King; break;   // k
+      default: return Err({ code: "fen/invalidPiecePlacement" });
+    }
+    const color = c >= 97 ? Color.Black : Color.White; // lowercase ⇒ black
+    const sqIdx = r * 8 + file;
+    board.putPieceInPlace(scratch, sqIdx, { color, role });
+    file++;
   }
+  if (file !== 8 || r !== 0) return Err({ code: "fen/invalidPiecePlacement" });
   const curBoard: Board = board.cloneBoard(scratch);
 
   // ----- active color -----
   let turn: Color;
-  if (active === "w") turn = Color.White;
-  else if (active === "b") turn = Color.Black;
-  else return Err({ code: "fen/invalidActiveColor" });
+  if (fieldCount < 2) {
+    turn = Color.White;
+  } else if (fe[1] - fs[1] === 1) {
+    const c = fen.charCodeAt(fs[1]);
+    if (c === 119) turn = Color.White;      // 'w'
+    else if (c === 98) turn = Color.Black;  // 'b'
+    else return Err({ code: "fen/invalidActiveColor" });
+  } else {
+    return Err({ code: "fen/invalidActiveColor" });
+  }
 
   // ----- castling -----
   let whiteSet = new Set<number>();
   let blackSet = new Set<number>();
-  if (castlingStr !== "-") {
+  const castlingStart = fieldCount > 2 ? fs[2] : -1;
+  const castlingIsDash = castlingStart === -1 || (fe[2] - fs[2] === 1 && fen.charCodeAt(fs[2]) === 45);
+  if (!castlingIsDash) {
     // validate characters
     const chess960 = !!opts?.chess960;
     // Find king squares for Shredder mapping if needed
@@ -125,8 +167,9 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
       wk = board.kingSquare(curBoard, Color.White);
       bk = board.kingSquare(curBoard, Color.Black);
     }
-    // collect chars
-    for (const ch of castlingStr) {
+    // collect chars (index scan over field 2)
+    for (let k = castlingStart; k < fe[2]; k++) {
+      const ch = fen[k];
       if (!chess960) {
         if (ch !== "K" && ch !== "Q" && ch !== "k" && ch !== "q") {
           return Err({ code: "fen/invalidCastling" });
@@ -211,9 +254,14 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
   // and baseline accepts them — rejecting them broke round-trip for ~4.7% of
   // real-game positions.
   let epSquare: number | null = null;
-  if (epStr !== "-") {
-    const sqIdx = parseSquare(epStr);
-    if (sqIdx === undefined) return Err({ code: "fen/invalidEnPassant" });
+  const epIsDash = fieldCount < 4 || (fe[3] - fs[3] === 1 && fen.charCodeAt(fs[3]) === 45);
+  if (!epIsDash) {
+    // index-based square parse (replaces parseSquare on a substring)
+    if (fe[3] - fs[3] !== 2) return Err({ code: "fen/invalidEnPassant" });
+    const ef = fen.charCodeAt(fs[3]) - 97;    // file a..h
+    const er = fen.charCodeAt(fs[3] + 1) - 49; // rank 1..8
+    if (ef < 0 || ef > 7 || er < 0 || er > 7) return Err({ code: "fen/invalidEnPassant" });
+    const sqIdx = (er << 3) | ef;
     const rank = squareRank(sqIdx);
     // must be rank 6 for white to move (index 5) or rank 3 for black to move (index 2)
     if (turn === Color.White && rank !== 5) return Err({ code: "fen/enPassantUncapturable" });
@@ -239,11 +287,11 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
   }
 
   // ----- halfmove -----
-  const half = Number(halfStr);
+  const half = fieldCount > 4 ? parseFenCount(fen, fs[4], fe[4]) : 0;
   if (!Number.isInteger(half) || half < 0 || half > 150) return Err({ code: "fen/invalidHalfmove" });
 
   // ----- fullmove -----
-  const full = Number(fullStr);
+  const full = fieldCount > 5 ? parseFenCount(fen, fs[5], fe[5]) : 1;
   if (!Number.isInteger(full) || full < 1) return Err({ code: "fen/invalidFullmove" });
 
   // ----- validations per purechess-rules -----
@@ -296,6 +344,14 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
     halfmove: half,
     fullmove: full,
   };
+  // Seed the initial Zobrist key when the Polyglot tables are already loaded
+  // (lazy-loading contract — see src/zobrist.ts); makeMove then maintains it
+  // incrementally in O(1). Positions parsed before loading carry no key.
+  if (zobristTablesLoaded()) {
+    const zk = calculateZobrist(setup);
+    (setup as { zobristLo?: number; zobristHi?: number }).zobristLo = zk.lo;
+    (setup as { zobristLo?: number; zobristHi?: number }).zobristHi = zk.hi;
+  }
   return Ok(setup);
 }
 

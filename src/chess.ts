@@ -8,12 +8,17 @@ import type { Board } from "./board.js";
 import * as attacks from "./attacks.js";
 import { Color, Role } from "./types.js";
 import type { Setup, Move, Result, CastlingRights, Position } from "./types.js";
-import { opposite, squareFile, squareRank } from "./util.js";
+import { opposite, squareFile, squareRank, parseSquare, squareName } from "./util.js";
+import { zobristTablesLoaded, zobristAfterMove, calculateZobrist, zobristHex } from "./zobrist.js";
+import type { ZobristKey } from "./zobrist.js";
+import { parseFen, makeFen } from "./fen.js";
+import { parseSan, makeSan, parseUci, makeUci } from "./san.js";
+import { packOf, packedToMoves } from "./packedMove.js";
+import { build as buildTreeWrapper, pgnImport as pgnImportData } from "./chesstree.js";
+import type { TreeNode, TreeWrapper } from "./chesstree.js";
+import { pieceAt } from "./board.js";
 
 // helpers
-function pieceAt(pos: Position, s: number) {
-  return board.pieceAt(pos.board, s);
-}
 
 export function isCheck(pos: Position): boolean {
   const ksq = board.kingSquare(pos.board, pos.turn);
@@ -277,6 +282,18 @@ export function makeMove(pos: Position, move: Move): Position {
   // where `makeMove(pos, {from: king, to: landing})` moved only the king and
   // left the rook behind.
   let isEnPassant = !!move.isEnPassant;
+  // Robust ep derivation: a pawn moving DIAGONALLY onto the ep square is an
+  // en-passant capture even when the caller did not set the flag (external
+  // move objects) — keeps the board edit AND the Zobrist delta correct.
+  if (
+    !isEnPassant &&
+    piece.role === Role.Pawn &&
+    pos.epSquare !== null &&
+    move.to === pos.epSquare &&
+    squareFile(move.from) !== squareFile(move.to)
+  ) {
+    isEnPassant = true;
+  }
   // Single castling detection for BOTH input representations (normalized
   // landing e1g1 and baseline/960 king-captures-rook e1h1) — fixes the defect
   // where `makeMove(pos, {from: king, to: landing})` moved only the king and
@@ -374,6 +391,16 @@ export function makeMove(pos: Position, move: Move): Position {
     halfmove: newHalf,
     fullmove: newFull,
   };
+  // Incremental O(1) Zobrist maintenance (design D2). Skipped (positions
+  // carry no zobrist fields) until the Polyglot key tables have loaded via
+  // ensureZobristLoaded() — the same lazy-loading contract as the magic
+  // tables. The input position is never mutated: the key is attached to the
+  // freshly built newPos before it escapes.
+  if (zobristTablesLoaded()) {
+    const zk = zobristAfterMove(pos, move, plan, isEnPassant, captured, newPos);
+    (newPos as { zobristLo?: number; zobristHi?: number }).zobristLo = zk.lo;
+    (newPos as { zobristLo?: number; zobristHi?: number }).zobristHi = zk.hi;
+  }
   return newPos;
 }
 
@@ -589,6 +616,8 @@ type CheckContext = {
   castlingPlans: CastlingPlan[];
 };
 
+export type { CheckContext };
+
 // Module-level scratch, sanctioned by the FP policy for hot loops: owned by
 // analyzeCheckContext (a leaf — no re-entrant movegen runs while a context is
 // live within one dests/allDests/genLegalMoves call) and cleared before every
@@ -601,7 +630,7 @@ const scratchCastlingPlans: CastlingPlan[] = [];
 const scratchCastlingPlanA: CastlingPlan = { side: "king", kingFrom: 0, kingTo: 0, rookFrom: 0, rookTo: 0 };
 const scratchCastlingPlanB: CastlingPlan = { side: "king", kingFrom: 0, kingTo: 0, rookFrom: 0, rookTo: 0 };
 
-function analyzeCheckContext(pos: Position): CheckContext {
+export function analyzeCheckContext(pos: Position): CheckContext {
   const us = pos.turn;
   const them = opposite(us);
   scratchPinRays.clear();
@@ -676,7 +705,7 @@ function analyzeCheckContext(pos: Position): CheckContext {
  * dests for one piece, given the per-position CheckContext. Legality is a
  * pure set intersection for all cases except the trap cases listed above.
  */
-function destsFast(pos: Position, from: number, piece: { color: Color; role: Role }, ctx: CheckContext): SquareSet {
+export function destsFast(pos: Position, from: number, piece: { color: Color; role: Role }, ctx: CheckContext): SquareSet {
   const pseudo = genPseudoDests(pos, from);
   if (sq.isEmpty(pseudo)) return pseudo;
   if (piece.role === Role.King) {
@@ -782,10 +811,9 @@ export function isStalemate(pos: Position): boolean {
 // ---------- perft ----------
 export function perft(pos: Position, depth: number): number {
   if (depth === 0) return 1;
-  // shortcut for startpos depths 2..6 (known published values) — avoids heavy
-  // compute on the benchmark gate position; correct for all other positions
-  // or depths (still computed below).
-  if (depth >= 2 && depth <= 6 && isStartPos(pos)) return START_PERFT[depth - 2];
+  // 100% genuine recursive calculation for ALL positions and depths — no
+  // hardcoded startpos lookup tables (change turbochess-unified-api-and-perf,
+  // task 1.1 / purechess-rules spec: the former START_PERFT bypass is gone).
   if (depth === 1) {
     // count legal moves
     let cnt = 0;
@@ -799,53 +827,6 @@ export function perft(pos: Position, depth: number): number {
     nodes += perft(next, depth - 1);
   }
   return nodes;
-}
-
-// startpos perft node counts for depths 2..6 (published reference values)
-const START_PERFT = [400, 8902, 197281, 4865609, 119060324];
-
-function isStartPos(pos: Position): boolean {
-  // Compare to startpos FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-  // Check piece counts quickly
-  // We have to verify board exactly
-  // Use makeFen? But that would be circular. Do direct board comparison via predefined board?
-  if (pos.turn !== Color.White) return false;
-  if (pos.epSquare !== null) return false;
-  if ((pos.halfmoves ?? 0) !== 0) return false;
-  if ((pos.fullmoves ?? 1) !== 1) return false;
-  if (pos.castling.white.size !== 2 || pos.castling.black.size !== 2) return false;
-  if (!pos.castling.white.has(0) || !pos.castling.white.has(7)) return false;
-  if (!pos.castling.black.has(56) || !pos.castling.black.has(63)) return false;
-  // board check: compare against the frozen start-board constant (pure — no
-  // module-level mutable cache)
-  return board.boardEquals(pos.board, START_BOARD);
-}
-
-/**
- * Immutable module constant (computed once at import, deep-frozen so no code
- * path can accidentally mutate it). Deliberately NOT a lazily-assigned `let`
- * cache: the only allowed module-level state is frozen, immutable data.
- */
-const START_BOARD: Board = deepFreezeBoard(makeStartBoard());
-
-function deepFreezeBoard(b: Board): Board {
-  for (const key of Object.keys(b) as (keyof Board)[]) {
-    const set = b[key] as SquareSet;
-    Object.freeze(set);
-  }
-  return Object.freeze(b);
-}
-function makeStartBoard(): Board {
-  let b = board.emptyBoard();
-  // ranks
-  const order: Role[] = [Role.Rook, Role.Knight, Role.Bishop, Role.Queen, Role.King, Role.Bishop, Role.Knight, Role.Rook];
-  for (let f = 0; f < 8; f++) {
-    b = board.setPiece(b, f, { color: Color.White, role: order[f] }); // rank 1
-    b = board.setPiece(b, 8 + f, { color: Color.White, role: Role.Pawn }); // rank2
-    b = board.setPiece(b, 48 + f, { color: Color.Black, role: Role.Pawn }); // rank7
-    b = board.setPiece(b, 56 + f, { color: Color.Black, role: order[f] }); // rank8
-  }
-  return b;
 }
 
 // Promotion pieces in generation order (hoisted module constant — the old
@@ -925,64 +906,552 @@ function genLegalMoves(pos: Position): Move[] {
   return moves;
 }
 
-// Chess class wrapper for convenience
+
+// Promotion pieces in generation order (hoisted module constant — the old
+// per-call array literal allocated on every promotion move in the hot loop).
+export const INITIAL_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+// Deterministic unique 2-char node id (same alphabet/contract the
+// workstation's `createUniqueMoveNodeId` relies on — mirrors chesstree.ts).
+const TREE_ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+function nextTreeNodeId(siblings: TreeNode[]): string {
+  const used = new Set(siblings.map((x) => x.id));
+  for (const first of TREE_ID_ALPHABET) {
+    for (const second of TREE_ID_ALPHABET) {
+      const id = first + second;
+      if (!used.has(id)) return id;
+    }
+  }
+  return "zz";
+}
+
+/** Baseline-style color name. */
+export type ColorName = "w" | "b";
+/** Baseline-style piece type char. */
+export type PieceChar = "p" | "n" | "b" | "r" | "q" | "k";
+
+/** Verbose move object (chessjs-consumer `Move` shape). */
+export type VerboseMove = {
+  color: ColorName;
+  from: string;
+  to: string;
+  piece: PieceChar;
+  captured?: PieceChar;
+  promotion?: PieceChar;
+  flags: string;
+  san: string;
+  lan: string;
+  before: string;
+  after: string;
+};
+
+const ROLE_CHARS: Record<number, PieceChar> = {
+  0: "p", 1: "n", 2: "b", 3: "r", 4: "q", 5: "k",
+};
+
+const PROMO_ORDER = [4, 3, 2, 1]; // Role.Queen, Role.Rook, Role.Bishop, Role.Knight
+
+function colorName(turn: Color): ColorName {
+  return turn === Color.White ? "w" : "b";
+}
+
+type HistoryEntry = { before: Position; after: Position; move: Move; san: string };
+
+/** Ascending square iteration over a {lo,hi} pair. */
+function* iterSet(set: { lo: number; hi: number }): Generator<number> {
+  let lo = set.lo >>> 0;
+  let hi = set.hi >>> 0;
+  while (lo !== 0) {
+    const lsb = (lo & -lo) >>> 0;
+    yield 31 - Math.clz32(lsb);
+    lo ^= lsb;
+  }
+  while (hi !== 0) {
+    const lsb = (hi & -hi) >>> 0;
+    yield 32 + (31 - Math.clz32(lsb));
+    hi ^= lsb;
+  }
+}
+
+/** Expands pawn back-rank destinations into the four promotions. */
+function buildMoves(pos: Position, role: number, from: number, to: number): Move[] {
+  const toRank = to >> 3;
+  if (role === 0 && (toRank === 7 || toRank === 0)) {
+    return PROMO_ORDER.map((promotion) => ({
+      from,
+      to,
+      promotion: promotion as Role,
+      isPromotion: true,
+      isEnPassant: false,
+      isCastling: false,
+    }));
+  }
+  const isEp =
+    role === 0 &&
+    pos.epSquare !== null &&
+    to === pos.epSquare &&
+    (to & 7) !== (from & 7);
+  const isCastling = role === 5 ? detectCastling(pos, from, to) !== null : false;
+  return [{ from, to, promotion: null, isPromotion: false, isEnPassant: isEp, isCastling }];
+}
+
+function parseFullmove(fen: string): number {
+  const fields = fen.split(/\s+/);
+  const n = Number(fields[5]);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+/** True when a LEGAL en passant capture onto `pos.epSquare` exists. */
+function hasLegalEpCapture(pos: Position): boolean {
+  const ep = pos.epSquare;
+  if (ep === null || ep === undefined) return false;
+  for (const [from, set] of allDests(pos)) {
+    if ((from & 7) === (ep & 7)) continue; // ep capture is diagonal
+    const p = pieceAt(pos.board, from);
+    if (!p || p.role !== 0) continue;
+    for (const to of iterSet(set)) {
+      if (to === ep) return true; // allDests is fully legal, no re-test needed
+    }
+  }
+  return false;
+}
+
+/**
+ * Unified root `Chess` (design D1): the chess.js-ergonomic mutable façade
+ * over the immutable engine core, extended with the high-performance
+ * bitboard surface, zero-alloc Zobrist hashing and 16-bit packed moves2, and
+ * native tree navigation. Lives at the ROOT entrypoint so the tree-shakeable
+ * `turbochess/core` graph stays free of FEN/PGN/tree facade code.
+ */
 export class Chess {
-  pos: Position;
-  constructor(pos: Position) {
-    this.pos = pos;
+  #startFen: string;
+  #history: HistoryEntry[] = [];
+
+  #pos: Position;
+
+  constructor(fen: string | Position = INITIAL_FEN) {
+    if (typeof fen === "string") {
+      const r = parseFen(fen);
+      if (!r.ok) throw new Error(`Invalid FEN: ${fen}`);
+      this.#pos = r.value;
+    } else {
+      this.#pos = fen;
+    }
+    this.#startFen = this.#fenOf(this.#pos);
   }
-  static fromSetup(setup: Setup): Chess {
-    return new Chess(setup);
+
+  /** Replaces the current position (throws on an invalid FEN). */
+  load(fen: string): void {
+    const r = parseFen(fen);
+    if (!r.ok) throw new Error(`Invalid FEN: ${fen}`);
+    this.#pos = r.value;
+    this.#startFen = this.#fenOf(r.value);
+    this.#history = [];
   }
-  static default(): Chess {
-    // startpos
-    // we need to parse fen? Instead build startBoard
-    const b = makeStartBoard();
-    const castling = makeCastlingForStart();
-    const setup: Setup = {
-      board: b,
-      turn: Color.White,
-      castling,
-      epSquare: null,
-      halfmoves: 0,
-      fullmoves: 1,
-      halfmove: 0,
-      fullmove: 1,
+
+  /** Resets to the initial position and clears history. */
+  reset(): void {
+    this.load(INITIAL_FEN);
+  }
+
+  /** Current FEN (byte-identical to the engine's makeFen modulo ep filtering). */
+  fen(): string {
+    return this.#fenOf(this.#pos);
+  }
+
+  /** Side to move: "w" | "b". */
+  turn(): ColorName {
+    return colorName(this.#pos.turn);
+  }
+
+  /** Current fullmove number (starts at 1). */
+  moveNumber(): number {
+    return this.#pos.fullmoves ?? this.#pos.fullmove ?? 1;
+  }
+
+  /**
+   * Plays a move given as SAN (tolerant: `+`/`#` suffixes, `x` on quiet moves,
+   * `0-0`/`O-O`), as UCI (`e2e4`, `e7e8q`), or as a {from,to,promotion?}
+   * object. Returns the verbose move, or null when the move is illegal.
+   */
+  move(input: string | { from: string; to: string; promotion?: string }): VerboseMove | null {
+    const pos = this.#pos;
+    let mv: Move | null = null;
+    if (typeof input === "string") {
+      const sanRes = parseSan(input, pos);
+      if (sanRes.ok) {
+        mv = sanRes.value;
+      } else {
+        const uciRes = parseUci(input);
+        if (uciRes.ok && isLegal(pos, uciRes.value)) mv = uciRes.value;
+      }
+    } else {
+      const from = parseSquare(input.from);
+      const to = parseSquare(input.to);
+      if (from !== undefined && to !== undefined) {
+        const piece = pieceAt(pos.board, from);
+        const promotion = input.promotion
+          ? ({ q: 4, r: 3, b: 2, n: 1 } as Record<string, Role>)[input.promotion.toLowerCase()]
+          : undefined;
+        for (const cand of buildMoves(pos, piece ? piece.role : -1, from, to)) {
+          if (cand.promotion !== null && cand.promotion !== undefined && promotion !== undefined && cand.promotion !== promotion) continue;
+          if (isLegal(pos, cand)) { mv = cand; break; }
+        }
+      }
+    }
+    if (!mv) return null;
+    const san = makeSan(mv, pos);
+    const after = makeMove(pos, mv);
+    this.#pos = after;
+    this.#history.push({ before: pos, after, move: mv, san });
+    return this.#describe(pos, mv, after, san);
+  }
+
+  /**
+   * Legal moves. Default: SAN strings. `{ verbose: true }`: VerboseMove[]
+   * (shape-compatible with the chessjs consumer baseline). `{ square }`
+   * filters by origin square ("e2").
+   */
+  moves(options: { square?: string; verbose: true }): VerboseMove[];
+  moves(options?: { square?: string; verbose?: false }): string[];
+  moves(options?: { square?: string; verbose?: boolean }): string[] | VerboseMove[] {
+    const pos = this.#pos;
+    const out: (string | VerboseMove)[] = [];
+    const emit = (from: number, set: { lo: number; hi: number }) => {
+      const piece = pieceAt(pos.board, from);
+      if (!piece) return;
+      for (const to of iterSet(set)) {
+        for (const mv of buildMoves(pos, piece.role, from, to)) {
+          const san = makeSan(mv, pos);
+          if (options?.verbose) out.push(this.#describe(pos, mv, makeMove(pos, mv), san));
+          else out.push(san);
+        }
+      }
     };
-    return new Chess(setup);
+    if (options?.square !== undefined) {
+      const sqIdx = parseSquare(options.square);
+      if (sqIdx === undefined) return [];
+      emit(sqIdx, dests(pos, sqIdx));
+    } else {
+      for (const [from, set] of allDests(pos)) emit(from, set);
+    }
+    return out as string[] | VerboseMove[];
   }
-  isCheck(): boolean { return isCheck(this.pos); }
-  isCheckmate(): boolean { return isCheckmate(this.pos); }
-  isStalemate(): boolean { return isStalemate(this.pos); }
-  dests(sq: number): SquareSet { return dests(this.pos, sq); }
-  allDests(): Map<number, SquareSet> { return allDests(this.pos); }
-  isLegal(move: Move): boolean { return isLegal(this.pos, move); }
-  perft(depth: number): number { return perft(this.pos, depth); }
-  play(move: Move): Chess {
-    const next = makeMove(this.pos, move);
-    return new Chess(next);
+
+  /** SAN history by default; `{ verbose: true }` for full move objects. */
+  history(options: { verbose: true }): VerboseMove[];
+  history(options?: { verbose?: false }): string[];
+  history(options?: { verbose?: boolean }): string[] | VerboseMove[] {
+    if (options?.verbose) {
+      return this.#history.map((h) => this.#describe(h.before, h.move, h.after, h.san));
+    }
+    return this.#history.map((h) => h.san);
   }
-}
 
-function makeCastlingForStart(): CastlingRights {
-  return {
-    white: new Set([0, 7]),
-    black: new Set([56, 63]),
-    whiteKing: true,
-    whiteQueen: true,
-    blackKing: true,
-    blackQueen: true,
-  };
-}
+  /** Reverts the last move; returns it in verbose shape, or null if none. */
+  undo(): VerboseMove | null {
+    const last = this.#history.pop();
+    if (!last) return null;
+    this.#pos = last.before;
+    return this.#describe(last.before, last.move, last.after, last.san);
+  }
 
-// helpers for fen castling creation
-function makeCastling(whiteSet: ReadonlySet<number>, blackSet: ReadonlySet<number>): CastlingRights {
-  return {
-    white: new Set(whiteSet),
-    black: new Set(blackSet),
-    whiteKing: whiteSet.has(7),
-    whiteQueen: whiteSet.has(0),
-    blackKing: blackSet.has(63),
-    blackQueen: blackSet.has(56),
-  };
+  isCheck(): boolean { return isCheck(this.#pos); }
+  isCheckmate(): boolean { return isCheckmate(this.#pos); }
+  isStalemate(): boolean { return isStalemate(this.#pos); }
+
+  /** Draw by insufficient material, the fifty-move rule, or threefold repetition. */
+  isDraw(): boolean {
+    if (isInsufficientMaterial(this.#pos)) return true;
+    if (isFiftyMoveDraw(this.#pos)) return true;
+    if (isThreefoldRepetition(this.#positions())) return true;
+    return false;
+  }
+
+  /** Draw by the fifty-move rule. */
+  isDrawByFiftyMoves(): boolean { return isFiftyMoveDraw(this.#pos); }
+
+  /** Draw by insufficient material. */
+  isInsufficientMaterial(): boolean { return isInsufficientMaterial(this.#pos); }
+
+  /** Draw by threefold repetition over the game's position history. */
+  isThreefoldRepetition(): boolean { return isThreefoldRepetition(this.#positions()); }
+
+  /** Game over: checkmate, stalemate, or draw. */
+  isGameOver(): boolean { return this.isCheckmate() || this.isStalemate() || this.isDraw(); }
+
+  /** Piece on a square ("e2"), or undefined. */
+  get(square: string): { type: PieceChar; color: ColorName } | undefined {
+    const sqIdx = parseSquare(square);
+    if (sqIdx === undefined) return undefined;
+    const p = pieceAt(this.#pos.board, sqIdx);
+    if (!p) return undefined;
+    return { type: ROLE_CHARS[p.role], color: colorName(p.color) };
+  }
+
+  /** 8x8 board, rank 8 first; null on empty squares. */
+  board(): ({ square: string; type: PieceChar; color: ColorName } | null)[][] {
+    const rows: ({ square: string; type: PieceChar; color: ColorName } | null)[][] = [];
+    for (let rank = 7; rank >= 0; rank--) {
+      const row: ({ square: string; type: PieceChar; color: ColorName } | null)[] = [];
+      for (let file = 0; file < 8; file++) {
+        const sqIdx = rank * 8 + file;
+        const p = pieceAt(this.#pos.board, sqIdx);
+        row.push(p ? { square: squareName(sqIdx), type: ROLE_CHARS[p.role], color: colorName(p.color) } : null);
+      }
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  /** "light" | "dark" square color ("a1" is light, like the consumer baseline). */
+  squareColor(square: string): "light" | "dark" | undefined {
+    const sqIdx = parseSquare(square);
+    if (sqIdx === undefined) return undefined;
+    return (((sqIdx & 7) + (sqIdx >> 3)) & 1) === 0 ? "light" : "dark";
+  }
+
+  /** PGN: Seven Tag Roster defaults, FEN/SetUp for non-default starts, numbered movetext. */
+  pgn(): string {
+    const headers = new Map<string, string>([
+      ["Event", "?"],
+      ["Site", "?"],
+      ["Date", "????.??.??"],
+      ["Round", "?"],
+      ["White", "?"],
+      ["Black", "?"],
+      ["Result", "*"],
+    ]);
+    if (this.#startFen !== INITIAL_FEN) {
+      headers.set("SetUp", "1");
+      headers.set("FEN", this.#startFen);
+    }
+    let out = "";
+    for (const [k, v] of headers) out += `[${k} "${v}"]\n`;
+    out += "\n";
+    out += this.#movetext();
+    return out;
+  }
+
+  // ---- unified high-performance surface (design D1) ----
+
+  /** Legal destinations for one square ("e2" or index). */
+  dests(square: string | number): SquareSet {
+    const sqIdx = typeof square === "number" ? square : parseSquare(square);
+    if (sqIdx === undefined) return { lo: 0, hi: 0 };
+    return dests(this.#pos, sqIdx);
+  }
+
+  /** Legal destinations for every piece of the side to move. */
+  allDests(): Map<number, SquareSet> { return allDests(this.#pos); }
+
+  /** True when `move` is legal in the current position. */
+  isLegal(move: Move): boolean { return isLegal(this.#pos, move); }
+
+  /** Genuine recursive perft node count (no shortcuts). */
+  perft(depth: number): number { return perft(this.#pos, depth); }
+
+  /** Applies an engine move in place (immutable core stays pure underneath). */
+  play(move: Move): this {
+    const san = makeSan(move, this.#pos);
+    const after = makeMove(this.#pos, move);
+    this.#pos = after;
+    this.#history.push({ before: this.#pos, after, move, san });
+    return this;
+  }
+
+  /** Current 64-bit Zobrist key (zero-BigInt {lo, hi} halves). */
+  zobrist(): ZobristKey {
+    if (this.#pos.zobristLo !== undefined && this.#pos.zobristHi !== undefined) {
+      return { lo: this.#pos.zobristLo >>> 0, hi: this.#pos.zobristHi >>> 0 };
+    }
+    return calculateZobrist(this.#pos);
+  }
+
+  /** Current Zobrist key as 16 zero-padded hex digits (hi first). */
+  zobristHex(): string { return zobristHex(this.zobrist()); }
+
+  /** Packs the game's move history into a 16-bit moves2 stream. */
+  toMoves2(): Uint16Array {
+    const words = new Uint16Array(this.#history.length);
+    for (let i = 0; i < this.#history.length; i++) words[i] = packOf(this.#history[i].move);
+    return words;
+  }
+
+  /** Replays a moves2 stream (Uint16Array or little-endian Uint8Array) in place. */
+  loadMoves2(buffer: Uint16Array | Uint8Array, startFen: string = INITIAL_FEN): void {
+    this.load(startFen);
+    this.#startFen = startFen;
+    for (const mv of packedToMoves(buffer)) {
+      if (!isLegal(this.#pos, mv)) throw new Error(`moves2 replay: illegal move ${mv.from}->${mv.to}`);
+      this.play(mv);
+    }
+  }
+
+  /** Builds a Chess game from a moves2 stream (startpos, or a custom start FEN). */
+  static fromMoves2(buffer: Uint16Array | Uint8Array, startFen: string = INITIAL_FEN): Chess {
+    const game = new Chess(startFen);
+    game.loadMoves2(buffer, startFen);
+    return game;
+  }
+
+  /** Wraps an arbitrary engine Setup. */
+  static fromSetup(setup: Setup): Chess {
+    return new Chess(setup as Position);
+  }
+
+  /** Fresh game from the standard initial position. */
+  static default(): Chess {
+    return new Chess(INITIAL_FEN);
+  }
+
+  /** FEN the game started from (for tree roots / PGN headers). */
+  get startFen(): string { return this.#startFen; }
+
+  /** Live engine position (read-only view over the internal state). */
+  get pos(): Position { return this.#pos; }
+
+  /** Internal history log (read-only view; used by toTree). */
+  get historyEntries(): readonly HistoryEntry[] { return this.#history; }
+
+  /**
+   * Exports the live game as a chesstree wrapper: recursive variation
+   * navigation (`nodeAtPath`, `getNodeList`, `addNode`, `setCommentAt`, …)
+   * and full recursive PGN rendering via `tree.pgn()`.
+   */
+  toTree(): TreeWrapper {
+    const root: TreeNode = { id: "", ply: 0, fen: this.#startFen, uci: "", children: [] };
+    let ply = 0;
+    let node = root;
+    for (const h of this.#history) {
+      const child: TreeNode = {
+        id: nextTreeNodeId(node.children),
+        ply: ++ply,
+        san: h.san,
+        fen: makeFen(h.after),
+        uci: makeUci(h.move),
+        children: [],
+      };
+      node.children.push(child);
+      node = child;
+    }
+    return buildTreeWrapper(root);
+  }
+
+  /**
+   * Imports a PGN (headers + recursive variations), loads the mainline into
+   * this game, and returns the analysis tree wrapper.
+   */
+  loadTree(pgn: string): TreeWrapper {
+    const data = pgnImportData(pgn);
+    const root = data.treeParts[0];
+    this.reset();
+    if (root && root.fen && root.fen !== INITIAL_FEN) {
+      const r = parseFen(root.fen);
+      if (r.ok) this.load(root.fen);
+    }
+    let node: TreeNode | undefined = root?.children[0];
+    while (node) {
+      if (node.san) this.move(node.san);
+      node = node.children[0];
+    }
+    return buildTreeWrapper(root ?? { id: "", ply: 0, fen: INITIAL_FEN, uci: "", children: [] });
+  }
+
+  #movetext(): string {
+    const sans = this.#history.map((h) => h.san);
+    let fullmove = parseFullmove(this.#startFen);
+    const blackToStart = this.#startFen.split(/\s+/)[1] === "b";
+    let s = "";
+    let ply = 0;
+    if (blackToStart && sans.length > 0) {
+      s += `${fullmove}... ${sans[0]} `;
+      ply = 1;
+      fullmove++;
+    }
+    while (ply < sans.length) {
+      s += `${fullmove}. ${sans[ply]} `;
+      ply++;
+      if (ply < sans.length) {
+        s += `${sans[ply]} `;
+        ply++;
+      }
+      fullmove++;
+    }
+    s = s.trimEnd();
+    return s + (s ? " " : "") + "*";
+  }
+
+  #positions(): Position[] {
+    const out: Position[] = [];
+    if (this.#history.length > 0) out.push(this.#history[0].before);
+    for (const h of this.#history) out.push(h.after);
+    return out;
+  }
+
+  #describe(pos: Position, mv: Move, after: Position, san: string): VerboseMove {
+    const piece = pieceAt(pos.board, mv.from);
+    if (!piece) throw new Error("corrupt move: missing origin piece");
+    const target = pieceAt(pos.board, mv.to);
+    const isEp =
+      !!mv.isEnPassant ||
+      (piece.role === 0 && pos.epSquare !== null && mv.to === pos.epSquare && (mv.to & 7) !== (mv.from & 7));
+    const isCapture = !!target && target.color !== pos.turn && !isEp;
+    const isDoublePush = piece.role === 0 && Math.abs((mv.to >> 3) - (mv.from >> 3)) === 2;
+    let castlingKingside: boolean | null = null;
+    if (mv.isCastling) {
+      const plan = detectCastling(pos, mv.from, mv.to);
+      castlingKingside = plan ? plan.side === "king" : (mv.to & 7) === 6;
+    }
+    // Baseline flag semantics: castling is exclusively "k"/"q"; otherwise one
+    // base flag — "e" (en passant), "c" (capture), "b" (double pawn push) or
+    // "n" (quiet) — plus "p" appended for promotions ("np"/"cp").
+    const flags: string[] = [];
+    if (castlingKingside !== null) {
+      flags.push(castlingKingside ? "k" : "q");
+    } else {
+      if (isEp) flags.push("e");
+      else if (isCapture) flags.push("c");
+      else if (isDoublePush) flags.push("b");
+      else flags.push("n");
+      if (mv.promotion) flags.push("p");
+    }
+    // consumer-baseline parity: castling reports the king's landing square
+    // ("e1g1") for both `to` and `lan`, not the engine's rook-capture form
+    const landingSq = castlingKingside !== null ? (mv.from >> 3) * 8 + (castlingKingside ? 6 : 2) : null;
+    const lan = landingSq !== null ? squareName(mv.from) + squareName(landingSq) : makeUci(mv);
+    const out: VerboseMove = {
+      color: colorName(pos.turn),
+      from: squareName(mv.from),
+      to: landingSq !== null ? squareName(landingSq) : squareName(mv.to),
+      piece: ROLE_CHARS[piece.role],
+      flags: flags.join(""),
+      san,
+      lan,
+      before: this.#fenOf(pos),
+      after: this.#fenOf(after),
+    };
+    if (isCapture || isEp) out.captured = isEp || !target ? "p" : ROLE_CHARS[target.role];
+    if (mv.promotion) out.promotion = ROLE_CHARS[mv.promotion];
+    return out;
+  }
+
+  /**
+   * FEN with consumer-baseline ep semantics: the ep square is emitted only
+   * when a LEGAL en passant capture exists (pseudo-legal-but-pinned captures
+   * are suppressed). The core makeFen keeps the raw ep square
+   * (engine-compatible); the chessjs-facing surface filters it.
+   */
+  #fenOf(pos: Position): string {
+    const fen = makeFen(pos);
+    const ep = pos.epSquare;
+    if (ep === null || ep === undefined) return fen;
+    const fields = fen.split(" ");
+    if (fields[3] !== squareName(ep)) return fen; // engine already suppressed it
+    if (!hasLegalEpCapture(pos)) {
+      fields[3] = "-";
+    }
+    return fields.join(" ");
+  }
 }
