@@ -1,4 +1,4 @@
-// src/core.ts — turbochess core entry (no PGN, no Chess960) for tree-shaking
+// src/core.ts — turbochess core entry (standard rules only) for tree-shaking
 // Exports board, squareSet, attacks, fen, san, chess (standard rules)
 // Side-effect free, tree-shakeable per ADR-012
 

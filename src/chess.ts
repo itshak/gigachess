@@ -14,9 +14,21 @@ import type { ZobristKey } from "./zobrist.js";
 import { parseFen, makeFen } from "./fen.js";
 import { parseSan, makeSan, parseUci, makeUci } from "./san.js";
 import { packOf, packedToMoves } from "./packedMove.js";
-import { build as buildTreeWrapper, pgnImport as pgnImportData } from "./chesstree.js";
 import type { TreeNode, TreeWrapper } from "./chesstree.js";
 import { pieceAt } from "./board.js";
+
+// Tree driver hook for toTree/loadTree (injected by turbochess root / chesstree)
+let _treeDriver: {
+  build: (root: TreeNode) => TreeWrapper;
+  pgnImport: (pgn: string) => { treeParts: TreeNode[] };
+} | undefined;
+
+export function registerTreeDriver(driver: {
+  build: (root: TreeNode) => TreeWrapper;
+  pgnImport: (pgn: string) => { treeParts: TreeNode[] };
+}): void {
+  _treeDriver = driver;
+}
 
 // helpers
 
@@ -811,14 +823,8 @@ export function isStalemate(pos: Position): boolean {
 // ---------- perft ----------
 export function perft(pos: Position, depth: number): number {
   if (depth === 0) return 1;
-  // 100% genuine recursive calculation for ALL positions and depths — no
-  // hardcoded startpos lookup tables (change turbochess-unified-api-and-perf,
-  // task 1.1 / purechess-rules spec: the former START_PERFT bypass is gone).
   if (depth === 1) {
-    // count legal moves
-    let cnt = 0;
-    const moves = genLegalMoves(pos);
-    return moves.length;
+    return countLegalMoves(pos);
   }
   let nodes = 0;
   const moves = genLegalMoves(pos);
@@ -827,6 +833,55 @@ export function perft(pos: Position, depth: number): number {
     nodes += perft(next, depth - 1);
   }
   return nodes;
+}
+
+function countLegalMoves(pos: Position): number {
+  let count = 0;
+  const ctx = analyzeCheckContext(pos);
+  const own = pos.turn === Color.White ? pos.board.white : pos.board.black;
+  const isWhite = pos.turn === Color.White;
+  let ownLo = own.lo >>> 0, ownHi = own.hi >>> 0;
+  while (ownLo !== 0 || ownHi !== 0) {
+    let from: number;
+    if (ownLo !== 0) {
+      const lsb = (ownLo & -ownLo) >>> 0;
+      from = 31 - Math.clz32(lsb);
+      ownLo ^= lsb;
+    } else {
+      const lsb = (ownHi & -ownHi) >>> 0;
+      from = 32 + (31 - Math.clz32(lsb));
+      ownHi ^= lsb;
+    }
+    const piece = board.pieceAt(pos.board, from);
+    if (!piece) continue;
+    if (piece.role !== Role.King && ctx.doubleCheck) continue;
+    const legal = destsFast(pos, from, piece, ctx);
+    if (legal.lo === 0 && legal.hi === 0) continue;
+    if (piece.role === Role.Pawn) {
+      let lo = legal.lo >>> 0, hi = legal.hi >>> 0;
+      while (lo !== 0 || hi !== 0) {
+        let to: number;
+        if (lo !== 0) {
+          const lsb = (lo & -lo) >>> 0;
+          to = 31 - Math.clz32(lsb);
+          lo ^= lsb;
+        } else {
+          const lsb = (hi & -hi) >>> 0;
+          to = 32 + (31 - Math.clz32(lsb));
+          hi ^= lsb;
+        }
+        const destRank = to >> 3;
+        if ((isWhite && destRank === 7) || (!isWhite && destRank === 0)) {
+          count += 4;
+        } else {
+          count += 1;
+        }
+      }
+    } else {
+      count += sq.popcount(legal);
+    }
+  }
+  return count;
 }
 
 // Promotion pieces in generation order (hoisted module constant — the old
@@ -1321,6 +1376,9 @@ export class Chess {
    * and full recursive PGN rendering via `tree.pgn()`.
    */
   toTree(): TreeWrapper {
+    if (!_treeDriver) {
+      throw new Error("toTree() requires importing turbochess root or turbochess/chesstree");
+    }
     const root: TreeNode = { id: "", ply: 0, fen: this.#startFen, uci: "", children: [] };
     let ply = 0;
     let node = root;
@@ -1336,7 +1394,7 @@ export class Chess {
       node.children.push(child);
       node = child;
     }
-    return buildTreeWrapper(root);
+    return _treeDriver.build(root);
   }
 
   /**
@@ -1344,7 +1402,10 @@ export class Chess {
    * this game, and returns the analysis tree wrapper.
    */
   loadTree(pgn: string): TreeWrapper {
-    const data = pgnImportData(pgn);
+    if (!_treeDriver) {
+      throw new Error("loadTree() requires importing turbochess root or turbochess/chesstree");
+    }
+    const data = _treeDriver.pgnImport(pgn);
     const root = data.treeParts[0];
     this.reset();
     if (root && root.fen && root.fen !== INITIAL_FEN) {
@@ -1356,7 +1417,7 @@ export class Chess {
       if (node.san) this.move(node.san);
       node = node.children[0];
     }
-    return buildTreeWrapper(root ?? { id: "", ply: 0, fen: INITIAL_FEN, uci: "", children: [] });
+    return _treeDriver.build(root ?? { id: "", ply: 0, fen: INITIAL_FEN, uci: "", children: [] });
   }
 
   #movetext(): string {
