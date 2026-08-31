@@ -163,7 +163,6 @@ The system SHALL provide `dests(pos: Position, square: Square): SquareSet` (all 
 - **WHEN** `makeMove` applies a move that does not touch castling rights (e.g. `e2e4` from startpos with rights `KQkq` intact)
 - **THEN** the result's castling-rights `Set`s are shared with the input position (no clone allocated), while a rook-or-king move that removes a right produces a fresh `Set` — verified by reference-identity assertions in the purity tests
 
-
 #### Scenario: Keyboard and screen reader parity not regressed
 - **WHEN** user steps moves with `[` (back) and `]` (forward) on desktop via `GameViewShell`, and screen reader announces via `useChessMoveAnnouncer` using `makeSan`
 - **THEN** `dests` and `makeSan` parity guarantees move list and announcement byte-identical to `chessops` baseline, `enableArrowMoveShortcuts` remains OFF by default (arrows reserved for screen reader), and `Alt+B`/`Alt+R` chords still work (no `Ctrl+` conflict per AGENTS.md)
@@ -184,3 +183,18 @@ The implementation of `SquareSet`/`Board`/`attacks` SHALL be derived only from t
 - **WHEN** a maintainer runs `rg -n "chessops|BigInt" src/squareSet.ts src/attacks.ts src/board.ts` and diffs `src/` against `refs/gpl-only/` and `node_modules/chessops`
 - **THEN** all three searches return empty and no identical lines (≥40 characters) exist between `src/` and any GPL or node_modules source
 
+### Requirement: chessops compat layer (compat.ts) SHALL be a thin conversion over purechess core
+
+The system SHALL expose `src/chessops/compat.ts` as ESM re-exports that convert `purechess` types to `chessground` `Dests`/`Board` shapes without re-implementing movegen. Functions SHALL be pure and SHALL delegate to `purechess/board-movegen` (`allDests`, `isLegal`, `kingAttackers`) and `purechess-rules` (castling rights). No `chessops` code SHALL be read or copied from `node_modules/chessops` or `refs/gpl-only/` or the internet — only `openspec/specs/{purechess-rules,purechess-board-movegen}`.
+
+#### Scenario: chessground Dests parity
+- **WHEN** `compat.chessToDests(pos)` is called for 1k random positions from `bench/suites/dests-terminal.mjs` corpus
+- **THEN** output is byte-identical to `chessops/compat.ts` `chessToDests` for the same `pos` (maps `allDests` → `Map<Square, Square[]>`)
+
+#### Scenario: Keyboard and screen reader parity via compat
+- **WHEN** `BoardContainer` consumes `compat` `Dests` to render legal-move highlights and the user navigates with `[`/`]` or `Alt+B`
+- **THEN** highlights and `AriaLiveAnnouncer` announcements remain byte-identical to the `chessops` baseline and `enableArrowMoveShortcuts` stays OFF by default
+
+#### Scenario: Clean-room source check
+- **WHEN** CI runs `rg -n "from.*chessops" src/chessops/compat.ts` and `rg -n "GPL" src/chessops/compat.ts`
+- **THEN** both return empty and `rg -n "chessops" src/` is empty
