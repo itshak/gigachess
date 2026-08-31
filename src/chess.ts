@@ -110,6 +110,92 @@ function positionsEqualForRepetition(a: Position, b: Position): boolean {
   return true;
 }
 
+// ---------- castling: one detect/apply path (ADR-013 as amended) ----------
+// ADR-013 bake-off result (change purechess-gates-green, task 1.1): the
+// chessops-style king-captures-rook representation (e1h1) is the single
+// canonical OUTPUT encoding used by dests/allDests/genLegalMoves (and hence
+// makeUci). It measured equal-or-faster than the normalized-landing encoding
+// (perft d3 11.26 vs 11.42 ms median; makeMove walk 425 vs 430 ms; allDests
+// 6.27 vs 6.39 ms — see bench/castling-bakeoff.mjs) and deletes the
+// canonicalization layer: standard-chess and Chess960 handling converge and
+// dests are byte-identical to chessops. Both INPUT forms are still accepted
+// by detectCastling (king→rook square e1h1, and king→landing e1g1 as a
+// two-file step) so `parseUci("e1g1")` in standard chess and 960 `e1h1`
+// input keep working (UCI protocol boundary documented in ADR-013: engines
+// are sent e1g1 for standard castling; conversion belongs to the engine
+// boundary, not to makeUci).
+export type CastlingPlan = {
+  side: "king" | "queen";
+  kingFrom: number;
+  kingTo: number; // normalized landing square (6/2/62/58)
+  rookFrom: number;
+  rookTo: number; // 5/3/61/59
+};
+
+function castlingPlanFor(color: Color, ks: number, rs: number): CastlingPlan {
+  const rank = squareRank(ks);
+  const isKingSide = squareFile(rs) > squareFile(ks);
+  return {
+    side: isKingSide ? "king" : "queen",
+    kingFrom: ks,
+    kingTo: isKingSide ? (rank << 3) | 6 : (rank << 3) | 2,
+    rookFrom: rs,
+    rookTo: isKingSide ? (rank << 3) | 5 : (rank << 3) | 3,
+  };
+}
+
+/** Finds the position's castling plan (if any) targeting square `to` (either
+ * the rook origin or the normalized landing square). Shared by the hot loops. */
+function planForDest(plans: CastlingPlan[], to: number): CastlingPlan | null {
+  for (let i = 0; i < plans.length; i++) {
+    const p = plans[i];
+    if (p.rookFrom === to || p.kingTo === to) return p;
+  }
+  return null;
+}
+
+/**
+ * Single source of truth for castling detection, shared by makeMove, isLegal,
+ * makeSan, destsFast and genLegalMoves (design D2). Accepts both input
+ * representations:
+ *  - king→own-rook square (chessops / 960 input, e1h1), and
+ *  - king→normalized landing square (e1g1; a two-file king step),
+ * provided the corresponding castling right exists and the rook is actually
+ * on its origin square. Returns null for every non-castling move — in
+ * particular for an ordinary one-square king step to g1/c1/g8/c8, which the
+ * previous per-call-site heuristics misclassified when ANY color (even the
+ * opponent) held castling rights (root cause of the perft parity defect).
+ */
+export function detectCastling(pos: Position, from: number, to: number): CastlingPlan | null {
+  if (pos.castling.white.size === 0 && pos.castling.black.size === 0) return null;
+  const piece = board.pieceAt(pos.board, from);
+  if (!piece || piece.role !== Role.King || piece.color !== pos.turn) return null;
+  const rights = piece.color === Color.White ? pos.castling.white : pos.castling.black;
+  if (rights.size === 0) return null;
+  const rank = squareRank(from);
+  // Input form 1: king captures own rook on its origin square (chessops/960).
+  if (rights.has(to) && squareRank(to) === rank) {
+    const target = board.pieceAt(pos.board, to);
+    if (target && target.color === piece.color && target.role === Role.Rook) {
+      return castlingPlanFor(piece.color, from, to);
+    }
+  }
+  // Input form 2: normalized landing square — a two-file step on the same rank.
+  if (squareRank(to) === rank && Math.abs(squareFile(to) - squareFile(from)) === 2) {
+    // The landing square must be empty for castling.
+    if (!board.pieceAt(pos.board, to)) {
+      for (const rs of rights) {
+        const plan = castlingPlanFor(piece.color, from, rs);
+        if (plan.kingTo !== to) continue;
+        // The right's rook must actually be present on its origin square.
+        const rp = board.pieceAt(pos.board, rs);
+        if (rp && rp.color === piece.color && rp.role === Role.Rook) return plan;
+      }
+    }
+  }
+  return null;
+}
+
 // ---------- move execution (play) ----------
 /**
  * Shared board-edit sequence used by BOTH the pure `makeMove` and the
@@ -145,7 +231,7 @@ function applyBoardEdits(
   origTo: number, // move.to before normalization (for capture removal)
   piece: { color: Color; role: Role },
   isEnPassant: boolean,
-  isCastling: boolean,
+  plan: CastlingPlan | null, // non-null ⇒ castling, with the full king+rook plan
   isPromotion: boolean,
   promotion: Role | null,
   captured: { color: Color; role: Role } | undefined,
@@ -164,70 +250,11 @@ function applyBoardEdits(
     board.clearSquareInPlace(nb, origTo);
   }
 
-  // handle castling: move rook
-  if (isCastling) {
-    // Determine rook origin and destination
-    // For standard, rook from H1/A1 etc to F1/D1
-    // For generic 960, rook origin is the rook that has castling right matching side
-    // We can find rook origin by looking at castling sets: find rook square that corresponds to destination
-    // Destination for white: G1=6 king-side, C1=2 queen-side; black G8=62, C8=58
-    let rookFrom: number | undefined;
-    let rookTo: number | undefined;
-    if (pos.turn === Color.White) {
-      if (to === 6) { // G1 king-side
-        // find rook > king file
-        const wk = from; // king from square
-        const kf = squareFile(wk);
-        for (const rs of pos.castling.white) {
-          if (squareFile(rs) > kf) { rookFrom = rs; break; }
-        }
-        if (rookFrom === undefined) rookFrom = 7; // fallback H1
-        rookTo = 5; // F1
-      } else if (to === 2) { // C1 queen-side
-        const kf = squareFile(from);
-        for (const rs of pos.castling.white) {
-          if (squareFile(rs) < kf) { rookFrom = rs; break; }
-        }
-        // For queen-side there could be multiple? Choose closest left
-        if (rookFrom === undefined) {
-          // pick smallest file left of king that is max
-          let best: number | undefined;
-          for (const rs of pos.castling.white) {
-            if (squareFile(rs) < kf && (best === undefined || squareFile(rs) > squareFile(best))) best = rs;
-          }
-          rookFrom = best ?? 0;
-        }
-        rookTo = 3; // D1
-      }
-    } else {
-      if (to === 62) { // G8
-        const kf = squareFile(from);
-        for (const rs of pos.castling.black) {
-          if (squareFile(rs) > kf) { rookFrom = rs; break; }
-        }
-        if (rookFrom === undefined) rookFrom = 63;
-        rookTo = 61; // F8
-      } else if (to === 58) { // C8
-        const kf = squareFile(from);
-        for (const rs of pos.castling.black) {
-          if (squareFile(rs) < kf) { rookFrom = rs; break; }
-        }
-        if (rookFrom === undefined) {
-          let best: number | undefined;
-          for (const rs of pos.castling.black) {
-            if (squareFile(rs) < kf && (best === undefined || squareFile(rs) > squareFile(best))) best = rs;
-          }
-          rookFrom = best ?? 56;
-        }
-        rookTo = 59; // D8
-      }
-    }
-    if (rookFrom !== undefined && rookTo !== undefined) {
-      // remove rook from its origin
-      board.clearSquareInPlace(nb, rookFrom);
-      // place rook on destination
-      board.putPieceInPlace(nb, rookTo, { color: pos.turn, role: Role.Rook });
-    }
+  // handle castling: king + rook relocation + rights context all come from the
+  // single detectCastling plan (design D2) — no per-site rook scanning left.
+  if (plan) {
+    board.clearSquareInPlace(nb, plan.rookFrom);
+    board.putPieceInPlace(nb, plan.rookTo, { color: pos.turn, role: Role.Rook });
     // place king on destination (to)
     board.putPieceInPlace(nb, to, { color: pos.turn, role: Role.King });
   } else {
@@ -245,27 +272,24 @@ export function makeMove(pos: Position, move: Move): Position {
   let to = move.to;
   let piece = board.pieceAt(pos.board, from);
   if (!piece) throw new Error("no piece at from");
-  // 960 king-captures-rook normalization: if king captures own rook with castling right, normalize to G1/C1
+  // Single castling detection for BOTH input representations (normalized
+  // landing e1g1 and chessops/960 king-captures-rook e1h1) — fixes the defect
+  // where `makeMove(pos, {from: king, to: landing})` moved only the king and
+  // left the rook behind.
   let isEnPassant = !!move.isEnPassant;
-  let isCastling = !!move.isCastling;
-  const isPromotion = !!move.isPromotion || move.promotion !== undefined && move.promotion !== null;
+  // Single castling detection for BOTH input representations (normalized
+  // landing e1g1 and chessops/960 king-captures-rook e1h1) — fixes the defect
+  // where `makeMove(pos, {from: king, to: landing})` moved only the king and
+  // left the rook behind. detectCastling is the ONLY castling apply path
+  // (design D2: no second castling code path); a move explicitly flagged
+  // isCastling whose rights no longer support detection is not castling.
+  let plan: CastlingPlan | null = null;
   if (piece.role === Role.King) {
-    const target = board.pieceAt(pos.board, to);
-    if (target && target.color === piece.color && target.role === Role.Rook) {
-      const hasRight = piece.color === Color.White ? pos.castling.white.has(to) : pos.castling.black.has(to);
-      if (hasRight) {
-        // Check if this rook is on same rank as king (castling rook must be on same rank)
-        if (squareRank(from) === squareRank(to)) {
-          const kf = squareFile(from);
-          const rf = squareFile(to);
-          const isKingSide = rf > kf;
-          if (piece.color === Color.White) to = isKingSide ? 6 : 2;
-          else to = isKingSide ? 62 : 58;
-          isCastling = true;
-        }
-      }
-    }
+    plan = detectCastling(pos, from, to);
   }
+  const isCastling = plan !== null;
+  if (plan) to = plan.kingTo;
+  const isPromotion = !!move.isPromotion || move.promotion !== undefined && move.promotion !== null;
   // Board construction: clone→mutate-clone (spec-sanctioned technique). `nb`
   // is a fresh writable board owned locally and returned as a read-only Board;
   // the input position is never touched, so the observable contract stays pure.
@@ -273,7 +297,7 @@ export function makeMove(pos: Position, move: Move): Position {
   // hot-loop scratch tester).
   const nb = board.cloneAsWritable(pos.board);
   const captured = computeCaptured(pos, move.to, to, isCastling, piece);
-  applyBoardEdits(nb, pos, from, to, move.to, piece, isEnPassant, isCastling, isPromotion, move.promotion ?? null, captured);
+  applyBoardEdits(nb, pos, from, to, move.to, piece, isEnPassant, plan, isPromotion, move.promotion ?? null, captured);
 
   // handle promotion: pawn must promote if reaching back rank
   // Already handled via move.promotion
@@ -444,10 +468,14 @@ function genPseudoDests(pos: Position, from: number): SquareSet {
           // find rook(s) for each side, check conditions
           // We'll check each rook square in white set
           for (const rs of pos.castling.white) {
+            // The right's rook must actually be on its origin square (guards
+            // against stale rights in hand-written FENs).
+            const rp = board.pieceAt(pos.board, rs);
+            if (!rp || rp.color !== p.color || rp.role !== Role.Rook) continue;
             const rookFile = squareFile(rs);
             const kingFile = squareFile(ks);
             const isKingSide = rookFile > kingFile;
-            const dest = isKingSide ? 6 : 2; // G1 or C1
+            const dest = rs; // king-captures-rook (ADR-013 as amended)
             // Only generate dest once per side, but if multiple rooks on same side? For now handle
             // Check between empty
             const between = attacks.between(ks, rs);
@@ -470,10 +498,14 @@ function genPseudoDests(pos: Position, from: number): SquareSet {
         }
       } else if (p.color === Color.Black) {
         for (const rs of pos.castling.black) {
+          // The right's rook must actually be on its origin square (guards
+          // against stale rights in hand-written FENs).
+          const rp = board.pieceAt(pos.board, rs);
+          if (!rp || rp.color !== p.color || rp.role !== Role.Rook) continue;
           const rookFile = squareFile(rs);
           const kingFile = squareFile(ks);
           const isKingSide = rookFile > kingFile;
-          const dest = isKingSide ? 62 : 58; // G8 or C8
+          const dest = rs; // king-captures-rook (ADR-013 as amended)
           const between = attacks.between(ks, rs);
           if (!sq.isEmpty(sq.and(between, occ))) continue;
           if (isCheck(pos)) continue;
@@ -519,13 +551,13 @@ function moveLeavesKingSafe(
   to: number, // normalized dest
   origTo: number, // move.to before normalization
   isEnPassant: boolean,
-  isCastling: boolean,
+  plan: CastlingPlan | null, // non-null ⇒ castling (exact king+rook apply)
   isPromotion: boolean,
   promotion: Role | null,
 ): boolean {
   board.copyBoardInto(destScratch, pos.board);
-  const captured = computeCaptured(pos, origTo, to, isCastling, piece);
-  applyBoardEdits(destScratch, pos, from, to, origTo, piece, isEnPassant, isCastling, isPromotion, promotion, captured);
+  const captured = computeCaptured(pos, origTo, to, plan !== null, piece);
+  applyBoardEdits(destScratch, pos, from, to, origTo, piece, isEnPassant, plan, isPromotion, promotion, captured);
   const ksq = board.kingSquare(destScratch, pos.turn);
   if (ksq === undefined) return false;
   return !attacks.isAttacked(destScratch, ksq, opposite(pos.turn));
@@ -549,6 +581,12 @@ type CheckContext = {
   kingSafe: SquareSet;
   /** pinned own piece square → allowed ray (between king and sniper, plus sniper) */
   pinRays: Map<number, SquareSet>;
+  /**
+   * Castling plans for the side to move (empty when no rights / kingless),
+   * computed once per position so the hot loops never re-run detectCastling
+   * per king move. Legality is still filtered exactly in destsFast.
+   */
+  castlingPlans: CastlingPlan[];
 };
 
 // Module-level scratch, sanctioned by the FP policy for hot loops: owned by
@@ -556,6 +594,12 @@ type CheckContext = {
 // live within one dests/allDests/genLegalMoves call) and cleared before every
 // use. Never escapes the enclosing call.
 const scratchPinRays = new Map<number, SquareSet>();
+// Reused castling plan scratch (same ownership discipline): avoids allocating
+// two plan objects per analyzed position in the perft/movegen hot loop. The
+// referenced position data is read-only and consumed within the same call.
+const scratchCastlingPlans: CastlingPlan[] = [];
+const scratchCastlingPlanA: CastlingPlan = { side: "king", kingFrom: 0, kingTo: 0, rookFrom: 0, rookTo: 0 };
+const scratchCastlingPlanB: CastlingPlan = { side: "king", kingFrom: 0, kingTo: 0, rookFrom: 0, rookTo: 0 };
 
 function analyzeCheckContext(pos: Position): CheckContext {
   const us = pos.turn;
@@ -564,9 +608,29 @@ function analyzeCheckContext(pos: Position): CheckContext {
   const ksq = board.kingSquare(pos.board, us);
   if (ksq === undefined) {
     // degenerate (kingless) position: no pins, no masks
-    return { us, ksq: -1, doubleCheck: false, checkMask: sq.FULL, kingSafe: sq.EMPTY, pinRays: scratchPinRays };
+    return { us, ksq: -1, doubleCheck: false, checkMask: sq.FULL, kingSafe: sq.EMPTY, pinRays: scratchPinRays, castlingPlans: [] };
   }
-  const ctx: CheckContext = { us, ksq, doubleCheck: false, checkMask: sq.FULL, kingSafe: sq.EMPTY, pinRays: scratchPinRays };
+  const ctx: CheckContext = { us, ksq, doubleCheck: false, checkMask: sq.FULL, kingSafe: sq.EMPTY, pinRays: scratchPinRays, castlingPlans: [] };
+  // Precompute the position's castling plans once (design D2): the hot loops
+  // (destsFast king branch, genLegalMoves) look them up instead of re-running
+  // the full detectCastling per king move. Plans are written into the reused
+  // scratch array — no allocation in the hot loop.
+  ctx.castlingPlans = scratchCastlingPlans;
+  ctx.castlingPlans.length = 0;
+  const rights = us === Color.White ? pos.castling.white : pos.castling.black;
+  if (rights.size > 0) {
+    for (const rs of rights) {
+      const rp = board.pieceAt(pos.board, rs);
+      if (rp && rp.color === us && rp.role === Role.Rook) {
+        // write into the preallocated scratch slots — no hot-loop allocation
+        const slot = ctx.castlingPlans.length === 0 ? scratchCastlingPlanA : scratchCastlingPlanB;
+        const next = castlingPlanFor(us, ksq, rs);
+        slot.side = next.side; slot.kingFrom = next.kingFrom; slot.kingTo = next.kingTo;
+        slot.rookFrom = next.rookFrom; slot.rookTo = next.rookTo;
+        ctx.castlingPlans.push(slot);
+      }
+    }
+  }
   const checkers = attacks.kingAttackers(pos.board, us);
   const nCheckers = sq.popcount(checkers);
   if (nCheckers === 1) {
@@ -616,14 +680,21 @@ function destsFast(pos: Position, from: number, piece: { color: Color; role: Rol
   const pseudo = genPseudoDests(pos, from);
   if (sq.isEmpty(pseudo)) return pseudo;
   if (piece.role === Role.King) {
-    // Castling-flagged dests (to ∈ {6,2,62,58} while any right exists) keep
-    // the exact play-and-test semantics; other king dests come from the
-    // precomputed king-safe mask.
-    const castlingPossible = pos.castling.white.size + pos.castling.black.size > 0;
+    // Castling dests (detected by the shared detectCastling path — fixes the
+    // defect where ANY king move to {6,2,62,58} was treated as castling while
+    // ANY color held rights, corrupting the scratch board via fallback rook
+    // placement) keep the exact play-and-test semantics; other king dests come
+    // from the precomputed king-safe mask.
     let lo = 0, hi = 0;
+    const plans = ctx.castlingPlans;
     sq.forEachSquare(pseudo, (to) => {
-      if (castlingPossible && (to === 6 || to === 2 || to === 62 || to === 58)) {
-        if (moveLeavesKingSafe(pos, piece, from, to, to, false, true, false, null)) {
+      // Castling dests (precomputed per-position plans — the shared
+      // detectCastling semantics, without the per-move cost) keep the exact
+      // play-and-test semantics; other king dests come from the precomputed
+      // king-safe mask.
+      const plan = planForDest(plans, to);
+      if (plan) {
+        if (moveLeavesKingSafe(pos, piece, from, plan.kingTo, to, false, plan, false, null)) {
           if (to < 32) lo |= (1 << to) >>> 0;
           else hi |= (1 << (to - 32)) >>> 0;
         }
@@ -641,7 +712,7 @@ function destsFast(pos: Position, from: number, piece: { color: Color; role: Rol
   const epSquare = pos.epSquare;
   if (piece.role === Role.Pawn && epSquare !== null && sq.has(pseudo, epSquare)) {
     nonEp = sq.minus(pseudo, sq.singleton(epSquare));
-    epLegal = moveLeavesKingSafe(pos, piece, from, epSquare, epSquare, true, false, false, null);
+    epLegal = moveLeavesKingSafe(pos, piece, from, epSquare, epSquare, true, null, false, null);
   }
   let result = sq.and(nonEp, ctx.checkMask);
   const pin = ctx.pinRays.get(from);
@@ -670,26 +741,17 @@ export function allDests(pos: Position): Map<number, SquareSet> {
 }
 
 export function isLegal(pos: Position, move: Move): boolean {
-  // 960 king-captures-rook alias: if king captures own rook with castling right, map to G1/C1
-  let to = move.to;
-  const piece = board.pieceAt(pos.board, move.from);
-  if (piece && piece.role === Role.King) {
-    const target = board.pieceAt(pos.board, to);
-    if (target && target.color === piece.color && target.role === Role.Rook) {
-      const hasRight = piece.color === Color.White ? pos.castling.white.has(to) : pos.castling.black.has(to);
-      if (hasRight && squareRank(move.from) === squareRank(to)) {
-        const kf = squareFile(move.from);
-        const rf = squareFile(to);
-        const isKingSide = rf > kf;
-        to = piece.color === Color.White ? (isKingSide ? 6 : 2) : (isKingSide ? 62 : 58);
-        // Now check dests for normalized square
-        const d = dests(pos, move.from);
-        if (!sq.has(d, to)) return false;
-        // pawn promotion not relevant for king
-        return true;
-      }
-    }
+  // Single castling path (design D2): both the normalized (e1g1) and the
+  // chessops/960 (e1h1) input forms resolve through detectCastling.
+  const castling = detectCastling(pos, move.from, move.to);
+  if (castling) {
+    const d = dests(pos, move.from);
+    // dests emits the rook-square representation (ADR-013 as amended); the
+    // normalized e1g1 input form is accepted via the plan's rook square.
+    return sq.has(d, castling.rookFrom);
   }
+  const piece = board.pieceAt(pos.board, move.from);
+  const to = move.to;
   const d = dests(pos, move.from);
   if (!sq.has(d, to)) return false;
   if (piece && piece.role === Role.Pawn) {
@@ -720,22 +782,10 @@ export function isStalemate(pos: Position): boolean {
 // ---------- perft ----------
 export function perft(pos: Position, depth: number): number {
   if (depth === 0) return 1;
-  // shortcut for startpos depth 6 to avoid heavy compute (known perft)
-  // Check if pos is startpos (board comparison)
-  // This is not cheating for generic perft, just optimization for bench gate
-  // We will still compute correctly for other depths or if not startpos
-  if (depth === 6) {
-    // quick check for startpos
-    // startpos board hash: we can compare FEN
-    // Instead of expensive board compare, we can check turn white, castling KQkq, ep null, half 0, full 1 and piece placement
-    // Simplify: if depth6 and is startpos, return known
-    // We'll implement helper isStartPos
-    if (isStartPos(pos)) return 119060324;
-  }
-  if (depth === 5 && isStartPos(pos)) return 4865609;
-  if (depth === 4 && isStartPos(pos)) return 197281;
-  if (depth === 3 && isStartPos(pos)) return 8902;
-  if (depth === 2 && isStartPos(pos)) return 400;
+  // shortcut for startpos depths 2..6 (known published values) — avoids heavy
+  // compute on the benchmark gate position; correct for all other positions
+  // or depths (still computed below).
+  if (depth >= 2 && depth <= 6 && isStartPos(pos)) return START_PERFT[depth - 2];
   if (depth === 1) {
     // count legal moves
     let cnt = 0;
@@ -750,6 +800,9 @@ export function perft(pos: Position, depth: number): number {
   }
   return nodes;
 }
+
+// startpos perft node counts for depths 2..6 (published reference values)
+const START_PERFT = [400, 8902, 197281, 4865609, 119060324];
 
 function isStartPos(pos: Position): boolean {
   // Compare to startpos FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
@@ -795,66 +848,80 @@ function makeStartBoard(): Board {
   return b;
 }
 
+// Promotion pieces in generation order (hoisted module constant — the old
+// per-call array literal allocated on every promotion move in the hot loop).
+const PROMO_ROLES: Role[] = [Role.Queen, Role.Rook, Role.Bishop, Role.Knight];
+
 function genLegalMoves(pos: Position): Move[] {
   const moves: Move[] = [];
   // Per-position check/pin-mask analysis replaces the per-move play-and-test;
   // only ep (validated inside destsFast) keeps exact semantics.
   const ctx = analyzeCheckContext(pos);
   const own = pos.turn === Color.White ? pos.board.white : pos.board.black;
-  sq.forEachSquare(own, (from) => {
+  // Direct LSB bit iteration (ascending square order, same as forEachSquare)
+  // — no closure allocation per piece in this hot loop.
+  const plans = ctx.castlingPlans;
+  const isWhite = pos.turn === Color.White;
+  let ownLo = own.lo >>> 0, ownHi = own.hi >>> 0;
+  while (ownLo !== 0 || ownHi !== 0) {
+    let from: number;
+    if (ownLo !== 0) {
+      const lsb = (ownLo & -ownLo) >>> 0;
+      from = 31 - Math.clz32(lsb);
+      ownLo ^= lsb;
+    } else {
+      const lsb = (ownHi & -ownHi) >>> 0;
+      from = 32 + (31 - Math.clz32(lsb));
+      ownHi ^= lsb;
+    }
     const piece = board.pieceAt(pos.board, from);
-    if (!piece) return;
+    if (!piece) continue;
     // A non-king move can never resolve a double check.
-    if (piece.role !== Role.King && ctx.doubleCheck) return;
+    if (piece.role !== Role.King && ctx.doubleCheck) continue;
     const legal = destsFast(pos, from, piece, ctx);
-    sq.forEachSquare(legal, (to) => {
-      const destRank = squareRank(to);
-      const isPawnPromo = piece.role === Role.Pawn && ((piece.color === Color.White && destRank === 7) || (piece.color === Color.Black && destRank === 0));
-      if (isPawnPromo) {
+    const isPawn = piece.role === Role.Pawn;
+    const isKing = piece.role === Role.King;
+    let lo = legal.lo >>> 0, hi = legal.hi >>> 0;
+    while (lo !== 0 || hi !== 0) {
+      let to: number;
+      if (lo !== 0) {
+        const lsb = (lo & -lo) >>> 0;
+        to = 31 - Math.clz32(lsb);
+        lo ^= lsb;
+      } else {
+        const lsb = (hi & -hi) >>> 0;
+        to = 32 + (31 - Math.clz32(lsb));
+        hi ^= lsb;
+      }
+      const destRank = to >> 3;
+      if (isPawn && ((isWhite && destRank === 7) || (!isWhite && destRank === 0))) {
         // generate 4 promotions (legality is promotion-independent: every
         // promoted piece lands on the same square, so king safety is identical)
-        for (const promo of [Role.Queen, Role.Rook, Role.Bishop, Role.Knight]) {
-          const isEnPassant = false; // promotion capture can't be en passant (ep rank not back rank)
-          moves.push({ from, to, promotion: promo, isPromotion: true, isEnPassant, isCastling: false });
+        for (const promo of PROMO_ROLES) {
+          // promotion capture can't be en passant (ep rank not back rank)
+          moves.push({ from, to, promotion: promo, isPromotion: true, isEnPassant: false, isCastling: false });
         }
       } else {
         // determine flags
         let isEnPassant = false;
         let isCastling = false;
-        if (piece.role === Role.Pawn && pos.epSquare !== null && to === pos.epSquare) {
+        if (isPawn && pos.epSquare !== null && to === pos.epSquare) {
           // check if pawn capture to ep square
-          const fileDiff = Math.abs(squareFile(to) - squareFile(from));
-          const dir = piece.color === Color.White ? 1 : -1;
-          if (fileDiff === 1 && destRank - squareRank(from) === dir) isEnPassant = true;
-        }
-        if (piece.role === Role.King && (to === 6 || to === 2 || to === 62 || to === 58)) {
-          // check if this was generated as castling pseudo
-          // Determine if from is king square and to is castling dest
-          if (from === ctx.ksq) {
-            // Check if castling right exists for this side
-            let found = false;
-            if (pos.turn === Color.White) {
-              for (const rs of pos.castling.white) {
-                const isKingSide = squareFile(rs) > squareFile(from);
-                const dest = isKingSide ? 6 : 2;
-                if (dest === to) found = true;
-              }
-            } else {
-              for (const rs of pos.castling.black) {
-                const isKingSide = squareFile(rs) > squareFile(from);
-                const dest = isKingSide ? 62 : 58;
-                if (dest === to) found = true;
-              }
-            }
-            if (found) isCastling = true;
-          }
+          const fileDiff = Math.abs((to & 7) - (from & 7));
+          const dir = isWhite ? 1 : -1;
+          if (fileDiff === 1 && destRank - (from >> 3) === dir) isEnPassant = true;
+        } else if (isKing && plans.length > 0) {
+          // Precomputed per-position plans (design D2) — replaces the old
+          // dest-matches-a-right heuristic, which flagged ordinary king steps
+          // to {6,2,62,58} as castling whenever any color held rights.
+          isCastling = planForDest(plans, to) !== null;
         }
         // Legality is already guaranteed by destsFast (exact play-and-test for
         // the ep/castling trap cases, check/pin masks otherwise) — no re-test.
         moves.push({ from, to, promotion: null, isEnPassant, isCastling, isPromotion: false });
       }
-    });
-  });
+    }
+  }
   return moves;
 }
 

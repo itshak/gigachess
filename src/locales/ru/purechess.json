@@ -4,6 +4,7 @@
   "purechess.fen.kingsAdjacent": "Короли рядом",
   "purechess.fen.oppositeCheck": "Шах противоположной стороне",
   "purechess.fen.enPassantUncapturable": "Поле взятия на проходе не может быть взято",
+  "purechess.fen.enPassantNotCapturable": "Поле взятия на проходе не может быть взято",
   "purechess.fen.invalidFen": "Неверный FEN",
   "purechess.fen.invalidPiecePlacement": "Неверная расстановка фигур",
   "purechess.fen.invalidActiveColor": "Неверный цвет хода",

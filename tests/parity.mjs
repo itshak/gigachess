@@ -16,33 +16,13 @@ function check(name, cond, extra = "") {
 }
 
 // ---------------------------------------------------------------------------
-// Documented deviation: castling dest representation.
-// chessops represents castling as king-captures-rook (dest = rook square,
-// e.g. e8h8 / e8a8). purechess follows the purechess-rules spec: castling
-// dests are normalized to the king's landing square (G1/C1 style, e8g8/e8c8).
-// The move set is semantically identical; we canonicalize both sides to the
-// normalized representation before comparing.
+// Castling representation: converged. Per ADR-013 as amended (ADR-013 bake-off,
+// change purechess-gates-green), purechess now uses the chessops-style
+// king-captures-rook encoding (e1h1/e8a8) as its single canonical
+// representation, so dests/SAN/UCI compare byte-identically against chessops
+// with no canonicalization helpers. (The former normDest/normDestCo helpers
+// were deleted when the representations converged.)
 // ---------------------------------------------------------------------------
-function normDest(from, to, bd) {
-  const piece = bdPieceAt(bd, from);
-  if (!piece || piece.role !== 5 /* King */) return to;
-  const rank = from >> 3;
-  const file = to & 7;
-  const rookSquares = [...sqIter(bd.rook)].map(Number);
-  const isOwnRookSq = rookSquares.includes(to) && (bdPieceAt(bd, to)?.color === piece.color);
-  if (!isOwnRookSq) return to;
-  return (file > (from & 7)) ? (rank << 3) | 6 : (rank << 3) | 2; // g-file / c-file
-}
-
-// chessops-side canonicalization (chessops Board class API)
-function normDestCo(from, to, coBoard) {
-  const piece = coBoard.get(from);
-  if (!piece || piece.role !== "king") return to;
-  const rook = coBoard.pieces(piece.color, "rook");
-  if (!rook.has(to)) return to;
-  const rank = from >> 3;
-  return ((to & 7) > (from & 7)) ? (rank << 3) | 6 : (rank << 3) | 2;
-}
 
 function toPos(v) { return { ...v, halfmove: v.halfmoves ?? 0, fullmove: v.fullmoves ?? 1 }; }
 
@@ -93,7 +73,7 @@ for (const line of fenLines) {
         if (!pcSet || set.size() !== sqPopcnt(pcSet)) { same = false; break; }
         let pcBits = 0n, coBits = 0n;
         for (const s of sqIter(pcSet)) pcBits |= 1n << BigInt(s);
-        for (const s of set) coBits |= 1n << BigInt(normDest(sqc, s, co.value.board));
+        for (const s of set) coBits |= 1n << BigInt(s);
         if (pcBits !== coBits) { same = false; break; }
       }
     }
@@ -125,11 +105,11 @@ for (const key of ["kiwipete", "startpos", "pos5"]) {
         const piece = bdPieceAt(kiwiPos.board, from);
         const lastRank = (piece?.role === 0) && ((to >> 3) === (piece.color === 0 ? 7 : 0));
         const promotion = lastRank ? 4 /* Role.Queen */ : null;
-        // purechess makeSan expects the caller to flag castling (king two-square move)
-        const isCastling = piece?.role === 5 /* King */ && Math.abs((to & 7) - (from & 7)) === 2;
-        const pcSan = pcMakeSan({ from, to, promotion, isCastling }, kiwiPos);
+        // castling needs no flag: makeSan detects it via the shared
+        // detectCastling path in either input representation
+        const pcSan = pcMakeSan({ from, to, promotion }, kiwiPos);
         const coSet = coD.get(from);
-        // map purechess g/c dest to chessops rook-square dest when needed
+        // representations converged (ADR-013 as amended): dests compare raw
         let coTo = to;
         if (coSet && !coSet.has(to)) {
           const f = to & 7;
@@ -167,7 +147,7 @@ for (const key of ["kiwipete", "startpos", "pos5"]) {
       if (pcOk && coOk) {
         const pm = pcParsed.value;
         const pcTo = pm && typeof pm === "object" && "to" in pm ? pm.to : undefined;
-        const coNorm = normDestCo(from, to, co.value.board);
+        const coNorm = to; // representations converged: compare raw
         if (pcTo === coNorm) sanParseSame++; else sanParseBad.push(`${key}:${coSan} pc=${pcTo} co=${coNorm}`);
       } else if (!pcOk && !coOk) {
         // both reject (e.g. promotion-less capture to last rank) -> agreed behavior
@@ -200,6 +180,34 @@ try {
   }
 } catch (e) {
   check("PGN parse", false, e.message);
+}
+
+console.log("== 6. En-passant FEN policy (chessops-compatible + strict option) ==");
+// change purechess-gates-green tasks 2.1/2.2: unreachable ep squares are
+// accepted (chessops-compatible) and round-trip byte-identically; the
+// strict option restores the capturability check.
+{
+  const epFen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPP1PPPP/RNBQKBNR b KQkq e3 0 1";
+  const r = pcParseFen(epFen);
+  check("unreachable ep square accepted", r.ok, r.ok ? "" : r.error?.code);
+  if (r.ok) check("makeFen re-emits byte-identically", pcMakeFen(r.value) === epFen, r.ok ? pcMakeFen(r.value) : "");
+  const co = coParseFen(epFen);
+  check("chessops agrees (parse)", !co.isErr);
+  if (r.ok && !co.isErr) check("makeFen byte-identical to chessops", pcMakeFen(r.value) === coMakeFen(co.value));
+  const rs = pcParseFen(epFen, { strict: true });
+  check("strict rejects with fen/enPassantNotCapturable", !rs.ok && rs.error?.code === "fen/enPassantNotCapturable", rs.ok ? "accepted" : rs.error?.code);
+  // wrong-rank ep stays rejected unconditionally (structural validation):
+  // for White to move the ep square must be on rank 6 (index 5), so e5 fails
+  const wrongRank = pcParseFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq e5 0 1");
+  check("wrong-rank ep still rejected", !wrongRank.ok && wrongRank.error?.code === "fen/enPassantUncapturable", wrongRank.ok ? "accepted" : wrongRank.error?.code);
+  // four-field (WAC-style) FENs parse like chessops (defaults for counters)
+  const four = pcParseFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -");
+  const coFour = coParseFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -");
+  check("4-field FEN accepted with chessops defaults", four.ok && !coFour.isErr && pcMakeFen(four.value) === "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+  // replayed-position repro FEN from bench/results/real-2026-08-30.md
+  const repro = "r2kQb1r/pbpp3p/1pn1p3/7B/3PP2q/P1N5/1PP2PPP/R3K2R b KQ - 2 13";
+  const r2 = pcParseFen(repro);
+  check("results-file repro FEN parses + round-trips", r2.ok && pcMakeFen(r2.value) === repro);
 }
 
 console.log(`\n==== RESULT: ${pass} passed, ${fail} failed ====`);

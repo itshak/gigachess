@@ -15,6 +15,8 @@ export {
   bishopAttacks,
   rookAttacks,
   queenAttacks,
+  ensureMagicTablesLoaded,
+  magicTablesLoaded,
   ray,
   between,
   isAttacked,
@@ -23,6 +25,7 @@ export {
 export {
   dests,
   allDests,
+  detectCastling,
   isCheck,
   isCheckmate,
   isStalemate,
@@ -34,3 +37,4 @@ export {
   play,
   Chess,
 } from "./chess.js";
+export type { CastlingPlan } from "./chess.js";

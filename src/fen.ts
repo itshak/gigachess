@@ -53,18 +53,25 @@ function charFromPiece(color: Color, role: Role): string {
   return color === Color.White ? ch.toUpperCase() : ch;
 }
 
-export function parseFen(fen: string, opts?: { chess960?: boolean }): Result<Setup, FenError> {
+export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: boolean }): Result<Setup, FenError> {
   const trimmed = fen.trim();
-  // split by whitespace (one or more spaces)
+  // split by whitespace (one or more spaces). chessops-compatible field
+  // tolerance: 1..6 fields are accepted (missing fields default to
+  // w/-/-/0/1); more than 6 fields is rejected — this is required for
+  // parse-agreement parity on corpora like wac_150.epd whose FENs carry only
+  // four fields.
   const parts = trimmed.split(/\s+/);
-  if (parts.length !== 6) {
+  if (parts.length < 1 || parts.length > 6) {
     return Err({ code: "fen/invalidFen" });
   }
-  const [placement, active, castlingStr, epStr, halfStr, fullStr] = parts;
+  const [placement, active = "w", castlingStr = "-", epStr = "-", halfStr = "0", fullStr = "1"] = parts;
 
   // ----- piece placement -----
-  const b = board.emptyBoard();
-  let curBoard: Board = b;
+  // Single-pass build into a locally-owned scratch board (FP policy:
+  // clone→mutate-clone) — ONE final immutable copy instead of the old
+  // per-piece `setPiece` (which cloned the whole board for every one of the
+  // up-to-32 pieces; task 5.1, allocation trimming).
+  const scratch = board.newScratchBoard();
   const ranks = placement.split("/");
   if (ranks.length !== 8) return Err({ code: "fen/invalidFen" });
 
@@ -77,16 +84,28 @@ export function parseFen(fen: string, opts?: { chess960?: boolean }): Result<Set
         const empty = ch.charCodeAt(0) - 48;
         file += empty;
       } else {
-        const info = roleFromChar(ch);
-        if (!info) return Err({ code: "fen/invalidPiecePlacement" });
         if (file >= 8) return Err({ code: "fen/invalidPiecePlacement" });
+        // inline role/color decode (no per-piece object allocation)
+        const code = ch.charCodeAt(0);
+        let role: Role;
+        switch (code | 32) {
+          case 112: role = Role.Pawn; break;   // p
+          case 110: role = Role.Knight; break; // n
+          case 98: role = Role.Bishop; break;  // b
+          case 114: role = Role.Rook; break;   // r
+          case 113: role = Role.Queen; break;  // q
+          case 107: role = Role.King; break;   // k
+          default: return Err({ code: "fen/invalidPiecePlacement" });
+        }
+        const color = code >= 97 ? Color.Black : Color.White; // lowercase ⇒ black
         const sqIdx = r * 8 + file;
-        curBoard = board.setPiece(curBoard, sqIdx, { color: info.color, role: info.role });
+        board.putPieceInPlace(scratch, sqIdx, { color, role });
         file++;
       }
     }
     if (file !== 8) return Err({ code: "fen/invalidPiecePlacement" });
   }
+  const curBoard: Board = board.cloneBoard(scratch);
 
   // ----- active color -----
   let turn: Color;
@@ -185,6 +204,12 @@ export function parseFen(fen: string, opts?: { chess960?: boolean }): Result<Set
   const castling = makeCastling(whiteSet, blackSet);
 
   // ----- en passant -----
+  // Structural validation (square name + rank for the side to move) stays
+  // unconditional per purechess-rules. The capturability check moves behind
+  // `strict` (design D3): real-world corpora (lichess FENs after any double
+  // push) and purechess's own makeFen output contain unreachable ep squares,
+  // and chessops accepts them — rejecting them broke round-trip for ~4.7% of
+  // real-game positions.
   let epSquare: number | null = null;
   if (epStr !== "-") {
     const sqIdx = parseSquare(epStr);
@@ -194,26 +219,22 @@ export function parseFen(fen: string, opts?: { chess960?: boolean }): Result<Set
     if (turn === Color.White && rank !== 5) return Err({ code: "fen/enPassantUncapturable" });
     if (turn === Color.Black && rank !== 2) return Err({ code: "fen/enPassantUncapturable" });
     epSquare = sqIdx;
-    // capturable check: there must be pawn of side to move that can capture
-    const file = squareFile(sqIdx);
-    let capturable = false;
-    // pawns that can capture are on rank 4 (if white) or rank 3 (if black)? Let's compute:
-    // For white to move, ep rank 5, capturing pawns are on rank 4 (index 4) adjacent file
-    // For black to move, ep rank 2, capturing pawns on rank 3 (index 3) adjacent
-    const pawnRank = turn === Color.White ? 4 : 3;
-    for (const df of [-1, 1]) {
-      const pf = file + df;
-      if (pf < 0 || pf >= 8) continue;
-      const pawnSq = pawnRank * 8 + pf;
-      const p = board.pieceAt(curBoard, pawnSq);
-      if (p && p.color === turn && p.role === Role.Pawn) capturable = true;
-    }
-    if (!capturable) return Err({ code: "fen/enPassantUncapturable" });
-    // also ep square must not be occupied? In FEN, ep square is empty
-    if (board.pieceAt(curBoard, sqIdx)) {
-      // If occupied, it's not valid? But spec says must be capturable, if occupied then it's not valid
-      // We'll treat as uncapturable
-      return Err({ code: "fen/enPassantUncapturable" });
+    if (opts?.strict) {
+      // FIDE-strict mode restores the previous behavior: a pawn of the side
+      // to move must be able to capture on the ep square.
+      const file = squareFile(sqIdx);
+      let capturable = false;
+      // For white to move, ep rank 5, capturing pawns are on rank 4 (index 4) adjacent file
+      // For black to move, ep rank 2, capturing pawns on rank 3 (index 3) adjacent
+      const pawnRank = turn === Color.White ? 4 : 3;
+      for (const df of [-1, 1]) {
+        const pf = file + df;
+        if (pf < 0 || pf >= 8) continue;
+        const pawnSq = pawnRank * 8 + pf;
+        const p = board.pieceAt(curBoard, pawnSq);
+        if (p && p.color === turn && p.role === Role.Pawn) capturable = true;
+      }
+      if (!capturable) return Err({ code: "fen/enPassantNotCapturable" });
     }
   }
 
@@ -287,12 +308,21 @@ export function makeFen(setup: Setup, opts?: { shredder?: boolean; chess960?: bo
     let rankStr = "";
     for (let f = 0; f < 8; f++) {
       const sqIdx = r * 8 + f;
-      const p = board.pieceAt(boardVal, sqIdx);
-      if (!p) {
+      // occupancy + role/color via direct bit tests (no per-square pieceAt
+      // allocation — task 5.1)
+      if (!sq.has(boardVal.occupied, sqIdx)) {
         empty++;
       } else {
         if (empty > 0) { rankStr += String(empty); empty = 0; }
-        rankStr += charFromPiece(p.color, p.role);
+        const isWhite = sq.has(boardVal.white, sqIdx);
+        let ch: string;
+        if (sq.has(boardVal.pawn, sqIdx)) ch = isWhite ? "P" : "p";
+        else if (sq.has(boardVal.knight, sqIdx)) ch = isWhite ? "N" : "n";
+        else if (sq.has(boardVal.bishop, sqIdx)) ch = isWhite ? "B" : "b";
+        else if (sq.has(boardVal.rook, sqIdx)) ch = isWhite ? "R" : "r";
+        else if (sq.has(boardVal.queen, sqIdx)) ch = isWhite ? "Q" : "q";
+        else ch = isWhite ? "K" : "k";
+        rankStr += ch;
       }
     }
     if (empty > 0) rankStr += String(empty);

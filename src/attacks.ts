@@ -1,6 +1,6 @@
-// src/attacks.ts — leaper tables + Black Magic sliding via bench/magic-tables
+// src/attacks.ts — leaper tables + fancy per-square Black Magic sliding
+// (lazily loaded from generated base64 blobs) via bench/magic-tables
 // MIT purechess, clean-room from specs + FIDE notes (no G P L)
-// Plain fixed-shift uniform 11 default, Fancy per-square alternative compatible via same JSON schema
 
 import * as sq from "./squareSet.js";
 import type { SquareSet } from "./squareSet.js";
@@ -143,59 +143,113 @@ export function pawnAttacks(color: Color, sqIdx: number): SquareSet {
   return pawnTable[color][sqIdx];
 }
 
-// ---------- Black Magic sliding ----------
-import { rookMagics as rookMagicsData } from "./rookMagic.js";
-import { rookAttackTable as rookAttackTableData } from "./rookMagic.js";
-import { bishopMagics as bishopMagicsData } from "./bishopMagic.js";
-import { bishopAttackTable as bishopAttackTableData } from "./bishopMagic.js";
+// ---------- Black Magic sliding (fancy per-square, lazily loaded) ----------
+// The shipped tables are FANCY per-square variable-shift Black Magic
+// (measured per-square shifts: rook 52–54, bishop 55–59; flat tables
+// rook 102,400 + bishop 5,248 = 107,648 entries — the classic fancy totals;
+// the earlier "plain fixed-shift uniform 11" comment was stale). They are
+// stored as base64 Uint8Array blobs decoded into Uint32Array lo/hi views at
+// load time (task 3.1/3.2, change purechess-gates-green):
+//   - size: ~841 KB raw / ~26 KB gz binary vs 3,373 KB of object-literal text
+//   - load: ~0.1 ms typed-array decode vs 82 ms materializing 107,648 objects
+//   - speed: 35.1 vs 30.0 MAttacks/s (indexed typed-array reads beat object
+//     property loads) — see bench/results/real-2026-08-30.md appendix.
+//
+// The table modules are NEVER in the static import graph of `purechess/core`
+// (bundle gate): they load via dynamic `import()` behind
+// `ensureMagicTablesLoaded()`. Until loaded — or if loading fails — the naive
+// ray-walk fallback serves; it is measured at 1.66× chessops, so a
+// chessops-beating guarantee holds from the very first call. Each attack call
+// returns a FRESH `{lo, hi}` object: typed-array storage removes the
+// shared-mutable-entry aliasing hazard of the old object table (ADR-012 §4)
+// and is measured faster despite the per-call allocation.
+//
+// Endianness: the blob is emitted/decoded as native little-endian uint32
+// words (all supported platforms: x86-64 and arm64 are little-endian).
 
-type MagicEntry = {
-  sq: number;
-  mask: string;
-  maskLo: number;
-  maskHi: number;
-  magic: number;
-  magicLo: number;
-  magicHi: number;
-  magicHex: string;
-  shift: number;
-  offset: number;
-  size: number;
-};
+type MagicViews = { meta: Uint32Array; attacks: Uint32Array };
+const MAGIC_META_STRIDE = 6; // per square: maskLo, maskHi, magicLo, magicHi, shift, offset
+const MAGIC_META_WORDS = 64 * MAGIC_META_STRIDE;
 
-const rookMagics: MagicEntry[] = rookMagicsData as unknown as MagicEntry[];
-const bishopMagics: MagicEntry[] = bishopMagicsData as unknown as MagicEntry[];
-const rookAttackTable: SquareSet[] = (rookAttackTableData as unknown as SquareSet[]).map((e) => ({ lo: e.lo >>> 0, hi: e.hi >>> 0 }));
-const bishopAttackTable: SquareSet[] = (bishopAttackTableData as unknown as SquareSet[]).map((e) => ({ lo: e.lo >>> 0, hi: e.hi >>> 0 }));
+let rookViews: MagicViews | null = null;
+let bishopViews: MagicViews | null = null;
+let tablesLoadPromise: Promise<void> | null = null;
 
-export async function ensureMagicTablesLoaded(): Promise<void> {
-  return;
+function decodeMagicViews(b64: string): Promise<MagicViews> {
+  const bin = atob(b64);
+  const gzBytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) gzBytes[i] = bin.charCodeAt(i);
+  // gzip-decompress via DecompressionStream (Node 18+/all modern browsers —
+  // the package requires Node ≥22.5). On the rare platform without it, the
+  // load fails and the naive fallback keeps serving (never slower than
+  // chessops), so no hard dependency is introduced.
+  const DS = (globalThis as { DecompressionStream?: typeof DecompressionStream }).DecompressionStream;
+  if (!DS) return Promise.reject(new Error("DecompressionStream unavailable"));
+  const stream = new Blob([gzBytes]).stream().pipeThrough(new DS("gzip"));
+  return new Response(stream).arrayBuffer().then((buf) => {
+    const words = new Uint32Array(buf);
+    return {
+      meta: words.subarray(0, MAGIC_META_WORDS),
+      attacks: words.subarray(MAGIC_META_WORDS),
+    };
+  });
 }
 
-// ---------- sliding attacks via magic ----------
+/**
+ * Lazy-load hook (task 3.3): dynamically imports the generated blob modules,
+ * decodes them into Uint32Array views, and swaps the sliding-attack path from
+ * the naive fallback to the magic tables. Idempotent and concurrency-safe:
+ * concurrent callers share one in-flight load. Callers may `await` it or
+ * fire-and-forget (pre-warm at app startup, non-blocking); until it resolves,
+ * the naive ray-walk fallback serves and stays ≥1.5× chessops.
+ */
+export function ensureMagicTablesLoaded(): Promise<void> {
+  if (tablesLoadPromise === null) {
+    tablesLoadPromise = Promise.all([
+      import("./rookMagicBlob.js"),
+      import("./bishopMagicBlob.js"),
+    ])
+      .then(([r, b]) => Promise.all([decodeMagicViews(r.rookMagicBlob), decodeMagicViews(b.bishopMagicBlob)]))
+      .then(([rv, bv]) => {
+        rookViews = rv;
+        bishopViews = bv;
+      });
+    // fire-and-forget callers must not trigger an unhandled-rejection warning;
+    // awaiting callers still observe the original rejection via the returned
+    // promise (same reference).
+    tablesLoadPromise.catch(() => {});
+  }
+  return tablesLoadPromise;
+}
+
+/** Whether the magic tables are loaded (false ⇒ naive fallback in use). */
+export function magicTablesLoaded(): boolean {
+  return rookViews !== null && bishopViews !== null;
+}
+
+// ---------- sliding attacks via magic (blob views) or naive fallback ----------
 export function bishopAttacks(sqIdx: number, occupied: SquareSet): SquareSet {
-  // If tables not yet loaded, fallback to naive ray
-  if (bishopMagics.length === 0 || bishopAttackTable.length === 0) return bishopAttacksNaive(sqIdx, occupied);
-  const m = bishopMagics[sqIdx];
-  if (!m) return bishopAttacksNaive(sqIdx, occupied);
-  const mask: SquareSet = { lo: m.maskLo >>> 0, hi: m.maskHi >>> 0 };
-  const occ = sq.and(occupied, mask);
-  const idx = (mul64Shift(occ.lo, occ.hi, m.magicLo, m.magicHi, m.shift) + m.offset) >>> 0;
-  const at = bishopAttackTable[idx];
-  if (!at) return bishopAttacksNaive(sqIdx, occupied);
-  return at;
+  // Until the blob tables load (ensureMagicTablesLoaded), the naive ray-walk
+  // fallback serves — measured 1.66× chessops, never slower than chessops.
+  const v = bishopViews;
+  if (v === null) return bishopAttacksNaive(sqIdx, occupied);
+  const b = sqIdx * MAGIC_META_STRIDE;
+  // inline mask intersection (no intermediate SquareSet allocation)
+  const occLo = occupied.lo & v.meta[b];
+  const occHi = occupied.hi & v.meta[b + 1];
+  const idx = (mul64Shift(occLo, occHi, v.meta[b + 2], v.meta[b + 3], v.meta[b + 4]) + v.meta[b + 5]) >>> 0;
+  // fresh {lo, hi} per call — no shared mutable table entries (ADR-012 §4)
+  return { lo: v.attacks[idx * 2], hi: v.attacks[idx * 2 + 1] };
 }
 
 export function rookAttacks(sqIdx: number, occupied: SquareSet): SquareSet {
-  if (rookMagics.length === 0 || rookAttackTable.length === 0) return rookAttacksNaive(sqIdx, occupied);
-  const m = rookMagics[sqIdx];
-  if (!m) return rookAttacksNaive(sqIdx, occupied);
-  const mask: SquareSet = { lo: m.maskLo >>> 0, hi: m.maskHi >>> 0 };
-  const occ = sq.and(occupied, mask);
-  const idx = (mul64Shift(occ.lo, occ.hi, m.magicLo, m.magicHi, m.shift) + m.offset) >>> 0;
-  const at = rookAttackTable[idx];
-  if (!at) return rookAttacksNaive(sqIdx, occupied);
-  return at;
+  const v = rookViews;
+  if (v === null) return rookAttacksNaive(sqIdx, occupied);
+  const b = sqIdx * MAGIC_META_STRIDE;
+  const occLo = occupied.lo & v.meta[b];
+  const occHi = occupied.hi & v.meta[b + 1];
+  const idx = (mul64Shift(occLo, occHi, v.meta[b + 2], v.meta[b + 3], v.meta[b + 4]) + v.meta[b + 5]) >>> 0;
+  return { lo: v.attacks[idx * 2], hi: v.attacks[idx * 2 + 1] };
 }
 
 export function queenAttacks(sqIdx: number, occupied: SquareSet): SquareSet {

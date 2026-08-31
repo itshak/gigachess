@@ -5,7 +5,7 @@
 // Parity: attack sets must be bit-identical (purechess Black Magic vs
 // chessops HQ) on the first 100k samples BEFORE any timing is reported.
 import { assertCorpus, CORPORA, gate, measure, parseSuiteArgs, thr } from "./lib/common.mjs";
-import { parseFen, allDests, makeMove, pieceAt, queenAttacks as pcQueen, iter as sqIter } from "../../dist/index.js";
+import { parseFen, allDests, makeMove, pieceAt, queenAttacks as pcQueen, iter as sqIter, ensureMagicTablesLoaded as pcEnsureMagicTables, magicTablesLoaded as pcMagicLoaded } from "../../dist/index.js";
 import { queenAttacks as coQueen } from "chessops/attacks";
 import { SquareSet as CoSS } from "chessops/squareSet";
 
@@ -114,7 +114,12 @@ export async function run(opts) {
   console.log(`  parity: ${checked - mismatch}/${checked} attack sets bit-identical (purechess Black Magic vs chessops HQ)`);
   if (mismatch) examples.forEach((e) => console.log(`    MISMATCH ${e}`));
 
-  // ---- Timing: MAttacks/s over the harvested real occupancies
+  // ---- Timing: MAttacks/s over the harvested real occupancies.
+  // Two phases per the blob/lazy design (task 3.5, change
+  // purechess-gates-green): phase 1 runs with the tables UNLOADED so the
+  // naive ray-walk fallback serves (gate: ≥1.5× chessops — the chessops-
+  // beating guarantee from the first call); then ensureMagicTablesLoaded()
+  // swaps in the blob-backed fancy magic (gate: ≥2.5× chessops).
   const metrics = {};
   const gates = [];
   if (mismatch > 0) {
@@ -150,15 +155,32 @@ export async function run(opts) {
       }
       return acc;
     };
-    const pcM = measure(runPc);
-    const coM = measure(runCo);
-    const pcMa = thr(occsUsed * 64, pcM.median) / 1e6;
-    const coMa = thr(occsUsed * 64, coM.median) / 1e6;
-    metrics.pc = { mAttacksPerSec: pcMa, median: pcM.median, p10: pcM.p10, p90: pcM.p90 };
-    metrics.co = { mAttacksPerSec: coMa, median: coM.median, p10: coM.p10, p90: coM.p90 };
-    console.log(`  ${occsUsed.toLocaleString()} occupancies × 64 squares = ${(occsUsed * 64).toLocaleString()} attack calls per run`);
-    console.log(`  purechess : ${pcMa.toFixed(1)} MAttacks/s (median ${pcM.median.toFixed(1)} ms, p10 ${pcM.p10.toFixed(1)} / p90 ${pcM.p90.toFixed(1)}, 20 runs, 3 warmups excluded)`);
-    console.log(`  chessops  : ${coMa.toFixed(1)} MAttacks/s (median ${coM.median.toFixed(1)} ms, p10 ${coM.p10.toFixed(1)} / p90 ${coM.p90.toFixed(1)})`);
+
+    const benchPhase = (label) => {
+      const pcM = measure(runPc);
+      const coM = measure(runCo);
+      const pcMa = thr(occsUsed * 64, pcM.median) / 1e6;
+      const coMa = thr(occsUsed * 64, coM.median) / 1e6;
+      console.log(`  [${label}] ${occsUsed.toLocaleString()} occupancies × 64 squares = ${(occsUsed * 64).toLocaleString()} attack calls per run`);
+      console.log(`  [${label}] purechess : ${pcMa.toFixed(1)} MAttacks/s (median ${pcM.median.toFixed(1)} ms, p10 ${pcM.p10.toFixed(1)} / p90 ${pcM.p90.toFixed(1)}, 20 runs, 3 warmups excluded)`);
+      console.log(`  [${label}] chessops  : ${coMa.toFixed(1)} MAttacks/s (median ${coM.median.toFixed(1)} ms, p10 ${coM.p10.toFixed(1)} / p90 ${coM.p90.toFixed(1)})`);
+      return { pcMa, coMa, ratio: pcMa / coMa };
+    };
+
+    // Phase 1: naive fallback (tables unloaded)
+    if (pcMagicLoaded()) throw new Error("sliding: tables unexpectedly preloaded before phase 1");
+    const naive = benchPhase("pre-load naive fallback");
+    metrics.naive = { mAttacksPerSec: naive.pcMa, ratio: naive.ratio };
+    gates.push(gate("pre-load naive fallback ≥1.5× chessops MAttacks/s", naive.ratio >= 1.5, "≥ 1.5×", `${naive.ratio.toFixed(2)}×`));
+
+    // Phase 2: load the blob tables and re-benchmark (loaded magic path)
+    const t0 = performance.now();
+    await pcEnsureMagicTables();
+    const loadMs = performance.now() - t0;
+    console.log(`  magic tables loaded via ensureMagicTablesLoaded() in ${loadMs.toFixed(1)} ms (blob decode + dynamic import)`);
+    const loaded = benchPhase("loaded blob magic");
+    metrics.loaded = { mAttacksPerSec: loaded.pcMa, ratio: loaded.ratio, loadMs };
+    gates.push(gate("loaded blob magic ≥2.5× chessops MAttacks/s", loaded.ratio >= 2.5, "≥ 2.5×", `${loaded.ratio.toFixed(2)}×`));
   }
 
   gates.push(

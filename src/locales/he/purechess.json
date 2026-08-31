@@ -4,6 +4,7 @@
   "purechess.fen.kingsAdjacent": "מלכים סמוכים",
   "purechess.fen.oppositeCheck": "שח נגדי",
   "purechess.fen.enPassantUncapturable": "משבצת אכיפה דרך הילוכו אינה ניתנת ללכידה",
+  "purechess.fen.enPassantNotCapturable": "משבצת אכילה דרך הילוכו אינה ניתנת ללכידה",
   "purechess.fen.invalidFen": "FEN לא תקין",
   "purechess.fen.invalidPiecePlacement": "פריסת כלים לא תקינה",
   "purechess.fen.invalidActiveColor": "צבע פעיל לא תקין",

@@ -258,31 +258,90 @@ them before streaming decompression (`bench/suites/lib/common.mjs`).
 
 ### Results (2026-08-30, Node v24.19.0, darwin/arm64)
 
-Full tables: `bench/results/real-2026-08-30.md`. Headline findings at the
-time of writing:
+Full tables: `bench/results/real-2026-08-30.md` (baseline run, 8/12 gates)
+and `bench/results/real-2026-08-30-gates-green.md` (after
+`purechess-gates-green`, **13/13 gates green** — `npm run bench:real:ci`
+exits 0). Headline numbers after the fix:
 
-- **Sliding:** 100k/100k attack-set parity ✓; purechess Black Magic ≈2.3×
-  chessops HQ `MAttacks/s` on real occupancies.
-- **PGN streaming:** 100% game/SAN/round-trip parity ✓; ≈2.8× `games/s`.
-- **Perft parity:** ✗ — purechess perft disagrees with chessops AND the
-  published perft corpus on castling-heavy positions (e.g. kiwipete d4:
-  4,085,607 vs canonical 4,085,603; `r3k2r/8/8/8/8/8/8/4K3 w kq` d3: 790 vs
-  782). Minimal repro for the public API: `allDests` emits the ADR-013
-  normalized castling dest (e8→c8) but `makeMove` given that dest moves only
-  the king and leaves the rook (`r1k4r` instead of `2kr3r`). **This blocks the
-  chessops→purechess migration** until fixed in `src/`.
-- **dests-terminal:** ✗ — a replayed real-game position showed a bogus dest
-  (`59-58`, moving the opponent's queen) and an `isCheckmate` disagreement;
-  enumerated in the suite output.
-- **fen-san-uci:** SAN/UCI parity 100% ✓, but purechess `parseFen` rejects
-  FENs (with unreachable en-passant squares, as emitted by lichess PGNs and by
-  purechess's own `makeFen`) that chessops accepts; FEN throughput was at
-  parity (−3%), below the +20% gate.
-- **Bundle:** ✗ — `purechess/core` (~83 KB gz) is *larger* than chessops
-  (~5.3 KB gz) because the Black Magic tables (`rookMagic.js` ≈ 3.2 MB raw)
-  are statically imported. Lazy table loading or code-splitting is needed
-  before the tree-shake gate can pass.
+- **Sliding:** 100k/100k attack-set parity ✓; naive fallback 1.63× chessops,
+  loaded blob magic 3.36× (35.5 MAttacks/s) on real occupancies.
+- **PGN streaming:** 100% game/SAN/round-trip parity ✓; ≈2.14–2.17×
+  `games/s`, heap parity (100.0%).
+- **Perft parity:** ✓ 1104/1104 FEN/depth node counts equal vs chessops AND
+  the published corpus (kiwipete d4 = 4,085,603); nodes/s +19.0% vs chessops.
+- **dests-terminal:** ✓ 100% parity over 10,000 real-game positions
+  (295,185 moves) — dests, isLegal, and all terminal predicates.
+- **fen-san-uci:** FEN 99.97%, SAN make 100%, SAN parse 100%, UCI 100% ✓;
+  FEN parse+make throughput 2.022× chessops (≥+20% gate met with margin).
+  The 3 remaining FEN diffs are the known Chess960/X-FEN `makeFen` rendering
+  cases (purechess emits X-FEN file letters where chessops keeps `KQkq`);
+  enumerated in the suite output, within the ≥99% gate.
+- **Bundle:** ✓ core static 6,317 B gz (118.4% of the chessops Chess-import
+  5,336 B gz, gate ≤120%) with **zero magic-table bytes** in the static
+  graph; tables load as gzip+base64 blobs via dynamic `import()`
+  (`ensureMagicTablesLoaded()`), lazy chunks 40,684 B gz, total 47,001 B gz
+  (was 83,195 B static). Castling representation is converged with chessops
+  (ADR-013 as amended), so parity suites compare raw with no
+  canonicalization helpers.
 
-These failures are the gates doing their job: the chessops→purechess
-migration (`purechess-adopt`) must not merge until they are green.
+The baseline run's failures (castling perft parity, ep FEN rejections,
+replayed-position dest defect, bundle size) are documented in
+`bench/results/real-2026-08-30.md` and were fixed by change
+`purechess-gates-green` — see its results file for the fix list.
 
+
+## Update 2026-08-30 (change: purechess-gates-green) — gates green
+
+### Castling representation: converged with chessops (ADR-013 as amended)
+
+The ADR-013 bake-off (`bench/castling-bakeoff.mjs`) measured both output
+representations on the castling-heavy subset; king-captures-rook (`e1h1`)
+measured equal-or-faster and was adopted as the single canonical encoding
+(measurements in `openspec/adr/013-castling-dest-normalization.md`).
+Consequences for benchmark/parity tooling:
+
+- `dests`/`allDests`/UCI are **byte-identical to chessops** — the
+  `normDest`/`normDestCo` canonicalization helpers were deleted from
+  `tests/parity.mjs` and the `bench/suites/*` suites compare raw.
+- **Workstation touch-point audit (ADR-013 amendment, consequence 1):** the
+  only observable change is the programmatic castling `move.to` (rook square
+  instead of the landing square). SAN is unchanged (`O-O`/`O-O-O`), so
+  `useChessMoveAnnouncer`, ARIA announcements and keyboard `[`/`]` stepping
+  are unaffected. Engine communication must keep sending standard-chess
+  castling as `e1g1` (UCI protocol): translate at the engine boundary —
+  `makeUci` emits the canonical `e1h1` and `parseUci` accepts both forms.
+- `makeMove`/`play`, `isLegal`, `parseSan`, `makeSan` and the internal perft
+  movegen all funnel through one shared `detectCastling` path (no second
+  castling code path).
+
+### En-passant FEN policy (chessops-compatible)
+
+`parseFen` accepts structurally valid ep squares even when no capture is
+possible (lichess FENs and purechess's own `makeFen` output round-trip
+byte-identically; ~4.7% of real-game positions were previously rejected).
+Structural validation (square + rank for the side to move) stays
+unconditional; `parseFen(fen, { strict: true })` restores the capturability
+check (error code `fen/enPassantNotCapturable`, i18n keys in en/ru/he).
+Four-field FENs (as in `wac_150.epd`) parse with chessops-compatible
+defaults (`0 1` counters).
+
+### Magic tables: gzip+base64 blobs, lazily loaded
+
+- Generated by `bench/magic-tables/generate-blob.mjs` from the checked-in
+  `bench/magic-tables/*.json` (MIT RecklessMagics pipeline unchanged):
+  little-endian uint32 words (6 meta words per square, then the attack table
+  as lo/hi pairs), gzip level 9, base64-embedded.
+- The table modules (`src/rookMagicBlob.ts`, `src/bishopMagicBlob.ts`) are
+  **never in the static import graph** — they load via dynamic `import()`
+  behind `ensureMagicTablesLoaded()` (idempotent, concurrency-safe, returns
+  the in-flight promise). Until loaded — or if `DecompressionStream` is
+  unavailable — the naive ray-walk fallback serves, measured ≥1.5× chessops,
+  so a chessops-beating guarantee holds from the first call.
+- **Workstation pre-warm (task 3.4):** call
+  `void ensureMagicTablesLoaded()` once at app startup (non-blocking,
+  fire-and-forget is safe — rejections are swallowed internally; awaiting
+  callers observe them). Until it resolves the naive path serves.
+- Each attack call returns a **fresh** `{lo, hi}` — the shared-mutable-entry
+  aliasing hazard of the old object table (ADR-012 §4) is gone.
+- Bundle: the core static graph carries **zero** table bytes; see the bundle
+  gate below for before/after sizes.

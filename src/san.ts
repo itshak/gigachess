@@ -46,9 +46,19 @@ function normalizeCastlingSan(s: string): string {
 
 // ---------- makeSan ----------
 export function makeSan(move: Move, pos: Position): string {
-  // Castling
-  if (move.isCastling) {
-    const isKingSide = move.to === 6 || move.to === 62;
+  // Castling — detected via the shared detectCastling path (design D2) so a
+  // canonical castling move given in the representation's encoding renders
+  // O-O/O-O-O, never "Kg1"/"Kxh1" (measured defect: makeSan({4,6}, kiwipete)
+  // returned "Kg1"). The isCastling flag is kept as a fallback for moves
+  // produced by genLegalMoves under either representation. The role/rights
+  // pre-check keeps the hot SAN path free of detectCastling calls.
+  let castling: import("./chess.js").CastlingPlan | null = null;
+  const movingPiece = board.pieceAt(pos.board, move.from);
+  if (movingPiece && movingPiece.role === Role.King && (pos.castling.white.size > 0 || pos.castling.black.size > 0)) {
+    castling = chess.detectCastling(pos, move.from, move.to);
+  }
+  if (castling || move.isCastling) {
+    const isKingSide = castling ? castling.side === "king" : move.to === 6 || move.to === 62;
     let base = isKingSide ? "O-O" : "O-O-O";
     // add check suffix
     const next = chess.makeMove(pos, move);
@@ -65,6 +75,18 @@ export function makeSan(move: Move, pos: Position): string {
     const target = board.pieceAt(pos.board, move.to);
     if (target && target.color !== pos.turn) return true;
     if (move.isEnPassant) return true;
+    // en-passant capture onto the empty ep square (chessops output parity):
+    // a pawn moving DIAGONALLY onto the ep square is a capture even when the
+    // caller did not set the isEnPassant flag (external move objects). A
+    // straight push to the ep square remains a quiet move.
+    if (
+      piece.role === Role.Pawn &&
+      pos.epSquare !== null &&
+      move.to === pos.epSquare &&
+      squareFile(move.from) !== squareFile(move.to)
+    ) {
+      return true;
+    }
     return false;
   })();
 
@@ -185,10 +207,22 @@ export function parseSan(san: string, pos: Position): Result<Move, SanError> {
     const isKingSide = s === "O-O";
     const kingSq = board.kingSquare(pos.board, pos.turn);
     if (kingSq === undefined) return Err({ code: "san/noKing" });
-    const dest = pos.turn === Color.White ? (isKingSide ? 6 : 2) : (isKingSide ? 62 : 58);
-    // Find if castling is legal via dests
+    // Find if castling is legal via dests. The generated dest is the
+    // representation's castling square: normalized landing (6/2/62/58) or the
+    // right's rook square (chessops/960 form). Both are accepted.
     const d = chess.dests(pos, kingSq);
-    if (!sq.has(d, dest)) return Err({ code: "san/illegal" });
+    const normDest = pos.turn === Color.White ? (isKingSide ? 6 : 2) : (isKingSide ? 62 : 58);
+    let dest: number | undefined;
+    if (sq.has(d, normDest)) {
+      dest = normDest;
+    } else {
+      const rights = pos.turn === Color.White ? pos.castling.white : pos.castling.black;
+      for (const rs of rights) {
+        const rookIsKingSide = squareFile(rs) > squareFile(kingSq);
+        if (rookIsKingSide === isKingSide && sq.has(d, rs)) { dest = rs; break; }
+      }
+    }
+    if (dest === undefined) return Err({ code: "san/illegal" });
     const move: Move = { from: kingSq, to: dest, isCastling: true, isEnPassant: false, isPromotion: false, promotion: null };
     // Optionally validate check suffix matches actual
     // We ignore mismatch for parsing tolerance, but we could validate
@@ -348,25 +382,9 @@ function genLegalMovesForSan(pos: Position): Move[] {
           if (fileDiff === 1 && destRank - squareRank(from) === dir) isEnPassant = true;
         }
         let isCastling = false;
-        if (piece.role === Role.King && (to === 6 || to === 2 || to === 62 || to === 58)) {
-          const ks = board.kingSquare(pos.board, pos.turn);
-          if (from === ks) {
-            let found = false;
-            if (pos.turn === Color.White) {
-              for (const rs of pos.castling.white) {
-                const isKingSide = squareFile(rs) > squareFile(from);
-                const dest = isKingSide ? 6 : 2;
-                if (dest === to) found = true;
-              }
-            } else {
-              for (const rs of pos.castling.black) {
-                const isKingSide = squareFile(rs) > squareFile(from);
-                const dest = isKingSide ? 62 : 58;
-                if (dest === to) found = true;
-              }
-            }
-            if (found) isCastling = true;
-          }
+        if (piece.role === Role.King) {
+          // Shared detectCastling path (design D2) — no dest-heuristic here.
+          isCastling = chess.detectCastling(pos, from, to) !== null;
         }
         moves.push({ from, to, promotion: null, isPromotion: false, isEnPassant, isCastling });
       }

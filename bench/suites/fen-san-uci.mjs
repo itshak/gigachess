@@ -31,23 +31,15 @@ const CHESS960_SAMPLES = [
   "bbnrkqnr/pppppppp/8/8/8/8/PPPPPPPP/BBNRKQNR w DHdh - 0 1",
 ];
 
-/** Canonicalizes a chessops king→own-rook destination to the landing square (ADR-013). */
-function normDestCo(pos, from, to) {
-  const piece = pos.board.get(from);
-  if (!piece || piece.role !== "king") return to;
-  if (!pos.board.pieces(piece.color, "rook").has(to)) return to;
-  const rank = from >> 3;
-  return ((to & 7) > (from & 7) ? (rank << 3) | 6 : (rank << 3) | 2);
+/** No-op: the ADR-013 bake-off converged both representations
+ * (king-captures-rook everywhere — ADR-013 as amended, change
+ * purechess-gates-green), so dests/UCI compare byte-for-byte. */
+function normDestCo(_pos, _from, to) {
+  return to;
 }
 
-/** Canonicalizes a chessops UCI string the same way (e1h1 → e1g1). */
-function normUciCo(pos, move, uci) {
-  const piece = pos.board.get(move.from);
-  if (piece && piece.role === "king" && pos.board.pieces(piece.color, "rook").has(move.to)) {
-    const rank = move.from >> 3;
-    const file = (move.to & 7) > (move.from & 7) ? 6 : 2;
-    return uci.slice(0, 2) + String.fromCharCode(97 + file) + (rank + 1) + uci.slice(4);
-  }
+/** No-op for the same reason (makeUci now emits e1h1 exactly like chessops). */
+function normUciCo(_pos, _move, uci) {
   return uci;
 }
 

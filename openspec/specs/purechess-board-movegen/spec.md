@@ -90,40 +90,42 @@ The system SHALL provide `knightAttacks(sq: Square): SquareSet`, `kingAttacks(sq
 - **WHEN** `knightAttacks(D4)` is called twice with different board occupancies
 - **THEN** both calls return same `SquareSet` (knight jumps regardless), and input `SquareSet` not mutated
 
-### Requirement: Black Magic sliding SHALL use plain fixed-shift uniform 11 (Fancy per-square is allowed alternative)
+### Requirement: Black Magic sliding SHALL ship fancy per-square tables as lazily-decoded typed-array blobs with the naive fallback serving first
 
-The system SHALL provide `bishopAttacks(sq: Square, occupied: SquareSet): SquareSet`, `rookAttacks(sq: Square, occupied: SquareSet): SquareSet`, `queenAttacks = or(bishopAttacks, rookAttacks)` via Black Magic **plain fixed-shift uniform 11 (default, most performant for JS)**. **Fancy per-square variable shift (`shift = 64 - popcount(mask)`, 52..59) with per-square `offset` is an allowed alternative** for Stockfish-table compatibility, but default SHALL be plain uniform.
+The system SHALL provide `bishopAttacks(sq: Square, occupied: SquareSet): SquareSet`, `rookAttacks(sq: Square, occupied: SquareSet): SquareSet`, `queenAttacks = or(bishopAttacks, rookAttacks)` via **fancy per-square Black Magic** (measured per-square variable shifts: rook 52–54, bishop 55–59; flat attack tables rook 102,400 + bishop 5,248 = 107,648 entries — the classic fancy totals) with these mandatory properties:
 
-- **Plain uniform (default):** For each `sq`, `mask = relevantOccupancies(sq)` (edges excluded), `magic: uint64` (hex `magicHex` plus `magicLo/magicHi` split), `shift = 11` fixed for all squares (homogeneous), `offset = sq * 2048` uniform, `attackTable: SquareSet[]` flat `64*2048=131072` (or 8192 slice for harness). Computation `index = ((occ64 & mask64) * magic64 >>> 11) + offset` emulated without `BigInt` via `Math.imul` split of `lo/hi`. Homogeneous `>>> 11` is most JIT-friendly (stable shape, `bench/results/sliding-2026-08-30-plain-vs-fancy.md`: plain 47.86 vs Fancy 45.84 → plain +4.4% @10M, both `>330%` vs HQ 10.50). GopherCheck baseline, ADR-012.
-- **Fancy per-square (alternative):** `shift = 64 - popcount(mask)` variable 52..59, `offset` cumulative, flat `attackTable` rook 102400 bishop 5248 total 107648, same `RecklessMagics` generator, same `bench/magic-tables/{rook,bishop}.json` schema (**not GPL**). Computation `index = ((occ64 & mask64) * magic64 >> perSquareShift) + perSquareOffset` via `Math.imul` split. Generates identical attacks; `bench/results/sliding-2026-08-30-plain-vs-fancy.md` shows plain vs Fancy are parity (plain +4.4% @10M, Fancy +18% @1M → noise), so either keeps the `+30%` gate (`bench/results/sliding-2026-08-30.md` Black Magic +441% vs HQ 9.35→51.73). Plain is default for `purechess` because it is leanest.
-
-Fancy and plain generate byte-identical `bishopAttacks`/`rookAttacks` vs naive ray for all 1000 random occupancies; harness `D: bigint` at 3.47 MQueens/s proves BigInt not viable. Tables SHALL be `sideEffects:false` and tree-shakeable. `bench/magic-tables/{rook,bishop}.json` SHALL contain per-square `mask`/`magic`/`shift`/`offset` + flat `attackTable` (MIT, not GPL) — impl may use plain uniform `shift=11` subset or full Fancy; both satisfy spec if GWT below passes.
+- **Blob encoding, not object literals:** the generated table modules SHALL store the tables as base64-encoded `Uint8Array` blobs (or equivalent binary assets) decoded into `Uint32Array` lo/hi views at load time — measured 841 KB raw / 26 KB gz and 0.1 ms decode, vs 3,373 KB of object-literal text costing 82 ms to materialize. Stale "plain fixed-shift uniform 11" comments SHALL be corrected to document the fancy encoding (MIT `bench/magic-tables/*.json`, `RecklessMagics`-generated, not GPL).
+- **Lazy loading with naive fallback:** the table modules SHALL NOT be in the static import graph of `purechess/core`; tables load via dynamic `import()` behind `ensureMagicTablesLoaded()`. Until loaded (or if loading fails), the existing naive ray-walk fallback SHALL serve — measured **1.66× chessops** (17.4 vs 10.4 MAttacks/s), so correctness and a chessops-beating guarantee hold from the first call.
+- **Fresh results, no shared mutable entries:** with typed-array storage each attack call SHALL return a fresh `{lo, hi}` (measured 35.1 vs 30.0 MAttacks/s — 17% *faster* than the object-table lookup that returned shared mutable entries, an ADR-012 aliasing hazard).
+- **No `BigInt` in hot path** (unchanged) and the 64-bit multiply split (`Math.imul` lo/hi emulation) SHALL be reused by both the table path and any decoder.
 
 | Field | Type | Example (Rook A1) |
 |-------|------|-------------------|
 | `mask` | `SquareSet {lo,hi}` | `0x000101010101017E` → `{lo:16843134,hi:65793}` |
 | `magic` | `uint64 hex` | `0x1080018022704002` → `{lo:577781762,hi:276824448}` |
-| `shift` | `uint8 52..59` | `52` |
-| `offset` | `usize` | `0` |
-| `attackTable[offset + index]` | `SquareSet` | `bishopAttacks(A1,0) = {lo:...,hi:...}` |
-
-Spec forbids `BigInt` in `src/attacks.ts`; reference harness `D: bigint` at 3.47 MQueens/s proves not viable.
+| `shift` | `uint8 52..59` (per square) | `52` |
+| `offset` | `usize` (cumulative) | `0` |
+| `attackTable[offset + index]` | `Uint32Array` lo/hi pair | decoded from blob |
 
 #### Scenario: Rook attacks empty vs blocked are correct vs perft oracle
 - **WHEN** `rookAttacks(A1=0, occupied=empty)` is computed
 - **THEN** result is `A2=8,A3=16,A4=24,A5=32,A6=40,A7=48,A8=56,B1=1,C1=2,D1=3,E1=4,F1=5,G1=6,H1=7` exactly (14 bits), and `rookAttacks(A1, occupied={C1=2})` is `B1=1,C1=2` (stops inclusive at blocker) not `D1..H1`
 
-#### Scenario: Bishop attacks via magic match naive ray for all occupancies
-- **WHEN** for square `D4=27` and 1000 random `occupied` subsets of `bishopMask(D4)` the `bishopAttacks` via magic is compared to naive ray loop (step to edge, stop at blocker inclusive)
+#### Scenario: Blob table path matches naive ray for all occupancies
+- **WHEN** for square `D4=27` and all `2^popcount(mask(D4))` occupancy subsets of `bishopMask(D4)` (and a 50k-sample parity sweep of real perft-tree occupancies × 64 squares) the blob-path attacks are compared to the naive ray loop
 - **THEN** every result equals naive, and `queenAttacks(D4,occ).equals(or(bishopAttacks(D4,occ), rookAttacks(D4,occ)))`
 
-#### Scenario: Black Magic index uses masked occupancy and offset
-- **WHEN** `rookAttacks(H1=7, occupied=fullBoard)` is computed where `mask` excludes `H1` itself and edges
-- **THEN** `occMasked = and(occupied, mask)` has bits only on relevant squares, `index = ((occMasked * magic) >> shift) + offset` is within `[offset, offset+size)` and `attackTable[index]` equals naive attacks
+#### Scenario: Sliding speed gates hold before and after table load
+- **WHEN** the sliding real-world suite benchmarks `queenAttacks` over real perft-tree occupancies with tables unloaded (naive fallback) and loaded (blob magic)
+- **THEN** naive SHALL be ≥1.5× chessops MAttacks/s and blob magic SHALL be ≥2.5× chessops (measured 1.66× and 3.37×)
 
-#### Scenario: No BigInt in hot path and bundle tree-shaking
-- **WHEN** `rg BigInt src/attacks.ts` and bundle `npm run bench:bundle -- --entry core` are run
-- **THEN** `BigInt` count is 0 in hot files, `purechess/core` gzipped is ≥30% smaller than `chessops` full (verified via `esbuild` with `sideEffects:false` and `exports` map), and `import { Chess } from "purechess/core"` does not include `parsePgn` bytes
+#### Scenario: Core bundle excludes table bytes from the static graph
+- **WHEN** a consumer imports `import { Chess } from "purechess/core"` and the bundle is inspected
+- **THEN** no rook/bishop attack-table bytes are present (static import graph excludes the table modules), the tables load only via dynamic `import()`, and the naive fallback is statically included
+
+#### Scenario: No BigInt in hot path
+- **WHEN** `rg BigInt src/attacks.ts src/squareSet.ts` runs
+- **THEN** the count is 0 in hot files (BigInt allowed only in tests/oracles)
 
 ### Requirement: Ray, between, and attacks helpers SHALL be pure and correct
 

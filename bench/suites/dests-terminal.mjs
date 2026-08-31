@@ -28,13 +28,11 @@ import { parseFen as coParseFen } from "chessops/fen";
 const QUEEN = 4;
 const CO_ROLE = { 1: "knight", 2: "bishop", 3: "rook", 4: "queen" };
 
-/** Normalizes a chessops dest (king→own-rook) to the landing square (ADR-013). */
-function normDestCo(coPos, from, to) {
-  const piece = coPos.board.get(from);
-  if (!piece || piece.role !== "king") return to;
-  if (!coPos.board.pieces(piece.color, "rook").has(to)) return to;
-  const rank = from >> 3;
-  return ((to & 7) > (from & 7) ? (rank << 3) | 6 : (rank << 3) | 2);
+/** No-op since the ADR-013 bake-off converged both representations
+ * (king-captures-rook everywhere — ADR-013 as amended, change
+ * purechess-gates-green): purechess dests now match chessops byte-for-byte. */
+function normDestCo(_coPos, _from, to) {
+  return to;
 }
 
 function isPawnFrom(pos, from) {

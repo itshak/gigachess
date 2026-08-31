@@ -4,6 +4,7 @@
   "purechess.fen.kingsAdjacent": "Kings adjacent",
   "purechess.fen.oppositeCheck": "Opposite check",
   "purechess.fen.enPassantUncapturable": "En passant square is not capturable",
+  "purechess.fen.enPassantNotCapturable": "En passant square is not capturable",
   "purechess.fen.invalidFen": "Invalid FEN",
   "purechess.fen.invalidPiecePlacement": "Invalid piece placement",
   "purechess.fen.invalidActiveColor": "Invalid active color",
