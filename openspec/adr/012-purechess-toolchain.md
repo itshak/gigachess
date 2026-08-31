@@ -16,9 +16,9 @@ All had to be *measured*, not guessed, on the same harness (`bench/bench-sliding
 
 ## Decision
 
-### 1. Language: TS functional (strict) — not PureScript, not ReScript for hot path
+### 1. Language: TS, functional API only (non-mutable userdata) — inside imperative for max perf
 
-- **Chosen:** **TypeScript (strict) functional style** for `purechess` hot path (`src/squareSet.ts`, `src/attacks.ts`). ReScript honest Black Magic (`RescriptLohi.res` → `RescriptLohi.bs.js`) was **32% slower than TS** on identical tables (34.83 vs 51.73 MQueens/s @10M, `sliding-2026-08-30.md:10M`). PureScript was rejected earlier (heavier `Eff`/`ST`, larger output). ReScript stays viable for PGN/tree (functional) but not for `attacks`.
+- **Chosen:** **TypeScript (strict) — functional *only* at the public API boundary (non-mutable userdata), imperative *inside* for max perf.** Public types are `readonly` (`Board`, `Position`, `Setup` fields `readonly`, `CastlingRights` as `ReadonlySet`); every public op returns a fresh value and never mutates its input (`parseFen: string → Result<Setup>`, `makeMove(pos, move) → Position`). Inside the boundary (hot loops `src/attacks.ts`, `src/squareSet.ts`, `src/board.ts`) the code is imperative for speed: `WritableBoard` scratch, `clearSquareInPlace`/`putPieceInPlace`, `forEachSquare`, `let`/`while` mutables. ReScript honest Black Magic (`RescriptLohi.res` → `RescriptLohi.bs.js`) was **32% slower than TS** on identical tables (34.83 vs 51.73 MQueens/s @10M, `sliding-2026-08-30.md:10M`). PureScript was rejected earlier (heavier `Eff`/`ST`, larger output). ReScript stays viable for PGN/tree (functional) but not for `attacks`.
 - **Alternative:** ReScript `{lo,hi}` manual (no `Int64` runtime, no Belt) — same `{lo,hi}` layout as TS, but compiled JS added wrapper + `Belt.Array.getExn` overhead. PureScript `purescript-js-bigints` / `purescript-int64` (WASM or `long.js`) — not measured, heavier.
 - **Rationale:** TS gives best `MQueens/s`, zero toolchain, smallest `lib/bs` cache (now `.gitignore`d), largest hiring pool, and `.d.ts` natively. See `bench/results/sliding-2026-08-30.md:10M`.
 
@@ -28,11 +28,11 @@ All had to be *measured*, not guessed, on the same harness (`bench/bench-sliding
 - **Measured:** `BigInt` at 3.41–3.51 MQueens/s is **14.4–14.9× slower than Black Magic lo/hi** (`sliding-2026-08-30.md`). `BigInt` is a heap object (`{sign, digits}`) + C++ call per op (`tc39/proposal-bigint#117`), not a register. Rejected for hot path (kept for correctness tests only).
 - **Alternative:** `BigInt` / `BigUint64Array` — correct but not hot-path viable until V8 ships `BigInt-int64` fast path (not in `v24`).
 
-### 3. Slider: Black Magic plain fixed-shift (lo/hi) — not HQ
+### 3. Slider: Black Magic fancy per-square (lo/hi) — not HQ, not plain uniform 11
 
-- **Chosen:** **Black Magic plain fixed-shift** (`mask & occ → Math.imul(masked, magic) >>> shift → table[idx & 0xFFF]`) with per-square `mask/magic/shift` + `bench/magic-tables/*.json` generated offline via MIT `RecklessMagics`/`magic-bits`.
-- **Measured:** Real `chessops` HQ (hyperbola: `minus64` + `bswap` per ray, `SquareSet` alloc) at **9.35–10.09 MQueens/s** vs TS Black Magic at **48.96–51.73** → **+420–441%** (>30% gate) (`sliding-2026-08-30.md:10M`). Synthetic HQ stub at 148 was 15.8× too fast — replaced by honest `bench/candidates/hq.mjs` wrapping `chessops`.
-- **Alternative:** HQ hyperbola quintessence (`chessops` choice: smaller tables, 2.1 → 2.3 kB gz, but more ops) — wins table size but loses `MQueens/s`. Fancy magic / `PEXT` — `PEXT` not in JS (requires BMI2/WASM), fancy variable-shift saves table but adds branching, per Gigantua `MQueens/s` harness Black Magic fixed-shift is best for JS (homogeneous arrays, GopherCheck baseline).
+- **Chosen:** **Black Magic fancy per-square variable shift** (`mask & occ → Math.imul(masked, magic) >>> perSquareShift + perSquareOffset → table[idx]`) with per-square `mask/magic/shift/offset` + `bench/magic-tables/*.json` (rook 102400 + bishop 5248 = 107648 entries, gzip+base64 blobs) generated offline via MIT `RecklessMagics`/`magic-bits`. **Fancy chosen as default because it minimizes table footprint** (plain uniform 11 would be `64*2048=131072` per piece → 262k total, larger than Fancy 107k; bench `sliding-2026-08-30-plain-vs-fancy.md`: plain 47.86 vs Fancy 45.84 → plain +4.4% @10M, both `>330%` vs HQ, i.e. parity — so we pick the smaller table). `bench/magic-tables/*.json` now stores Fancy per-square `maskLo/maskHi`, `magicHex/magicLo/magicHi`, `shift`, `offset`, `attackTable` as blobs.
+- **Measured:** Real `chessops` HQ (hyperbola: `minus64` + `bswap` per ray, `SquareSet` alloc) at **9.35–10.09 MQueens/s** vs TS Black Magic fancy at **45.84–51.73** → **+420–441%** (>30% gate) (`sliding-2026-08-30.md:10M`). Synthetic HQ stub at 148 was 15.8× too fast — replaced by honest `bench/candidates/hq.mjs` wrapping `chessops`.
+- **Alternative:** HQ hyperbola quintessence (`chessops` choice: smaller tables, 2.1 → 2.3 kB gz, but more ops) — wins table size but loses `MQueens/s`. Plain fixed-shift uniform 11 (homogeneous `>>>11`, `bench/results/sliding-2026-08-30-plain-vs-fancy.md`) — allowed alternative, generates identical attacks and is `+4.4%` faster than Fancy at 10M in one run but larger table; either is correct, Fancy is default for footprint. `PEXT` not in JS (requires BMI2/WASM).
 
 ### 4. Functional style: the public API MUST be functional (users expect it), the inside MUST be fast (allowlist + type-enforced boundary)
 
