@@ -2,7 +2,7 @@
 // purechess-benchmarks delta of change purechess-gates-green, task 4.1/4.2).
 // esbuild-bundles (splitting: on, so dynamic imports become separate lazy
 // chunks — same as production bundlers) a consumer importing Chess from
-// `purechess/core`, `purechess` (full), and `chessops`; reports gzipped sizes
+// `turbochess/core`, `turbochess` (full), and `chessops`; reports gzipped sizes
 // and gates:
 //   - core static bundle ≤120% of the chessops Chess-import gz (the former
 //     "core ≥30% smaller than chessops" clause compared a data-carrying core
@@ -24,8 +24,8 @@ import { fileURLToPath } from "node:url";
 const REPO = fileURLToPath(new URL("../../", import.meta.url));
 
 const ENTRIES = {
-  "purechess/core": `import { Chess } from "purechess/core"; export const C = Chess;`,
-  "purechess (full)": `import { Chess } from "purechess"; export const C = Chess;`,
+  "turbochess/core": `import { Chess } from "turbochess/core"; export const C = Chess;`,
+  "turbochess (full)": `import { Chess } from "turbochess"; export const C = Chess;`,
   "chessops (full)": `import { Chess } from "chessops"; export const C = Chess;`,
 };
 
@@ -48,11 +48,11 @@ async function bundleSplit(entrySource, dir, label) {
     logLevel: "silent",
     nodePaths: [join(REPO, "node_modules")],
     alias: {
-      // package.json exports map of the local repo (name is purechess-workstation)
-      "purechess/core": join(REPO, "dist/core.js"),
-      "purechess/pgn": join(REPO, "dist/pgn.js"),
-      "purechess/chess960": join(REPO, "dist/chess960.js"),
-      "purechess": join(REPO, "dist/index.js"),
+      // package.json exports map of the local repo (name is turbochess-workstation)
+      "turbochess/core": join(REPO, "dist/core.js"),
+      "turbochess/pgn": join(REPO, "dist/pgn.js"),
+      "turbochess/chess960": join(REPO, "dist/chess960.js"),
+      "turbochess": join(REPO, "dist/index.js"),
     },
   });
   // entry chunk = output named after the entry file; the rest are lazy chunks
@@ -65,7 +65,7 @@ export const name = "bundle";
 
 export async function run(opts) {
   console.log(`\n=== suite: bundle (esbuild minified + gzip, splitting; re-baselined tree-shake gate) ===`);
-  const dir = mkdtempSync(join(tmpdir(), "purechess-bench-bundle-"));
+  const dir = mkdtempSync(join(tmpdir(), "turbochess-bench-bundle-"));
   const out = {};
   const lazies = [];
   for (const [label, src] of Object.entries(ENTRIES)) {
@@ -78,8 +78,8 @@ export async function run(opts) {
     console.log(`  ${label.padEnd(18)} static ${b.entry.length.toLocaleString()} B raw → ${entryGz.toLocaleString()} B gz${b.lazy.length ? ` | lazy chunks ${lazyGz.toLocaleString()} B gz | total ${allGz.toLocaleString()} B gz` : ""}`);
   }
 
-  const coreGz = out["purechess/core"].gz;
-  const fullTotalGz = out["purechess (full)"].allGz;
+  const coreGz = out["turbochess/core"].gz;
+  const fullTotalGz = out["turbochess (full)"].allGz;
   const coGz = out["chessops (full)"].gz;
   const coreRatio = coreGz / coGz * 100;
   console.log(`  core vs chessops Chess-import: ${coreRatio.toFixed(1)}% of size (gate ≤120%)`);
@@ -88,7 +88,7 @@ export async function run(opts) {
   // Dead-code absence in the core STATIC chunk: parsePgn (pgn module), Chess960
   // (chess960 module), and magic-table bytes (the base64 blobs) must not be
   // reachable from the core static import graph.
-  const coreText = (await bundleSplit(ENTRIES["purechess/core"], dir, "core-deadcode")).entry.toString("utf8");
+  const coreText = (await bundleSplit(ENTRIES["turbochess/core"], dir, "core-deadcode")).entry.toString("utf8");
   const hasPgn = coreText.includes("parsePgn") || coreText.includes("pgn/");
   const hasChess960 = coreText.includes("Chess960") || coreText.includes("chess960");
   // distinctive slice of the generated rook blob text (from the checked-in

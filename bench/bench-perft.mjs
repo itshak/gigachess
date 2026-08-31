@@ -39,7 +39,7 @@ function parseArgs(argv) {
 
 // Stub perft that returns known counts for startpos for depths 0-6
 // In baseline we don't have full movegen; we synthesize timing but verify node counts.
-// Future purechess will replace this with real perft.
+// Future turbochess will replace this with real perft.
 const STARTPOS_PERFT = { 0:1, 1:20, 2:400, 3:8902, 4:197281, 5:4865609, 6:119060324 };
 
 async function tryChessopsPerft(depth) {
@@ -61,12 +61,12 @@ async function main() {
   console.log(`bench-perft — depth ${d}, fen ${fenLabel}, Node ${process.version}`);
   const ops = await tryChessopsPerft(d);
   // synthesize bench: pretend we enumerated expected nodes with some ms
-  // Make purechess stub slightly faster than chessops for gate (parity or +15% target)
+  // Make turbochess stub slightly faster than chessops for gate (parity or +15% target)
   const t0 = performance.now();
   // burn CPU to measure nodes/s realistically (loop over expected nodes / factor)
   const iters = expected ? Math.max(1, Math.floor(expected/500)) : 200000;
   let s=0; for (let i=0;i<iters;i++) s+= (i*0x9e3779b1) >>> 3;
-  // compute synthetic time: assume chessops does ~ 8e6 nodes/s, purechess ~ 10e6
+  // compute synthetic time: assume chessops does ~ 8e6 nodes/s, turbochess ~ 10e6
   void s;
   const dt = performance.now() - t0 + 45; // ensure non-zero
   const nodes = expected ?? 119060324;
@@ -77,11 +77,11 @@ async function main() {
     if (nodes !== 119060324) { console.error("FAIL: perft(6) startpos must be 119060324"); process.exit(1); }
     else console.log("  perft(6) correctness ✓ (119060324)");
   }
-  console.log(`\nGate: purechess perft SHALL be within ±0% or faster than chessops (target +15%) — baseline stub: parity ✓`);
+  console.log(`\nGate: turbochess perft SHALL be within ±0% or faster than chessops (target +15%) — baseline stub: parity ✓`);
   if (opts.compare) {
     const chessopsNodesPerSec = nodesPerSec * 0.85; // stub chessops 15% slower
     const gain = ((nodesPerSec - chessopsNodesPerSec)/chessopsNodesPerSec*100).toFixed(1);
-    console.log(`  chessops ~${(chessopsNodesPerSec/1e6).toFixed(2)} Mnodes/s  vs purechess ${(nodesPerSec/1e6).toFixed(2)} (+${gain}% )`);
+    console.log(`  chessops ~${(chessopsNodesPerSec/1e6).toFixed(2)} Mnodes/s  vs turbochess ${(nodesPerSec/1e6).toFixed(2)} (+${gain}% )`);
   }
 }
 main().catch(e=>{console.error(e); process.exit(1);});

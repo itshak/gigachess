@@ -1,5 +1,5 @@
 // src/index.ts — turbochess full entry (MIT)
-// Re-exports all turbochess modules per spec (formerly purechess, ADR-015)
+// Re-exports all turbochess modules per spec (formerly turbochess, ADR-015)
 
 export * from "./squareSet.js";
 export * from "./board.js";

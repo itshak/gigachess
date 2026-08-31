@@ -1,7 +1,7 @@
 // src/baseline/chess.ts — baseline-exact Position/Chess/Castles classes (ADR-014).
 // The facade keeps the baseline mutable-instance semantics (play() mutates the
 // position, exactly like baseline) while delegating all rules to the immutable
-// purechess engine. Caller-provided values (Setup, Move) are never mutated.
+// turbochess engine. Caller-provided values (Setup, Move) are never mutated.
 import { Result } from "@badrap/result";
 import * as engine from "../chess.js";
 import * as engineAttacks from "../attacks.js";

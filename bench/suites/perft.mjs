@@ -56,7 +56,7 @@ export async function run(opts) {
     const pc = parseFen(entry.fen);
     const coSetup = coParseFen(entry.fen);
     if (!pc.ok || coSetup.isErr) {
-      parityFailures.push({ fen: entry.fen, depth: 0, detail: !pc.ok ? `purechess parseFen failed: ${pc.error?.code}` : "chessops parseFen failed" });
+      parityFailures.push({ fen: entry.fen, depth: 0, detail: !pc.ok ? `turbochess parseFen failed: ${pc.error?.code}` : "chessops parseFen failed" });
       continue;
     }
     const pos = { ...pc.value, halfmove: 0, fullmove: 1 };
@@ -68,11 +68,11 @@ export async function run(opts) {
       const coN = Number(coPerft(coPos.clone(), d));
       comparisons++;
       if (pcN !== coN) {
-        parityFailures.push({ fen: entry.fen, depth: d, detail: `purechess=${pcN} chessops=${coN}` });
+        parityFailures.push({ fen: entry.fen, depth: d, detail: `turbochess=${pcN} chessops=${coN}` });
       }
       const expected = entry.depths.find((x) => x.depth === d);
       if (expected && expected.nodes !== null && pcN !== expected.nodes) {
-        parityFailures.push({ fen: entry.fen, depth: d, detail: `purechess=${pcN} corpus=${expected.nodes}` });
+        parityFailures.push({ fen: entry.fen, depth: d, detail: `turbochess=${pcN} corpus=${expected.nodes}` });
       }
       deepest = pcN;
     }
@@ -110,7 +110,7 @@ export async function run(opts) {
   const coNps = thr(totalNodes, coM.median);
   const ratio = pcNps / coNps;
   console.log(`  corpus: ${positions.length} FENs, ${totalNodes.toLocaleString()} nodes per run at cap depth`);
-  console.log(`  purechess : ${Math.round(pcNps).toLocaleString()} nodes/s (median ${pcM.median.toFixed(0)} ms, p10 ${pcM.p10.toFixed(0)} / p90 ${pcM.p90.toFixed(0)}, 20 runs, 3 warmups excluded)`);
+  console.log(`  turbochess : ${Math.round(pcNps).toLocaleString()} nodes/s (median ${pcM.median.toFixed(0)} ms, p10 ${pcM.p10.toFixed(0)} / p90 ${pcM.p90.toFixed(0)}, 20 runs, 3 warmups excluded)`);
   console.log(`  chessops  : ${Math.round(coNps).toLocaleString()} nodes/s (median ${coM.median.toFixed(0)} ms, p10 ${coM.p10.toFixed(0)} / p90 ${coM.p90.toFixed(0)})`);
   console.log(`  speedup   : ${(ratio * 100 - 100).toFixed(1)}%`);
 

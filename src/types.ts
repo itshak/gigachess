@@ -87,7 +87,7 @@ export function Err<T, E>(error: E): Result<T, E> {
   return { ok: false, error };
 }
 
-// Error codes → i18n keys turbochess.<module>.<code> (renamed from purechess.*, ADR-015)
+// Error codes → i18n keys turbochess.<module>.<code> (renamed from turbochess.*, ADR-015)
 export type FenError = { code: string; message?: string };
 export type SanError = { code: string; message?: string };
 export type UciError = { code: string; message?: string };

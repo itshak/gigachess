@@ -30,7 +30,7 @@ const CO_ROLE = { 1: "knight", 2: "bishop", 3: "rook", 4: "queen" };
 
 /** No-op since the ADR-013 bake-off converged both representations
  * (king-captures-rook everywhere — ADR-013 as amended, change
- * purechess-gates-green): purechess dests now match chessops byte-for-byte. */
+ * purechess-gates-green): turbochess dests now match chessops byte-for-byte. */
 function normDestCo(_coPos, _from, to) {
   return to;
 }
@@ -40,7 +40,7 @@ function isPawnFrom(pos, from) {
   return !!p && p.role === 0; // Role.Pawn
 }
 
-/** Replays games with purechess, collecting up to `target` unique positions. */
+/** Replays games with turbochess, collecting up to `target` unique positions. */
 function collectPositions(games, target) {
   const seen = new Set();
   const positions = [];
@@ -92,7 +92,7 @@ export async function run(opts) {
   for (const { key, pos } of positions) {
     const coS = coParseFen(key);
     if (coS.isErr) {
-      failures.push(`${key}: chessops could not parse purechess makeFen output`);
+      failures.push(`${key}: chessops could not parse turbochess makeFen output`);
       continue;
     }
     const coPos = coChess.fromSetup(coS.value).unwrap();
@@ -107,7 +107,7 @@ export async function run(opts) {
       const pcTos = new Set(pcSet ? [...sqIter(pcSet)].map(Number) : []);
       const coTos = new Set();
       if (coSet) for (const to of coSet) coTos.add(normDestCo(coPos, from, to));
-      for (const to of pcTos) if (!coTos.has(to)) failures.push(`${key}: dest ${from}-${to} only in purechess`);
+      for (const to of pcTos) if (!coTos.has(to)) failures.push(`${key}: dest ${from}-${to} only in turbochess`);
       for (const to of coTos) if (!pcTos.has(to)) failures.push(`${key}: dest ${from}-${to} only in chessops`);
       destMoves += pcTos.size;
 
@@ -130,7 +130,7 @@ export async function run(opts) {
             coLegal = false;
           }
           if (pcLegal !== coLegal) {
-            failures.push(`${key}: isLegal ${from}-${to}${promo !== undefined ? "=" + promo : ""} purechess=${pcLegal} chessops=${coLegal}`);
+            failures.push(`${key}: isLegal ${from}-${to}${promo !== undefined ? "=" + promo : ""} turbochess=${pcLegal} chessops=${coLegal}`);
           }
         }
       }
@@ -144,7 +144,7 @@ export async function run(opts) {
       ["isInsufficientMaterial", pcIsInsufficient(pos), coPos.isInsufficientMaterial()],
     ];
     for (const [tname, pcV, coV] of terms) {
-      if (pcV !== coV) failures.push(`${key}: ${tname} purechess=${pcV} chessops=${coV}`);
+      if (pcV !== coV) failures.push(`${key}: ${tname} turbochess=${pcV} chessops=${coV}`);
     }
   }
 
@@ -176,7 +176,7 @@ export async function run(opts) {
   const coM = measure(runCo);
   const pcDps = thr(prepared.length, pcM.median);
   const coDps = thr(prepared.length, coM.median);
-  console.log(`  dests throughput (allDests per position): purechess ${Math.round(pcDps).toLocaleString()}/s vs chessops ${Math.round(coDps).toLocaleString()}/s → ${(pcDps / coDps * 100 - 100).toFixed(1)}% (median of 20, 3 warmups excluded)`);
+  console.log(`  dests throughput (allDests per position): turbochess ${Math.round(pcDps).toLocaleString()}/s vs chessops ${Math.round(coDps).toLocaleString()}/s → ${(pcDps / coDps * 100 - 100).toFixed(1)}% (median of 20, 3 warmups excluded)`);
 
   const gates = [
     gate("dests/legal/terminal 100% parity on real-game positions", true, "0 mismatches", `0 mismatches over ${prepared.length} positions / ${destMoves.toLocaleString()} moves`),

@@ -1,6 +1,6 @@
 // src/attacks.ts — leaper tables + fancy per-square Black Magic sliding
 // (lazily loaded from generated base64 blobs) via bench/magic-tables
-// MIT purechess, clean-room from specs + FIDE notes (no G P L)
+// MIT turbochess, clean-room from specs + FIDE notes (no G P L)
 
 import * as sq from "./squareSet.js";
 import type { SquareSet } from "./squareSet.js";
@@ -155,7 +155,7 @@ export function pawnAttacks(color: Color, sqIdx: number): SquareSet {
 //   - speed: 35.1 vs 30.0 MAttacks/s (indexed typed-array reads beat object
 //     property loads) — see bench/results/real-2026-08-30.md appendix.
 //
-// The table modules are NEVER in the static import graph of `purechess/core`
+// The table modules are NEVER in the static import graph of `turbochess/core`
 // (bundle gate): they load via dynamic `import()` behind
 // `ensureMagicTablesLoaded()`. Until loaded — or if loading fails — the naive
 // ray-walk fallback serves; it is measured at 1.66× baseline, so a

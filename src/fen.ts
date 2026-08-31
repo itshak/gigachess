@@ -207,7 +207,7 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
   // Structural validation (square name + rank for the side to move) stays
   // unconditional per purechess-rules. The capturability check moves behind
   // `strict` (design D3): real-world corpora (lichess FENs after any double
-  // push) and purechess's own makeFen output contain unreachable ep squares,
+  // push) and turbochess's own makeFen output contain unreachable ep squares,
   // and baseline accepts them — rejecting them broke round-trip for ~4.7% of
   // real-game positions.
   let epSquare: number | null = null;

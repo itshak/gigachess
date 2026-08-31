@@ -1,5 +1,5 @@
 // src/chess960.ts — Chess960 (Fischer Random) support, X-FEN/Shredder dual
-// MIT purechess, clean-room from specs + FIDE notes (no G P L)
+// MIT turbochess, clean-room from specs + FIDE notes (no G P L)
 // Re-uses core chess.ts logic which already handles 960 castling via generic rook sets
 
 import * as chess from "./chess.js";

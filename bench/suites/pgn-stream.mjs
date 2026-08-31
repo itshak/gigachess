@@ -58,7 +58,7 @@ export async function run(opts) {
     if (coGame) coOkGames++;
     if (pcR.ok !== !!coGame) {
       if (parityFailures.length < 10) {
-        parityFailures.push(`game ${i}: parse agreement broken (purechess ok=${pcR.ok}, chessops ok=${!!coGame})`);
+        parityFailures.push(`game ${i}: parse agreement broken (turbochess ok=${pcR.ok}, chessops ok=${!!coGame})`);
       }
       continue;
     }
@@ -69,7 +69,7 @@ export async function run(opts) {
     const coS = coSans(coGame);
     if (pcSans.length !== coS.length || pcSans.some((s, j) => s !== coS[j])) {
       if (parityFailures.length < 10) {
-        parityFailures.push(`game ${i}: SAN stream differs (purechess ${pcSans.length} moves vs chessops ${coS.length})`);
+        parityFailures.push(`game ${i}: SAN stream differs (turbochess ${pcSans.length} moves vs chessops ${coS.length})`);
       }
       continue;
     }
@@ -86,7 +86,7 @@ export async function run(opts) {
     }
   }
 
-  console.log(`  parity: purechess parsed ${pcOkGames}/${games.length}, chessops parsed ${coOkGames}/${games.length}, SAN streams + round-trips compared per legal game`);
+  console.log(`  parity: turbochess parsed ${pcOkGames}/${games.length}, chessops parsed ${coOkGames}/${games.length}, SAN streams + round-trips compared per legal game`);
   if (parityFailures.length) {
     parityFailures.forEach((f) => console.log(`    ${f}`));
     return {
@@ -127,7 +127,7 @@ async function benchPhase({ games, text, bytes, chunkSizes }) {
     const pcMBs = (bytes / 1048576) / (pcM.median / 1000);
     const ratio = pcGps / coGps;
     metrics.chunks[chunk] = { pcGamesPerSec: pcGps, coGamesPerSec: coGps, ratio, pcMBs };
-    console.log(`  chunk ${chunk}: purechess ${Math.round(pcGps).toLocaleString()} games/s (${pcMBs.toFixed(1)} MB/s) vs chessops ${Math.round(coGps).toLocaleString()} games/s → ${(ratio * 100 - 100).toFixed(1)}% (median of 20, p10 ${pcM.p10.toFixed(0)} / p90 ${pcM.p90.toFixed(0)} vs ${coM.p10.toFixed(0)}/${coM.p90.toFixed(0)}, 3 warmups excluded)`);
+    console.log(`  chunk ${chunk}: turbochess ${Math.round(pcGps).toLocaleString()} games/s (${pcMBs.toFixed(1)} MB/s) vs chessops ${Math.round(coGps).toLocaleString()} games/s → ${(ratio * 100 - 100).toFixed(1)}% (median of 20, p10 ${pcM.p10.toFixed(0)} / p90 ${pcM.p90.toFixed(0)} vs ${coM.p10.toFixed(0)}/${coM.p90.toFixed(0)}, 3 warmups excluded)`);
     gates.push(gate(`pgn-stream chunk ${chunk}: ≥50% higher games/s than chessops`, ratio >= 1.5, "≥1.50x", `${ratio.toFixed(3)}x`));
   }
   // Peak heap gate (design D5): heapUsed sampled post-GC at 10k-game checkpoints.
@@ -136,7 +136,7 @@ async function benchPhase({ games, text, bytes, chunkSizes }) {
   metrics.pcPeakHeapMb = pcPeak;
   metrics.coPeakHeapMb = coPeak;
   const heapPass = coPeak > 0 && pcPeak <= coPeak * 1.1;
-  console.log(`  peak heap (post-GC checkpoints, 16k chunks): purechess ${pcPeak} MB vs chessops ${coPeak} MB → ${(coPeak ? pcPeak / coPeak * 100 : 100).toFixed(1)}%`);
+  console.log(`  peak heap (post-GC checkpoints, 16k chunks): turbochess ${pcPeak} MB vs chessops ${coPeak} MB → ${(coPeak ? pcPeak / coPeak * 100 : 100).toFixed(1)}%`);
   gates.push(gate("pgn-stream peak heap ≤110% of chessops", heapPass, "≤110%", coPeak ? `${(pcPeak / coPeak * 100).toFixed(1)}%` : "n/a"));
   return { metrics, gates };
 }

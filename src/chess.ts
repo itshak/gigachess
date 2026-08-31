@@ -1,5 +1,5 @@
 // src/chess.ts — core chess rules, Position/Setup, dests, isLegal, isCheck, perft etc
-// MIT purechess, clean-room from specs + FIDE notes (no G P L)
+// MIT turbochess, clean-room from specs + FIDE notes (no G P L)
 
 import * as sq from "./squareSet.js";
 import type { SquareSet } from "./squareSet.js";

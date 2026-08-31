@@ -1,7 +1,7 @@
 // src/baseline/fenInternal.ts — engine bridge shared by the baseline-compatible
 // facade modules (ADR-014). Not part of the public API. Single-sourced FEN
 // constants + placement codecs (turbochess-adopt task 3.2; formerly
-// `purechess`, ADR-015).
+// `turbochess`, ADR-015).
 import { parseFen as engineParseFen, makeFen as engineMakeFen } from "../fen.js";
 import type { Board as EngineBoard } from "../board.js";
 import type { Setup as EngineSetup } from "../types.js";

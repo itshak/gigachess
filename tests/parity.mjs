@@ -17,7 +17,7 @@ function check(name, cond, extra = "") {
 
 // ---------------------------------------------------------------------------
 // Castling representation: converged. Per ADR-013 as amended (ADR-013 bake-off,
-// change purechess-gates-green), purechess now uses the chessops-style
+// change purechess-gates-green), turbochess now uses the chessops-style
 // king-captures-rook encoding (e1h1/e8a8) as its single canonical
 // representation, so dests/SAN/UCI compare byte-identically against chessops
 // with no canonicalization helpers. (The former normDest/normDestCo helpers
@@ -81,7 +81,7 @@ for (const line of fenLines) {
   } catch { }
 }
 const fenOk = fenN - fenFailPc - fenFailCo;
-console.log(`  purechess parse ok: ${fenN - fenFailPc}/${fenN}, chessops parse ok: ${fenN - fenFailCo}/${fenN}`);
+console.log(`  turbochess parse ok: ${fenN - fenFailPc}/${fenN}, chessops parse ok: ${fenN - fenFailCo}/${fenN}`);
 console.log(`  FEN round-trip identical: ${fenRt}/${fenOk}`);
 console.log(`  dests sets identical vs chessops: ${fenParity}/${fenOk}`, fenBad.slice(0, 3));
 check("FEN round-trip >=99%", fenRt >= fenOk * 0.99, `${fenRt}/${fenOk}`);

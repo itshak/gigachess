@@ -1,6 +1,6 @@
 // src/baseline/index.ts — baseline-compatible public API (ADR-014).
 // Mirrors the baseline root module layout: `import { Chess, parseFen, ... }
-// from "turbochess/chessops" (formerly purechess/baseline, ADR-015)`. Backed by the immutable purechess engine.
+// from "turbochess/chessops" (formerly turbochess/baseline, ADR-015)`. Backed by the immutable turbochess engine.
 export * from "./types.js";
 export * from "./squareSet.js";
 export * from "./board.js";

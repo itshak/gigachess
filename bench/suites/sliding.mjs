@@ -2,7 +2,7 @@
 // Harvests occupancy bitboards from perft trees of the 6 standard perft
 // positions (NOT uniform-random occupancies), dedups via the lo*2^32+hi key,
 // and benchmarks queenAttacks over up to 10M unique real occupancies.
-// Parity: attack sets must be bit-identical (purechess Black Magic vs
+// Parity: attack sets must be bit-identical (turbochess Black Magic vs
 // chessops HQ) on the first 100k samples BEFORE any timing is reported.
 import { assertCorpus, CORPORA, gate, measure, parseSuiteArgs, thr } from "./lib/common.mjs";
 import { parseFen, allDests, makeMove, pieceAt, queenAttacks as pcQueen, iter as sqIter, ensureMagicTablesLoaded as pcEnsureMagicTables, magicTablesLoaded as pcMagicLoaded } from "../../dist/index.js";
@@ -19,7 +19,7 @@ const PERFT_POS = [
 ];
 
 /**
- * Walks the perft tree of each position (purechess public API), inserting the
+ * Walks the perft tree of each position (turbochess public API), inserting the
  * occupancy bitboard of every visited position into an open-addressing hash
  * set keyed by lo*2^32+hi (uint32 pair table — same dedup semantics, far less
  * memory than a BigInt Set). Stops at `target` unique samples or corpus
@@ -111,7 +111,7 @@ export async function run(opts) {
       if (++checked >= parityTotal) break outerParity;
     }
   }
-  console.log(`  parity: ${checked - mismatch}/${checked} attack sets bit-identical (purechess Black Magic vs chessops HQ)`);
+  console.log(`  parity: ${checked - mismatch}/${checked} attack sets bit-identical (turbochess Black Magic vs chessops HQ)`);
   if (mismatch) examples.forEach((e) => console.log(`    MISMATCH ${e}`));
 
   // ---- Timing: MAttacks/s over the harvested real occupancies.
@@ -162,7 +162,7 @@ export async function run(opts) {
       const pcMa = thr(occsUsed * 64, pcM.median) / 1e6;
       const coMa = thr(occsUsed * 64, coM.median) / 1e6;
       console.log(`  [${label}] ${occsUsed.toLocaleString()} occupancies × 64 squares = ${(occsUsed * 64).toLocaleString()} attack calls per run`);
-      console.log(`  [${label}] purechess : ${pcMa.toFixed(1)} MAttacks/s (median ${pcM.median.toFixed(1)} ms, p10 ${pcM.p10.toFixed(1)} / p90 ${pcM.p90.toFixed(1)}, 20 runs, 3 warmups excluded)`);
+      console.log(`  [${label}] turbochess : ${pcMa.toFixed(1)} MAttacks/s (median ${pcM.median.toFixed(1)} ms, p10 ${pcM.p10.toFixed(1)} / p90 ${pcM.p90.toFixed(1)}, 20 runs, 3 warmups excluded)`);
       console.log(`  [${label}] chessops  : ${coMa.toFixed(1)} MAttacks/s (median ${coM.median.toFixed(1)} ms, p10 ${coM.p10.toFixed(1)} / p90 ${coM.p90.toFixed(1)})`);
       return { pcMa, coMa, ratio: pcMa / coMa };
     };
