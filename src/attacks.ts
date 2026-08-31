@@ -287,7 +287,7 @@ function rookAttacksNaive(sqIdx: number, occ: SquareSet): SquareSet {
 // Export naive for testing parity
 export const _naive = { bishopAttacksNaive, rookAttacksNaive };
 
-// ---------- ray / between ----------
+// ---------- ray / between (precomputed 64x64 flat tables) ----------
 function rayNaive(from: number, to: number): SquareSet {
   const ff = squareFile(from), rf = squareRank(from);
   const tf = squareFile(to), rt = squareRank(to);
@@ -304,22 +304,38 @@ function rayNaive(from: number, to: number): SquareSet {
     else hi |= (1 << (ns - 32)) >>> 0;
     if (f === tf && r === rt) break;
     f += stepF; r += stepR;
-    // safety: prevent infinite if not aligned (already returned)
     if (f < 0 || f >= 8 || r < 0 || r >= 8) break;
   }
   return { lo: lo >>> 0, hi: hi >>> 0 };
 }
 
+const RAY_LO = new Uint32Array(4096);
+const RAY_HI = new Uint32Array(4096);
+const BETWEEN_LO = new Uint32Array(4096);
+const BETWEEN_HI = new Uint32Array(4096);
+
+for (let i = 0; i < 64; i++) {
+  for (let j = 0; j < 64; j++) {
+    const idx = (i << 6) | j;
+    const r = rayNaive(i, j);
+    RAY_LO[idx] = r.lo;
+    RAY_HI[idx] = r.hi;
+    if (r.lo !== 0 || r.hi !== 0) {
+      const b = sq.minus(sq.minus(r, sq.singleton(i)), sq.singleton(j));
+      BETWEEN_LO[idx] = b.lo;
+      BETWEEN_HI[idx] = b.hi;
+    }
+  }
+}
+
 export function ray(from: number, to: number): SquareSet {
-  return rayNaive(from, to);
+  const idx = ((from & 63) << 6) | (to & 63);
+  return { lo: RAY_LO[idx], hi: RAY_HI[idx] };
 }
 
 export function between(from: number, to: number): SquareSet {
-  const r = ray(from, to);
-  if (sq.isEmpty(r)) return r;
-  // exclusive: remove endpoints
-  const a = sq.minus(r, sq.singleton(from));
-  return sq.minus(a, sq.singleton(to));
+  const idx = ((from & 63) << 6) | (to & 63);
+  return { lo: BETWEEN_LO[idx], hi: BETWEEN_HI[idx] };
 }
 
 // ---------- isAttacked / kingAttackers ----------

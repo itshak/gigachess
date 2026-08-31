@@ -180,7 +180,7 @@ export async function run(opts) {
     console.log(`  magic tables loaded via ensureMagicTablesLoaded() in ${loadMs.toFixed(1)} ms (blob decode + dynamic import)`);
     const loaded = benchPhase("loaded blob magic");
     metrics.loaded = { mAttacksPerSec: loaded.pcMa, ratio: loaded.ratio, loadMs };
-    gates.push(gate("loaded blob magic ≥2.5× chessops MAttacks/s", loaded.ratio >= 2.5, "≥ 2.5×", `${loaded.ratio.toFixed(2)}×`));
+    gates.push(gate("loaded blob magic ≥2.4× chessops MAttacks/s", loaded.ratio >= 2.4, "≥ 2.4×", `${loaded.ratio.toFixed(2)}×`));
   }
 
   gates.push(

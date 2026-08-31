@@ -6,7 +6,7 @@
 // Not part of the third-party baseline; MIT like the rest of turbochess.
 import { parsePgn, type GameTree as CoreGameTree, type PgnMove } from "./pgn.js";
 import { parseFen, makeFen } from "./fen.js";
-import { makeMove, isCheck, registerTreeDriver } from "./chess.js";
+import { makeMove, isCheck } from "./chess.js";
 import { parseSan, makeUci } from "./san.js";
 import { Color } from "./types.js";
 import type { Move, Position, Setup } from "./types.js";
@@ -641,7 +641,4 @@ export const pgnExport = {
 
 /** chesstree-compatible alias — `import { buildTree } from "turbochess/chesstree"`. */
 export const buildTree = build;
-
-// Auto-register driver into core chess module when chesstree is loaded
-registerTreeDriver({ build, pgnImport });
 

@@ -205,3 +205,11 @@ The implementation of FEN/SAN/UCI and check/mate/draw logic SHALL be derived onl
 #### Scenario: GPL source rejection
 - **WHEN** an implementation agent attempts to implement `parseFen` by reading `node_modules/chessops/dist/esm/fen.js`
 - **THEN** the agent refuses, instead implements from the six-field FEN table in this spec and `refs/docs-refs/`, and audit finds no `chessops` string in `src/`
+
+### Requirement: Move Generation and Perft SHALL Calculate 100% Genuine Tree Traversals Without Hardcoded Shortcuts
+
+The system SHALL execute full legal move generation and recursive perft traversals dynamically for all positions, depths, and variants. The engine SHALL NOT short-circuit startpos or any other position via pre-computed lookup tables or hardcoded node count constants (`START_PERFT`).
+
+#### Scenario: Full dynamic calculation for startpos perft
+- **WHEN** `perft(startpos, depth)` is invoked for any depth 1 through 6
+- **THEN** the engine generates every legal branch dynamically from the live bitboard state, matching the reference node counts (e.g. depth 5 = 4,865,609; depth 6 = 119,060,324) without reading from constant arrays

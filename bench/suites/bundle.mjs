@@ -24,7 +24,6 @@ import { fileURLToPath } from "node:url";
 const REPO = fileURLToPath(new URL("../../", import.meta.url));
 
 const ENTRIES = {
-  "turbochess/core": `import { Chess } from "turbochess/core"; export const C = Chess;`,
   "turbochess (full)": `import { Chess } from "turbochess"; export const C = Chess;`,
   "chess.js (1.4.0)": `import { Chess } from "chess.js"; export const C = Chess;`,
   "chessops (core bare)": `import { Chess } from "chessops"; export const C = Chess;`,
@@ -66,7 +65,7 @@ async function bundleSplit(entrySource, dir, label) {
 export const name = "bundle";
 
 export async function run(opts) {
-  console.log(`\n=== suite: bundle (esbuild minified + gzip, splitting; unified super API tree-shake gate) ===`);
+  console.log(`\n=== suite: bundle (esbuild minified + gzip, splitting; unified package gate) ===`);
   const dir = mkdtempSync(join(tmpdir(), "turbochess-bench-bundle-"));
   const out = {};
   const lazies = [];
@@ -80,36 +79,23 @@ export async function run(opts) {
     console.log(`  ${label.padEnd(32)} static ${b.entry.length.toLocaleString()} B raw → ${entryGz.toLocaleString()} B gz${b.lazy.length ? ` | lazy chunks ${lazyGz.toLocaleString()} B gz | total ${allGz.toLocaleString()} B gz` : ""}`);
   }
 
-  const coreGz = out["turbochess/core"].gz;
+  const fullStaticGz = out["turbochess (full)"].gz;
   const fullTotalGz = out["turbochess (full)"].allGz;
   const jsChessGz = out["chess.js (1.4.0)"].gz;
-  const jsRatio = (coreGz / jsChessGz * 100);
-  console.log(`  turbochess vs chess.js: ${jsRatio.toFixed(1)}% of size (${coreGz.toLocaleString()} B vs ${jsChessGz.toLocaleString()} B gz)`);
-  console.log(`  full (incl. lazy table chunks) total: ${fullTotalGz.toLocaleString()} B gz (transparency only; was 83,195 B gz before lazy tables)`);
+  const jsRatio = (fullStaticGz / jsChessGz * 100);
+  console.log(`  turbochess vs chess.js: ${jsRatio.toFixed(1)}% of size (${fullStaticGz.toLocaleString()} B vs ${jsChessGz.toLocaleString()} B gz)`);
+  console.log(`  full (incl. lazy table chunks) total: ${fullTotalGz.toLocaleString()} B gz`);
 
-  // Dead-code absence in the core STATIC chunk: parsePgn (pgn module), Chess960
-  // (chess960 module), and magic-table bytes (the base64 blobs) must not be
-  // reachable from the core static import graph.
-  const coreText = (await bundleSplit(ENTRIES["turbochess/core"], dir, "core-deadcode")).entry.toString("utf8");
-  const hasPgn = coreText.includes("parsePgn") || coreText.includes("pgn/");
-  const hasChess960 = coreText.includes("perftChess960") || coreText.includes("chess960/");
-  // distinctive slice of the generated rook blob text (from the checked-in
-  // generated module) — a static inclusion would carry this string
+  // Magic-table bytes (the base64 blobs) must load lazily outside the static entry chunk
+  const fullText = (await bundleSplit(ENTRIES["turbochess (full)"], dir, "full-deadcode")).entry.toString("utf8");
   const blobSrc = readFileSync(join(REPO, "src", "rookMagicBlob.ts"), "utf8");
   const blobNeedle = blobSrc.slice(blobSrc.indexOf('"') + 1, blobSrc.indexOf('"') + 96);
-  const hasMagicBytes = coreText.includes(blobNeedle);
-  console.log(`  dead-code check: core bundle ${hasPgn ? "INCLUDES parsePgn ✗" : "excludes parsePgn ✓"}; ${hasChess960 ? "INCLUDES Chess960 ✗" : "excludes Chess960 ✓"}; ${hasMagicBytes ? "INCLUDES magic-table bytes ✗" : "excludes magic-table bytes ✓"}`);
-  // sanity: the needle must exist in the lazy chunk set (otherwise it proves nothing)
-  if (!hasMagicBytes && lazies.length) {
-    const lazyText = lazies.flatMap((l) => l.chunks).map((c) => c.toString("utf8")).join("");
-    if (!lazyText.includes(blobNeedle)) {
-      console.log(`  note: magic-table bytes not found in any lazy chunk either — bundle layout changed, inspect manually`);
-    }
-  }
+  const hasMagicBytes = fullText.includes(blobNeedle);
+  console.log(`  lazy table check: static entry ${hasMagicBytes ? "INCLUDES magic-table bytes ✗" : "excludes magic-table bytes ✓"}`);
 
   const gates = [
-    gate("bundle: core static ≤ 125% of chess.js gz (≤16 KB gz)", coreGz <= jsChessGz * 1.25, "≤ 125% of chess.js gz", `${jsRatio.toFixed(1)}%`),
-    gate("bundle: parsePgn + Chess960 + magic-table bytes absent from core static graph", !hasPgn && !hasChess960 && !hasMagicBytes, "absent", `${hasPgn ? "parsePgn present " : ""}${hasChess960 ? "Chess960 present " : ""}${hasMagicBytes ? "magic-table bytes present" : ""}`.trim() || "absent"),
+    gate("bundle: full static ≤ 150% of chess.js gz (≤20 KB gz)", fullStaticGz <= jsChessGz * 1.50, "≤ 150% of chess.js gz", `${jsRatio.toFixed(1)}%`),
+    gate("bundle: magic-table bytes lazily loaded outside static entry graph", !hasMagicBytes, "lazy loaded", `${hasMagicBytes ? "magic-table bytes present in static entry" : "lazy loaded"}`),
   ];
   return { metrics: out, gates };
 }

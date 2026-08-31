@@ -14,21 +14,9 @@ import type { ZobristKey } from "./zobrist.js";
 import { parseFen, makeFen } from "./fen.js";
 import { parseSan, makeSan, parseUci, makeUci } from "./san.js";
 import { packOf, packedToMoves } from "./packedMove.js";
+import { build as buildTreeWrapper, pgnImport as pgnImportData } from "./chesstree.js";
 import type { TreeNode, TreeWrapper } from "./chesstree.js";
 import { pieceAt } from "./board.js";
-
-// Tree driver hook for toTree/loadTree (injected by turbochess root / chesstree)
-let _treeDriver: {
-  build: (root: TreeNode) => TreeWrapper;
-  pgnImport: (pgn: string) => { treeParts: TreeNode[] };
-} | undefined;
-
-export function registerTreeDriver(driver: {
-  build: (root: TreeNode) => TreeWrapper;
-  pgnImport: (pgn: string) => { treeParts: TreeNode[] };
-}): void {
-  _treeDriver = driver;
-}
 
 // helpers
 
@@ -1376,9 +1364,6 @@ export class Chess {
    * and full recursive PGN rendering via `tree.pgn()`.
    */
   toTree(): TreeWrapper {
-    if (!_treeDriver) {
-      throw new Error("toTree() requires importing turbochess root or turbochess/chesstree");
-    }
     const root: TreeNode = { id: "", ply: 0, fen: this.#startFen, uci: "", children: [] };
     let ply = 0;
     let node = root;
@@ -1394,7 +1379,7 @@ export class Chess {
       node.children.push(child);
       node = child;
     }
-    return _treeDriver.build(root);
+    return buildTreeWrapper(root);
   }
 
   /**
@@ -1402,10 +1387,7 @@ export class Chess {
    * this game, and returns the analysis tree wrapper.
    */
   loadTree(pgn: string): TreeWrapper {
-    if (!_treeDriver) {
-      throw new Error("loadTree() requires importing turbochess root or turbochess/chesstree");
-    }
-    const data = _treeDriver.pgnImport(pgn);
+    const data = pgnImportData(pgn);
     const root = data.treeParts[0];
     this.reset();
     if (root && root.fen && root.fen !== INITIAL_FEN) {
@@ -1417,7 +1399,7 @@ export class Chess {
       if (node.san) this.move(node.san);
       node = node.children[0];
     }
-    return _treeDriver.build(root ?? { id: "", ply: 0, fen: INITIAL_FEN, uci: "", children: [] });
+    return buildTreeWrapper(root ?? { id: "", ply: 0, fen: INITIAL_FEN, uci: "", children: [] });
   }
 
   #movetext(): string {
