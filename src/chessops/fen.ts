@@ -6,14 +6,27 @@ import * as engineFen from "../fen.js";
 import { Board } from "./board.js";
 import { SquareSet } from "./squareSet.js";
 import type { Setup } from "./setup.js";
-import { boardFromEngine, setupFromEngine, setupToEngine } from "./convert.js";
+import { boardFromEngine, boardToEngine, setupFromEngine, setupToEngine } from "./convert.js";
+import {
+  EMPTY_BOARD_FEN,
+  EMPTY_EPD,
+  EMPTY_FEN,
+  INITIAL_BOARD_FEN,
+  INITIAL_EPD,
+  INITIAL_FEN,
+  engineBoardFromPlacement,
+  engineMakePlacement,
+} from "./fenInternal.js";
 
-export const INITIAL_BOARD_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
-export const INITIAL_EPD = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -";
-export const INITIAL_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-export const EMPTY_BOARD_FEN = "8/8/8/8/8/8/8/8";
-export const EMPTY_EPD = "8/8/8/8/8/8/8/8 w - -";
-export const EMPTY_FEN = "8/8/8/8/8/8/8/8 w - - 0 1";
+// FEN constants are single-sourced in the shared engine bridge (task 3.2).
+export {
+  EMPTY_BOARD_FEN,
+  EMPTY_EPD,
+  EMPTY_FEN,
+  INITIAL_BOARD_FEN,
+  INITIAL_EPD,
+  INITIAL_FEN,
+};
 
 export enum InvalidFen {
   Fen = "ERR_FEN",
@@ -30,9 +43,11 @@ export enum InvalidFen {
 export class FenError extends Error {}
 
 export const parseBoardFen = (boardPart: string): Result<Board, FenError> => {
-  const r = engineFen.parseFen(`${boardPart} w - - 0 1`);
-  if (!r.ok) return Result.err(new FenError(r.error?.code ?? InvalidFen.Board));
-  return Result.ok(boardFromEngine(r.value.board));
+  try {
+    return Result.ok(boardFromEngine(engineBoardFromPlacement(boardPart)));
+  } catch (e) {
+    return Result.err(new FenError(e instanceof Error ? e.message : InvalidFen.Board));
+  }
 };
 
 export const parseCastlingFen = (board: Board, castlingPart: string): Result<SquareSet, FenError> => {
@@ -73,15 +88,5 @@ export const makeFen = (setup: Setup, opts?: FenOpts): string => {
 };
 
 export const makeBoardFen = (board: Board): string => {
-  const full = engineFen.makeFen(setupToEngine({
-    board,
-    pockets: undefined,
-    turn: "white",
-    castlingRights: SquareSet.empty(),
-    epSquare: undefined,
-    remainingChecks: undefined,
-    halfmoves: 0,
-    fullmoves: 1,
-  }));
-  return full.split(" ")[0];
+  return engineMakePlacement(boardToEngine(board));
 };

@@ -1,8 +1,8 @@
-# bench — Purechess Benchmark Harness
+# bench — Turbochess Benchmark Harness
 
 **Change:** `purechess-library` (Phase 1 baseline)  
 **Baseline lib:** `chessops@0.15.1` (GPL-3.0-or-later) — the candidate `A: hq` is a thin wrapper over `chessops` `bishopAttacks`/`rookAttacks`.  
-**Target lib:** `purechess` (future MIT, `purechess/core`, `purechess/pgn`, `purechess/chess960`) — scaffold only in this baseline.
+**Target lib:** `turbochess` (MIT, `turbochess/core`, `turbochess/pgn`, `turbochess/chess960`). Previously distributed as `purechess` — one-release alias kept, see `openspec/adr/015-turbochess-rename.md`.
 
 ## Pinning — reproducible measurement
 

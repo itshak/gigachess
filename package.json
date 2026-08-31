@@ -1,7 +1,7 @@
 {
-  "name": "purechess-workstation",
-  "version": "0.1.0",
-  "description": "PureChess — native, local-first, accessible chess workstation (AGPL-3.0-or-later). Baseline for MIT purechess library.",
+  "name": "turbochess",
+  "version": "0.2.0",
+  "description": "turbochess \u2014 fast, clean-room, MIT-licensed chess engine library (functional public API, imperative inside). Formerly published as purechess (alias kept for one release).",
   "type": "module",
   "private": true,
   "license": "AGPL-3.0-or-later",
@@ -30,6 +30,42 @@
     "./chessjs": {
       "types": "./dist/chessjs.d.ts",
       "import": "./dist/chessjs.js"
+    },
+    "./chessops/board": {
+      "types": "./dist/chessops/board.d.ts",
+      "import": "./dist/chessops/board.js"
+    },
+    "./chessops/chess": {
+      "types": "./dist/chessops/chess.d.ts",
+      "import": "./dist/chessops/chess.js"
+    },
+    "./chessops/debug": {
+      "types": "./dist/chessops/debug.d.ts",
+      "import": "./dist/chessops/debug.js"
+    },
+    "./chessops/fen": {
+      "types": "./dist/chessops/fen.d.ts",
+      "import": "./dist/chessops/fen.js"
+    },
+    "./chessops/san": {
+      "types": "./dist/chessops/san.d.ts",
+      "import": "./dist/chessops/san.js"
+    },
+    "./chessops/setup": {
+      "types": "./dist/chessops/setup.d.ts",
+      "import": "./dist/chessops/setup.js"
+    },
+    "./chessops/squareSet": {
+      "types": "./dist/chessops/squareSet.d.ts",
+      "import": "./dist/chessops/squareSet.js"
+    },
+    "./chessops/types": {
+      "types": "./dist/chessops/types.d.ts",
+      "import": "./dist/chessops/types.js"
+    },
+    "./chessops/util": {
+      "types": "./dist/chessops/util.d.ts",
+      "import": "./dist/chessops/util.js"
     }
   },
   "engines": {

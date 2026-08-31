@@ -33,7 +33,7 @@ function parseArgs(argv) {
 }
 
 function printHelp() {
-  console.log(`bench-real — real-world benchmark suites (purechess vs chessops)
+  console.log(`bench-real — real-world benchmark suites (turbochess vs chessops)
 
 Usage:
   node --expose-gc bench/bench-real.mjs [options]

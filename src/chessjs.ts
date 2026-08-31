@@ -8,7 +8,7 @@
 // the immutable engine). SAN `+`/`#`/`O-O`/`0-0`/`=Q` output comes straight
 // from makeSan, so screen-reader announcements (AriaLiveAnnouncer) stay
 // byte-identical regardless of which façade drives the board.
-// MIT purechess.
+// MIT turbochess (formerly purechess, ADR-015).
 
 import { Color, Role } from "./types.js";
 import type { Move, Position } from "./types.js";
