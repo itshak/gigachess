@@ -38,6 +38,13 @@ function parseHeaders(pgn: string, pos: { idx: number }): { headers: Map<string,
     let start = pos.idx;
     while (pos.idx < len && isWhitespace(pgn[pos.idx])) pos.idx++;
     if (pos.idx >= len) break;
+    // PGN percent escape (also legal in the header section): skip to EOL
+    if (pgn[pos.idx] === "%") {
+      const eol = pgn.indexOf("\n", pos.idx);
+      if (eol === -1) break;
+      pos.idx = eol + 1;
+      continue;
+    }
     if (pgn[pos.idx] !== "[") {
       // movetext begins, break
       break;
@@ -89,9 +96,12 @@ export function parsePgn(pgn: string): Result<GameTree, PgnError> {
 function parseMovetext(text: string): Result<{ moves: PgnMove[]; result: string | null }, PgnError> {
   const moves: PgnMove[] = [];
   let result: string | null = null;
-  const stack: { moves: PgnMove[]; lastMove: PgnMove | null }[] = [];
+  // Frames carry pending comments so a comment seen before the first move of
+  // any section (mainline or variation) round-trips instead of being dropped.
+  const stack: { moves: PgnMove[]; lastMove: PgnMove | null; pending: string[] }[] = [];
   let currentMoves = moves;
   let lastMove: PgnMove | null = null;
+  let pending: string[] = [];
   let i = 0;
   const n = text.length;
 
@@ -109,6 +119,7 @@ function parseMovetext(text: string): Result<{ moves: PgnMove[]; result: string 
       if (end === -1) end = n;
       const comment = text.slice(start, end);
       if (lastMove) lastMove.comments.push(comment.trim());
+      else pending.push(comment.trim());
       i = end;
       continue;
     }
@@ -120,8 +131,9 @@ function parseMovetext(text: string): Result<{ moves: PgnMove[]; result: string 
       const comment = text.slice(i + 1, end);
       if (lastMove) lastMove.comments.push(comment);
       else {
-        // comment before first move: attach to next move? For now create dummy move? We'll just ignore but could attach to next
-        // To preserve, we could push to a pending comments buffer
+        // comment before the first move of this section: hold it and attach to
+        // the next move node so makePgn(parsePgn(pgn)) round-trips
+        pending.push(comment);
       }
       i = end + 1;
       continue;
@@ -131,9 +143,10 @@ function parseMovetext(text: string): Result<{ moves: PgnMove[]; result: string 
     if (ch === "(") {
       const newVar: GameTree = { headers: new Map(), moves: [] };
       if (lastMove) lastMove.variations.push(newVar);
-      stack.push({ moves: currentMoves, lastMove });
+      stack.push({ moves: currentMoves, lastMove, pending });
       currentMoves = newVar.moves;
       lastMove = null;
+      pending = [];
       i++;
       continue;
     }
@@ -144,6 +157,9 @@ function parseMovetext(text: string): Result<{ moves: PgnMove[]; result: string 
       const popped = stack.pop()!;
       currentMoves = popped.moves;
       lastMove = popped.lastMove;
+      // comments pending at variation end (variation with no moves) carry
+      // over to the parent section's next move
+      pending = popped.pending;
       i++;
       continue;
     }
@@ -258,6 +274,11 @@ function parseMovetext(text: string): Result<{ moves: PgnMove[]; result: string 
 
     // Create move node
     const moveNode: PgnMove = { san: token, nags: [], comments: [], variations: [] };
+    if (pending.length > 0) {
+      // comments that appeared before this move precede any after-move comments
+      moveNode.comments = pending.slice();
+      pending = [];
+    }
     currentMoves.push(moveNode);
     lastMove = moveNode;
     i = j;

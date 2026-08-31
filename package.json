@@ -1,7 +1,7 @@
 {
   "name": "purechess-workstation",
   "version": "0.1.0",
-  "description": "PureChess \u2014 native, local-first, accessible chess workstation (AGPL-3.0-or-later). Baseline for MIT purechess library.",
+  "description": "PureChess — native, local-first, accessible chess workstation (AGPL-3.0-or-later). Baseline for MIT purechess library.",
   "type": "module",
   "private": true,
   "license": "AGPL-3.0-or-later",
@@ -37,7 +37,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck && node tests/perft.mjs && node tests/castling.mjs && node tests/parity.mjs && node tests/purity.mjs && node tests/compat-chessops.mjs",
+    "test": "npm run typecheck && node tests/perft.mjs && node tests/castling.mjs && node tests/parity.mjs && node tests/purity.mjs && node tests/compat-chessops.mjs && node tests/chessjs-parity.mjs",
     "bench": "node bench/bench-sliding.mjs --iters 1000000 && node bench/bench-perft.mjs --depth 5 && node bench/bench-pgn.mjs --games 1000 && node bench/bench-fen-san.mjs --iters 1000 && node bench/bench-bundle.mjs --entry core",
     "bench:sliding": "node bench/bench-sliding.mjs",
     "bench:perft": "node bench/bench-perft.mjs",
@@ -53,6 +53,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.4.0",
+    "chess.js": "^1.4.0",
     "chessops": "0.15.1",
     "esbuild": "^0.25.0",
     "rescript": "^12.3.1",

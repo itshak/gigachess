@@ -9,12 +9,12 @@
 //   npm run bench:real -- --json           # machine-readable summary
 //   npm run bench:real:ci                  # CI: fails (exit 1) on any unmet gate
 //
-// Suites: sliding | perft | pgn-stream | fen-san-uci | dests-terminal | bundle
+// Suites: sliding | perft | pgn-stream | fen-san-uci | dests-terminal | bundle | chessjs
 // Each suite parity-checks against chessops@0.15.1 BEFORE timing; gate
 // failures produce exit code 1 so CI can enforce the spec's SHALLs.
 import { assertEnvironment, summarizeGates } from "./suites/lib/common.mjs";
 
-const SUITE_NAMES = ["sliding", "perft", "pgn-stream", "fen-san-uci", "dests-terminal", "bundle"];
+const SUITE_NAMES = ["sliding", "perft", "pgn-stream", "fen-san-uci", "dests-terminal", "bundle", "chessjs"];
 
 function parseArgs(argv) {
   const o = { suites: [...SUITE_NAMES], quick: false, json: false, ci: false, help: false };
@@ -63,7 +63,7 @@ async function main() {
     process.exit(2);
   }
 
-  console.log(`bench-real — Node ${process.version}, chessops@0.15.1, mode=${args.quick ? "quick" : "full"}`);
+  console.log(`bench-real — Node ${process.version}, chessops@0.15.1 + chess.js@1.4.0 baselines, mode=${args.quick ? "quick" : "full"}`);
   console.log(`suites: ${args.suites.join(", ")}`);
 
   const results = [];

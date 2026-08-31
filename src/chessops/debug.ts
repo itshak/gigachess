@@ -24,6 +24,25 @@ export const board = (b: Board): string => {
 
 export const square = (sq: Square): string => makeSquare(sq);
 
+/**
+ * ASCII position dump (pure oracle): eight whitespace-separated piece rows,
+ * rank 8 first — byte-identical (modulo whitespace) to the baseline debug
+ * board dump on the same position.
+ */
+export const debugBoard = (pos: Position): string => {
+  const rows: string[] = [];
+  for (let rank = 7; rank >= 0; rank--) {
+    const row: string[] = [];
+    for (let file = 0; file < 8; file++) {
+      const p = pos.board.get(rank * 8 + file);
+      row.push(p ? (p.color === "white" ? roleToChar(p.role).toUpperCase() : roleToChar(p.role)) : ".");
+    }
+    rows.push(row.join(" "));
+  }
+  return rows.join("\n");
+};
+
+
 export const dests = (d: Map<Square, SquareSet>): string =>
   [...d.entries()].map(([from, set]) => `${makeSquare(from)}: ${[...set].map(makeSquare).join(" ")}`).join("\n");
 
