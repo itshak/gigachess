@@ -36,4 +36,4 @@ jobs:
         run: npm test
 
       - name: Run quick benchmark validation
-        run: node --expose-gc bench/bench-real.mjs --quick
+        run: BENCH_ALLOW_NODE=1 node --expose-gc bench/bench-real.mjs --quick
