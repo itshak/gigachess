@@ -16,6 +16,9 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import * as zlib from "node:zlib";
+
+const createZstdDecompress = zlib.createZstdDecompress;
 
 export const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
@@ -172,45 +175,54 @@ let lichessTextCache; // decompressed corpus, cached across suites in-process
  * header + payload), stream-decompress each real frame segment, concatenate.
  */
 export async function decompressLichessZst(abs) {
-  const { pipeline } = await import("node:stream/promises");
-  const { Readable } = await import("node:stream");
-  const { createZstdDecompress } = await import("node:zlib");
-  const buf = readFileSync(abs);
-  const SKIPPABLE_MIN = 0x184d2a50, SKIPPABLE_MAX = 0x184d2a5f;
-  const candidates = [];
-  for (
-    let off = buf.indexOf(Buffer.from([0x50, 0x2a, 0x4d, 0x18]));
-    off !== -1;
-    off = buf.indexOf(Buffer.from([0x50, 0x2a, 0x4d, 0x18]), off + 1)
-  ) {
-    if (off + 8 > buf.length) continue;
-    const magic = buf.readUInt32LE(off);
-    const size = buf.readUInt32LE(off + 4);
-    if (magic >= SKIPPABLE_MIN && magic <= SKIPPABLE_MAX && size < 1_048_576 && off + 8 + size <= buf.length) {
-      candidates.push({ off, size });
+  if (typeof createZstdDecompress === "function") {
+    const { pipeline } = await import("node:stream/promises");
+    const { Readable } = await import("node:stream");
+    const buf = readFileSync(abs);
+    const SKIPPABLE_MIN = 0x184d2a50, SKIPPABLE_MAX = 0x184d2a5f;
+    const candidates = [];
+    for (
+      let off = buf.indexOf(Buffer.from([0x50, 0x2a, 0x4d, 0x18]));
+      off !== -1;
+      off = buf.indexOf(Buffer.from([0x50, 0x2a, 0x4d, 0x18]), off + 1)
+    ) {
+      if (off + 8 > buf.length) continue;
+      const magic = buf.readUInt32LE(off);
+      const size = buf.readUInt32LE(off + 4);
+      if (magic >= SKIPPABLE_MIN && magic <= SKIPPABLE_MAX && size < 1_048_576 && off + 8 + size <= buf.length) {
+        candidates.push({ off, size });
+      }
     }
-  }
-  const segments = [];
-  let cursor = 0;
-  for (const c of candidates) {
-    if (c.off < cursor) continue; // false positive inside compressed data
-    segments.push([cursor, c.off]);
-    cursor = c.off + 8 + c.size;
-  }
-  segments.push([cursor, buf.length]);
+    const segments = [];
+    let cursor = 0;
+    for (const c of candidates) {
+      if (c.off < cursor) continue; // false positive inside compressed data
+      segments.push([cursor, c.off]);
+      cursor = c.off + 8 + c.size;
+    }
+    segments.push([cursor, buf.length]);
 
-  let text = "";
-  for (const [s, e] of segments) {
-    if (e <= s) continue;
-    const chunks = [];
-    await pipeline(
-      Readable.from(buf.subarray(s, e)),
-      createZstdDecompress(),
-      async function* (src) { for await (const c of src) chunks.push(c); }
-    );
-    text += Buffer.concat(chunks).toString("utf8");
+    let text = "";
+    for (const [s, e] of segments) {
+      if (e <= s) continue;
+      const chunks = [];
+      await pipeline(
+        Readable.from(buf.subarray(s, e)),
+        createZstdDecompress(),
+        async function* (src) { for await (const c of src) chunks.push(c); }
+      );
+      text += Buffer.concat(chunks).toString("utf8");
+    }
+    return text;
   }
-  return text;
+
+  // Fallback to system zstd if Node runtime lacks zlib.createZstdDecompress
+  try {
+    const { execSync } = await import("node:child_process");
+    return execSync(`zstd -dc "${abs}"`, { maxBuffer: 1024 * 1024 * 500, encoding: "utf8" });
+  } catch (err) {
+    fail(`decompression failed for ${abs}: Node.js built-in createZstdDecompress unavailable and system 'zstd' failed: ${err.message}`);
+  }
 }
 
 /**
@@ -222,7 +234,7 @@ export async function decompressLichessZst(abs) {
 export async function loadLichessGames({ quick, games: gamesOpt } = {}) {
   const maxGames = gamesOpt ?? (quick ? 1000 : 100000);
   const zstAbs = join(REPO_ROOT, CORPORA.lichessZst.path);
-  if (existsSync(zstAbs) && typeof createZstdDecompress === "function") {
+  if (existsSync(zstAbs)) {
     assertCorpus(CORPORA.lichessZst);
     if (!lichessTextCache) {
       lichessTextCache = await decompressLichessZst(zstAbs);

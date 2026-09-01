@@ -16,11 +16,13 @@ jobs:
   bench-quick:
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    env:
+      BENCH_ALLOW_NODE: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "22.5.0" # spec pin (see bench/README.md)
+          node-version: "22.x"
       - run: npm ci
       - run: npm run build
       - run: npm run bench:real:ci -- --quick
@@ -31,11 +33,13 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    env:
+      BENCH_ALLOW_NODE: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "22.5.0"
+          node-version: "22.x"
       - run: npm ci
       - run: npm run build
       - name: Download pinned PGN corpus
