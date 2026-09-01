@@ -222,7 +222,7 @@ export async function decompressLichessZst(abs) {
 export async function loadLichessGames({ quick, games: gamesOpt } = {}) {
   const maxGames = gamesOpt ?? (quick ? 1000 : 100000);
   const zstAbs = join(REPO_ROOT, CORPORA.lichessZst.path);
-  if (existsSync(zstAbs)) {
+  if (existsSync(zstAbs) && typeof createZstdDecompress === "function") {
     assertCorpus(CORPORA.lichessZst);
     if (!lichessTextCache) {
       lichessTextCache = await decompressLichessZst(zstAbs);
