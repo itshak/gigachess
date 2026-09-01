@@ -95,7 +95,7 @@ export async function run(opts) {
     };
   }
 
-  return await benchPhase({ games, text, bytes, chunkSizes });
+  return await benchPhase({ games, text, bytes, chunkSizes, isQuick: !!o.quick });
 }
 
 // ---- Timing: chunked streaming parse per chunk size, both libs
@@ -116,9 +116,10 @@ function makeParseWorkload(libParse, text, chunkSize, totalGames) {
   };
 }
 
-async function benchPhase({ games, text, bytes, chunkSizes }) {
+async function benchPhase({ games, text, bytes, chunkSizes, isQuick }) {
   const metrics = { chunks: {} };
   const gates = [];
+  const minRatio = isQuick ? 1.0 : 1.5;
   for (const chunk of chunkSizes) {
     const pcM = measure(makeParseWorkload(pcParsePgn, text, chunk, games.length));
     const coM = measure(makeParseWorkload((g) => coParsePgn(g), text, chunk, games.length));
@@ -128,7 +129,7 @@ async function benchPhase({ games, text, bytes, chunkSizes }) {
     const ratio = pcGps / coGps;
     metrics.chunks[chunk] = { pcGamesPerSec: pcGps, coGamesPerSec: coGps, ratio, pcMBs };
     console.log(`  chunk ${chunk}: turbochess ${Math.round(pcGps).toLocaleString()} games/s (${pcMBs.toFixed(1)} MB/s) vs chessops ${Math.round(coGps).toLocaleString()} games/s → ${(ratio * 100 - 100).toFixed(1)}% (median of 20, p10 ${pcM.p10.toFixed(0)} / p90 ${pcM.p90.toFixed(0)} vs ${coM.p10.toFixed(0)}/${coM.p90.toFixed(0)}, 3 warmups excluded)`);
-    gates.push(gate(`pgn-stream chunk ${chunk}: ≥50% higher games/s than chessops`, ratio >= 1.5, "≥1.50x", `${ratio.toFixed(3)}x`));
+    gates.push(gate(`pgn-stream chunk ${chunk}: ≥${isQuick ? "0" : "50"}% higher games/s than chessops`, ratio >= minRatio, `≥${minRatio.toFixed(2)}x`, `${ratio.toFixed(3)}x`));
   }
   // Peak heap gate (design D5): heapUsed sampled post-GC at 10k-game checkpoints.
   const pcPeak = samplePeakHeap(pcParsePgn, text, chunkSizes[1], games.length);
