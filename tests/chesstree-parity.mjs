@@ -23,7 +23,10 @@ for (const rel of ["@itshak/chesstree/node_modules/chessops", "chessops"]) {
   }
 }
 
-const { pgnImport: coImport, buildTree: coBuild, pgnExport: coExport } = await import("@itshak/chesstree");
+const chesstreeMod = await import("@itshak/chesstree");
+const coImport = chesstreeMod.pgnImport ?? chesstreeMod.default?.pgnImport;
+const coBuild = chesstreeMod.buildTree ?? chesstreeMod.default?.buildTree;
+const coExport = chesstreeMod.pgnExport ?? chesstreeMod.default?.pgnExport;
 const { pgnImport: tcImport, buildTree: tcBuild, pgnExport: tcExport } = await import("../dist/chesstree.js");
 
 let pass = 0, fail = 0;
