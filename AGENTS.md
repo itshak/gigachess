@@ -1,167 +1,87 @@
-# AGENTS.md — PureChess AI Agent Instructions
+# AGENTS.md — TurboChess AI Agent Instructions
 
-> This file is the canonical "README for AI agents" working on PureChess.
+> This file is the canonical "README for AI agents" working on TurboChess.
 > All AI coding assistants (Gemini, Claude, Cursor, Copilot, JetBrains AI) should read this file before making any changes.
+
+---
 
 ## Project Overview
 
-**PureChess** is a native, local-first, accessible chess workstation and database application.
+**TurboChess** is the fastest JavaScript and TypeScript chess engine and workstation library on Earth.
+It unifies `chess.js` ergonomics, `chesstree` study trees, and Stockfish-level bitboard speed under a 100% permissive **MIT license**.
 
-- **License:** AGPL-3.0-or-later (desktop app is free and open source)
+- **License:** MIT
+- **Language:** TypeScript 5.8+ (strict mode, target ES2022)
+- **Runtime:** Node.js v20+ / Browser (ESM)
 
-## Tech Stack
+---
+
+## Architecture & Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
-| **Runtime** | Tauri 2, Rust 2021 edition |
-| **Frontend** | React 19, TypeScript (strict mode), Vite 8, Tailwind CSS 4 |
-| **UI Primitives** | Radix UI (Dialog, Tabs, Select, etc.), Lucide icons |
-| **Chess Board** | @lichess-org/chessground (GPL-3.0) |
-| **Chess Logic (JS)** | chessops (GPL-3.0), pgn-chess-tree (AGPL-3.0) |
-| **Chess Logic (Rust)** | shakmaty 0.30 (GPL-3.0) — move gen, Zobrist hashing, FEN/SAN/UCI |
-| **Database** | SQLite via rusqlite (local app data: .bbconf, .bbgb, .bbpz, .bbdr, .bbdb, .bbr) |
-| **Engine** | Stockfish (external process, UCI protocol) |
-| **Fonts** | Atkinson Hyperlegible (UI), JetBrains Mono (engine/code) |
-| **i18n** | i18next + react-i18next (en, ru, he) |
+|---|---|
+| **Bitboard Engine** | Zero-BigInt 32-bit integer pairs (`{ lo: uint32, hi: uint32 }`) |
+| **Sliding Attacks** | Black Magic Bitboards with dynamic lazy loading (`Uint32Array`) |
+| **Ray Queries** | Precomputed 4,096-entry $64 \times 64$ flat ray & between tables (`attacks.ts`) |
+| **Move Generation** | Stockfish `CheckContext` (single-pass pin and check analysis) |
+| **Position Hashing**| Incremental $O(1)$ 64-bit Polyglot Zobrist hashing (`zobrist.ts`) |
+| **Move Compression**| 16-bit packed binary move streams (`packedMove.ts`, 2 bytes/ply) |
+| **Variation Trees** | `chesstree` compatibility driver (`chesstree.ts`) |
+| **Packaging** | ESM exports, TypeScript `.d.ts` declaration maps |
+
+---
 
 ## Build & Test Commands
 
 ```bash
-# Frontend
-npm install              # install dependencies
-npm run dev              # Vite dev server
-npm run build            # production build
-npm run typecheck        # TypeScript strict check (MUST pass before done)
-npm run test             # vitest unit tests
+npm install              # Install dependencies
+npm run build            # Compile TypeScript to dist/
+npm run typecheck        # TypeScript strict typecheck (MUST pass)
+npm test                 # Run all 165+ unit & parity test suites
 
-# Full app (Tauri)
-npm run tauri-dev        # full Tauri dev mode with hot reload
-npm run tauri-dev-release # Tauri dev with release-mode Rust (faster runtime)
-
-# Rust backend
-cd src-tauri && cargo check   # type check Rust code
-cd src-tauri && cargo test    # run Rust tests
-cd src-tauri && cargo clippy  # lint Rust code
-
-# Release
-npm run tauri:build:app  # macOS .app bundle
-npm run tauri:dmg        # macOS .dmg installer
+# Real-World Workstation Benchmarks (24 Gates)
+node --expose-gc bench/bench-real.mjs --quick   # Fast verification
+node --expose-gc bench/bench-real.mjs           # Full 20-run median verification
 ```
+
+---
 
 ## Project Constitution — ALWAYS Follow These Rules
 
-### Accessibility (Non-Negotiable)
+### 1. Performance & Zero-BigInt Primacy
+- **NEVER** use 64-bit `BigInt` for square sets in hot loops — JavaScript engines box `BigInt` on the heap.
+- **ALWAYS** use 32-bit unsigned integer pairs `{ lo: number, hi: number }` with `>>> 0` bitwise arithmetic.
+- **ALWAYS** run `node --expose-gc bench/bench-real.mjs --quick` before declaring performance changes complete. All 24 gates must remain green.
 
-- **NEVER** ship a feature without full keyboard navigation
-- **NEVER** use `Ctrl+` shortcuts on Windows — they conflict with NVDA/JAWS browse mode
-- **ALWAYS** use `Alt+` chords on Windows (e.g., `Alt+B`, `Alt+R`, `Alt+N`)
-- **ALWAYS** announce state changes via `AriaLiveAnnouncer` — keep announcements short and queue-safe
-- **ALWAYS** ensure board interactions work without a mouse
-- **NEVER** rely solely on color to convey information
-- **NEVER** use `autoFocus` on elements that would disrupt screen reader flow — use smart focus management
-- Arrow key move navigation (`enableArrowMoveShortcuts`) is **OFF by default** — screen readers need arrows for their own navigation
-- Standard move stepping shortcuts: `[` (back) and `]` (forward)
+### 2. Exact Parity (Non-Negotiable)
+- TurboChess maintains **100% exact parity** with `chess.js` on SAN/FEN/game state rules and `chessops` on legal movegen.
+- **NEVER** break the public API contracts or change movegen without running the complete test suite (`npm test`).
 
-### Code Quality
+### 3. MIT License Clean-Room Integrity
+- TurboChess is 100% clean-room MIT.
+- **NEVER** copy code from GPL-only or restrictive third-party chess libraries.
 
-- **NEVER** remove existing comments or docstrings unrelated to your change
-- **ALWAYS** preserve i18n: any user-facing string MUST have keys in `en`, `ru`, `he` translation files
-- **ALWAYS** run `npm run typecheck` before declaring work complete
-- **ALWAYS** run `cd src-tauri && cargo check` for any Rust changes
-- **NEVER** modify database schemas without recording an ADR in `openspec/adr/`
-- **NEVER** introduce new npm dependencies without evaluating license compatibility (no GPL-incompatible licenses)
-- **ALWAYS** include the OpenSpec change ID in every git commit message when working on an active change — format: `[change-id] Descriptive commit message` (e.g., `[sound-design] Add move sound effects for piece capture`). This links every commit to its spec for traceability.
-- Use functional React components with hooks — never class components
-- Prefer Radix UI primitives for interactive elements (dialogs, menus, tabs, etc.)
-- **DRY & Unified Board Architecture (ADR-011):**
-  - **NEVER** copy-paste move announcement, sound playback, or board accessibility logic across view pages.
-  - **ALWAYS** encapsulate and reuse the core primitives:
-    - `useChessMoveAnnouncer` for move announcements, VoiceOver/screen reader live regions, and audio speech synthesis.
-    - `useGameViewAccessibility` for keyboard navigation, focus management, and screen reader detection.
-    - `useOnTheFlyMoveInput` for typing moves on the board.
-    - `BoardContainer` / `GameViewShell` for shared board layout, clocks, overlays, and promotion picking.
-
-### Chess Domain Rules
-
-- Move notation: always support both `O-O` and `0-0` castle formats
-- FEN: always validate with shakmaty before storing in database
-- SRS: SM-2 algorithm — never modify the core formula without an ADR
-- Board orientation: auto-orient by repertoire side (White at bottom for White repertoire)
-- Zobrist hashing: use shakmaty's `Zobrist64` for all position-keyed lookups
-- Engine evaluation: persist `eval_cp`, `mate`, `depth`, `engine_name` on repertoire nodes
-
-### UI Design Principles
-
-- **Text-light:** No redundant `<h1>` headers inside tabs. Eliminate paragraph descriptions under controls.
-- **Tactile:** Large mode cards, SVG illustrations, compact pill button groups
-- **Responsive:** Default 1450×800px, fluid collapse at 1350px/1024px breakpoints
-- **Typography:** Atkinson Hyperlegible for UI, JetBrains Mono for engine/notation
-- **Colors:** Cream `#F6F0E6` background, Espresso `#2C1B14` text
+---
 
 ## Repository Map
 
 ```
-purechess/
-├── src/                           # React frontend
-│   ├── components/                # UI components
-│   │   ├── game/                  # Board, ChessgroundBoard, GameView
-│   │   ├── repertoire/            # RepertoireWorkstation, Explorer, etc.
-│   │   └── ui/                    # Shared UI primitives (Button, Card, etc.)
-├── src-tauri/src/                 # Rust backend
-│   ├── repertoires/               # Repertoire tree, import/export, SRS
-│   ├── puzzles/                   # Puzzle import, uniqueness verification
-│   ├── drills/                    # Endgame drill engine, Syzygy verification
-│   ├── position_index/            # Position indexing for search
-│   ├── rust_position_search.rs    # Parallel GigaBase position search
-│   ├── gigabase_moves.rs          # GigaBase move parsing
-│   └── masters_pack.rs            # Masters opening tree
-├── docs/                          # Public documentation
-├── openspec/                      # OpenSpec specs, ADRs, changes
-│   ├── specs/                     # Source of Truth (feature specs)
-│   ├── adr/                       # Architecture Decision Records (public)
-│   ├── changes/                   # Active changes
-│   └── history/                   # Archived changes
-```
-
-## OpenSpec Workflow
-
-This project uses [OpenSpec](https://openspec.dev) for spec-driven development.
-
-### Before Planning or Coding
-
-1. Read relevant capability specs under `openspec/specs/`
-2. Read ADR index under `openspec/adr/`
-3. Check active changes with `openspec list`
-
-### For Significant Changes
-
-Follow the OpenSpec lifecycle:
-1. **Explore:** `/opsx:explore` — investigate, brainstorm, NO code
-2. **Propose:** `/opsx:propose` — create a change with proposal, specs, design, tasks
-3. **Apply:** `/opsx:apply` — implement the tasks
-4. **Verify:** `/opsx:validate` — validate against the spec
-5. **Archive:** `/opsx:archive` — merge into Source of Truth
-
-### For Small Fixes
-
-Bug fixes, typos, and minor UI tweaks don't need the full OpenSpec cycle. Just fix them and ensure tests pass.
-
-## Environment Setup (New Machines)
-
-```bash
-# 1. Clone the repo
-git clone <repo-url>
-cd purechess
-
-# 2. Install dependencies
-npm install
-cd src-tauri && cargo build && cd ..
-
-# 3. Install OpenSpec CLI
-npm install -g @fission-ai/openspec@latest
-
-# 4. Verify
-openspec list                    # should show active changes
-npm run typecheck                # should pass
-npm run test                     # should pass
+turbochess/
+├── src/                           # TypeScript source code
+│   ├── chess.ts                   # Unified Super Chess class & core engine
+│   ├── attacks.ts                 # Black Magic & 64x64 flat ray/between tables
+│   ├── board.ts                   # Board representation & square operations
+│   ├── squareSet.ts               # 32-bit pair SquareSet operations & BLSR
+│   ├── fen.ts                     # Single-pass FEN scanner & serializer
+│   ├── san.ts                     # SAN parser, maker, & disambiguation
+│   ├── chesstree.ts               # Variation tree & recursive PGN engine
+│   ├── zobrist.ts                 # Polyglot Zobrist hashing & key tables
+│   ├── packedMove.ts              # 16-bit packed moves2 binary encoder
+│   └── chessops/                  # Exact chessops compatibility module
+├── bench/                         # Real-world benchmark harness & corpora
+│   ├── suites/                    # Benchmark suites (sliding, perft, pgn, etc.)
+│   └── data/                      # Pinned test corpora (PGN, EPD)
+├── tests/                         # Unit and parity test suites
+├── openspec/                      # OpenSpec specs, ADRs, and change history
+└── dist/                          # Compiled production output
 ```
