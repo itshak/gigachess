@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/itshak/turbochess/actions"><img src="https://img.shields.io/github/actions/workflow/status/itshak/turbochess/ci.yml?branch=main&label=CI&style=flat-square" alt="CI Status"></a>
+  <a href="https://github.com/itshak/turbochess/actions/workflows/ci.yml"><img src="https://github.com/itshak/turbochess/actions/workflows/ci.yml/badge.svg" alt="CI Status"></a>
   <a href="https://www.npmjs.com/package/turbochess"><img src="https://img.shields.io/npm/v/turbochess?style=flat-square&color=blue" alt="npm version"></a>
   <a href="https://bundlephobia.com/package/turbochess"><img src="https://img.shields.io/bundlephobia/minzip/turbochess?style=flat-square&color=emerald" alt="bundle size"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square" alt="License: MIT"></a>
