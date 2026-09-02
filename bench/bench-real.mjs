@@ -33,7 +33,7 @@ function parseArgs(argv) {
 }
 
 function printHelp() {
-  console.log(`bench-real — real-world benchmark suites (turbochess vs chessops)
+  console.log(`bench-real — real-world benchmark suites (gigachess vs chessops)
 
 Usage:
   node --expose-gc bench/bench-real.mjs [options]
@@ -63,7 +63,7 @@ async function main() {
     process.exit(2);
   }
 
-  console.log(`bench-real — Node ${process.version}, chessops@0.15.1 + chess.js@1.4.0 baselines, mode=${args.quick ? "quick" : "full"}`);
+  console.log(`bench-real — GigaChess vs chessops@0.15.1 + chess.js@1.4.0 baselines (Node ${process.version}, mode=${args.quick ? "quick" : "full"})`);
   console.log(`suites: ${args.suites.join(", ")}`);
 
   const results = [];

@@ -1,6 +1,6 @@
-# TurboChess Architecture & Performance Blueprint
+# GigaChess Architecture & Performance Blueprint
 
-> **TurboChess** is a native, local-first, zero-BigInt chess bitboard engine and workstation workstation library.
+> **GigaChess** is a native, local-first, zero-BigInt chess bitboard engine and workstation library.
 > It unifies **`chess.js` ergonomics**, **`chesstree` study trees**, and **Stockfish-level bitboard speed** under a 100% **MIT license**.
 
 ---
@@ -29,7 +29,7 @@
 ## ⚡ Key Performance Engineering Principles
 
 ### 1. Zero-BigInt 32-bit Pair Layout (`SquareSet = { lo: number, hi: number }`)
-JavaScript engines (V8 / SpiderMonkey / JavaScriptCore) optimize 32-bit bitwise operations (`|`, `&`, `^`, `>>> 0`) into single CPU instructions. In contrast, 64-bit `BigInt` forces object allocation and boxing on the heap. All bitboards in TurboChess are split into low/high 32-bit unsigned integers.
+JavaScript engines (V8 / SpiderMonkey / JavaScriptCore) optimize 32-bit bitwise operations (`|`, `&`, `^`, `>>> 0`) into single CPU instructions. In contrast, 64-bit `BigInt` forces object allocation and boxing on the heap. All bitboards in GigaChess are split into low/high 32-bit unsigned integers.
 
 ### 2. Precomputed $64 \times 64$ Flat Ray & Between Tables
 All ray and between-square queries run in $O(1)$ through precomputed 4,096-entry `Uint32Array` tables:

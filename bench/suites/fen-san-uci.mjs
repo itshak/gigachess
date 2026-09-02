@@ -263,7 +263,7 @@ export async function sanUciPhase(ctx) {
   const pcFps = thr(fens.length, pcM.median);
   const coFps = thr(fens.length, coM.median);
   const fenRatio = pcFps / coFps;
-  console.log(`  FEN parse+make throughput: turbochess ${Math.round(pcFps).toLocaleString()}/s vs chessops ${Math.round(coFps).toLocaleString()}/s → ${(fenRatio * 100 - 100).toFixed(1)}% (median of 20, 3 warmups excluded)`);
+  console.log(`  FEN parse+make throughput: gigachess ${Math.round(pcFps).toLocaleString()}/s vs chessops ${Math.round(coFps).toLocaleString()}/s → ${(fenRatio * 100 - 100).toFixed(1)}% (median of 20, 3 warmups excluded)`);
 
   const gates = [
     gate(

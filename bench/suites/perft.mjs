@@ -109,13 +109,13 @@ export async function run(opts) {
     return n;
   };
 
-  const pcM = measure(runPc, "turbochess");
+  const pcM = measure(runPc, "gigachess");
   const coM = measure(runCo, "chessops");
   const pcNps = thr(totalNodes, pcM.median);
   const coNps = thr(totalNodes, coM.median);
   const ratio = pcNps / coNps;
   console.log(`  corpus: ${positions.length} FENs, ${totalNodes.toLocaleString()} nodes per run at cap depth`);
-  console.log(`  turbochess : ${Math.round(pcNps).toLocaleString()} nodes/s (median ${pcM.median.toFixed(0)} ms, p10 ${pcM.p10.toFixed(0)} / p90 ${pcM.p90.toFixed(0)}, 20 runs, 3 warmups excluded)`);
+  console.log(`  gigachess : ${Math.round(pcNps).toLocaleString()} nodes/s (median ${pcM.median.toFixed(0)} ms, p10 ${pcM.p10.toFixed(0)} / p90 ${pcM.p90.toFixed(0)}, 20 runs, 3 warmups excluded)`);
   console.log(`  chessops  : ${Math.round(coNps).toLocaleString()} nodes/s (median ${coM.median.toFixed(0)} ms, p10 ${coM.p10.toFixed(0)} / p90 ${coM.p90.toFixed(0)})`);
   console.log(`  speedup   : ${(ratio * 100 - 100).toFixed(1)}%`);
 

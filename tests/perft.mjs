@@ -1,4 +1,4 @@
-// tests/perft.mjs — perft regression suite for turbochess (run from repo root after build)
+// tests/perft.mjs — perft regression suite for gigachess (run from repo root after build)
 // Usage:
 //   node tests/perft.mjs            # fast suite (positions capped at <= 500k nodes)
 //   PERFT_FULL=1 node tests/perft.mjs  # full suite (startpos d5, kiwipete d4, ...; ~40s)

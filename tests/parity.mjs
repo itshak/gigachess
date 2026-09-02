@@ -81,7 +81,7 @@ for (const line of fenLines) {
   } catch { }
 }
 const fenOk = fenN - fenFailPc - fenFailCo;
-console.log(`  turbochess parse ok: ${fenN - fenFailPc}/${fenN}, chessops parse ok: ${fenN - fenFailCo}/${fenN}`);
+console.log(`  gigachess parse ok: ${fenN - fenFailPc}/${fenN}, chessops parse ok: ${fenN - fenFailCo}/${fenN}`);
 console.log(`  FEN round-trip identical: ${fenRt}/${fenOk}`);
 console.log(`  dests sets identical vs chessops: ${fenParity}/${fenOk}`, fenBad.slice(0, 3));
 check("FEN round-trip >=99%", fenRt >= fenOk * 0.99, `${fenRt}/${fenOk}`);

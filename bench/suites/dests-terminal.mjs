@@ -176,7 +176,7 @@ export async function run(opts) {
   const coM = measure(runCo);
   const pcDps = thr(prepared.length, pcM.median);
   const coDps = thr(prepared.length, coM.median);
-  console.log(`  dests throughput (allDests per position): turbochess ${Math.round(pcDps).toLocaleString()}/s vs chessops ${Math.round(coDps).toLocaleString()}/s → ${(pcDps / coDps * 100 - 100).toFixed(1)}% (median of 20, 3 warmups excluded)`);
+  console.log(`  dests throughput (allDests per position): gigachess ${Math.round(pcDps).toLocaleString()}/s vs chessops ${Math.round(coDps).toLocaleString()}/s → ${(pcDps / coDps * 100 - 100).toFixed(1)}% (median of 20, 3 warmups excluded)`);
 
   const gates = [
     gate("dests/legal/terminal 100% parity on real-game positions", true, "0 mismatches", `0 mismatches over ${prepared.length} positions / ${destMoves.toLocaleString()} moves`),

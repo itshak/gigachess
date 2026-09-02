@@ -111,7 +111,7 @@ export async function run(opts) {
       if (++checked >= parityTotal) break outerParity;
     }
   }
-  console.log(`  parity: ${checked - mismatch}/${checked} attack sets bit-identical (turbochess Black Magic vs chessops HQ)`);
+  console.log(`  parity: ${checked - mismatch}/${checked} attack sets bit-identical (gigachess Black Magic vs chessops HQ)`);
   if (mismatch) examples.forEach((e) => console.log(`    MISMATCH ${e}`));
 
   // ---- Timing: MAttacks/s over the harvested real occupancies.
@@ -162,7 +162,7 @@ export async function run(opts) {
       const pcMa = thr(occsUsed * 64, pcM.median) / 1e6;
       const coMa = thr(occsUsed * 64, coM.median) / 1e6;
       console.log(`  [${label}] ${occsUsed.toLocaleString()} occupancies × 64 squares = ${(occsUsed * 64).toLocaleString()} attack calls per run`);
-      console.log(`  [${label}] turbochess : ${pcMa.toFixed(1)} MAttacks/s (median ${pcM.median.toFixed(1)} ms, p10 ${pcM.p10.toFixed(1)} / p90 ${pcM.p90.toFixed(1)}, 20 runs, 3 warmups excluded)`);
+      console.log(`  [${label}] gigachess : ${pcMa.toFixed(1)} MAttacks/s (median ${pcM.median.toFixed(1)} ms, p10 ${pcM.p10.toFixed(1)} / p90 ${pcM.p90.toFixed(1)}, 20 runs, 3 warmups excluded)`);
       console.log(`  [${label}] chessops  : ${coMa.toFixed(1)} MAttacks/s (median ${coM.median.toFixed(1)} ms, p10 ${coM.p10.toFixed(1)} / p90 ${coM.p90.toFixed(1)})`);
       return { pcMa, coMa, ratio: pcMa / coMa };
     };

@@ -1,6 +1,6 @@
-# Contributing to TurboChess
+# Contributing to GigaChess
 
-Thank you for your interest in contributing to **TurboChess** — the fastest JavaScript and TypeScript chess engine and workstation library.
+Thank you for your interest in contributing to **GigaChess** — the fastest JavaScript and TypeScript chess engine and workstation library.
 
 ---
 
@@ -8,8 +8,8 @@ Thank you for your interest in contributing to **TurboChess** — the fastest Ja
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/itshak/turbochess.git
-cd turbochess
+git clone https://github.com/itshak/gigachess.git
+cd gigachess
 
 # 2. Install dependencies
 npm install
@@ -32,7 +32,7 @@ npm run bench:real -- --quick
 1. **Performance Primacy:** Any changes touching move generation, attacks, or board state must preserve or improve throughput. Run `npm run bench:real` before submitting PRs.
 2. **Zero-BigInt Bitboards:** Store bitboards as `{ lo: number, hi: number }` (low/high 32-bit unsigned integers with `>>> 0`). Avoid `BigInt` allocations in hot loops.
 3. **Exact Parity:** 100% exact parity with `chess.js` for game rules/SAN and `chessops` for movegen is strictly enforced. All 165+ tests must pass.
-4. **MIT License Integrity:** TurboChess is clean-room and 100% MIT. Do NOT copy code from GPL-only or restrictive repositories.
+4. **MIT License Integrity:** GigaChess is clean-room and 100% MIT. Do NOT copy code from GPL-only or restrictive repositories.
 
 ---
 

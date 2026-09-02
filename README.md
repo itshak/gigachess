@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="./assets/logo.png" width="220" alt="TurboChess Logo" />
+  <img src="./assets/logo.png" width="220" alt="GigaChess Logo" />
 </p>
 
-<h1 align="center">TurboChess</h1>
+<h1 align="center">GigaChess</h1>
 
 <p align="center">
   <strong>The fastest chess engine in JavaScript.</strong><br>
@@ -11,25 +11,25 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/itshak/turbochess/actions/workflows/ci.yml"><img src="https://github.com/itshak/turbochess/actions/workflows/ci.yml/badge.svg" alt="CI Status"></a>
-  <a href="https://www.npmjs.com/package/turbochess"><img src="https://img.shields.io/npm/v/turbochess?style=flat-square&color=blue" alt="npm version"></a>
-  <a href="https://bundlephobia.com/package/turbochess"><img src="https://img.shields.io/bundlephobia/minzip/turbochess?style=flat-square&color=emerald" alt="bundle size"></a>
+  <a href="https://github.com/itshak/gigachess/actions/workflows/ci.yml"><img src="https://github.com/itshak/gigachess/actions/workflows/ci.yml/badge.svg" alt="CI Status"></a>
+  <a href="https://www.npmjs.com/package/gigachess"><img src="https://img.shields.io/npm/v/gigachess?style=flat-square&color=blue" alt="npm version"></a>
+  <a href="https://bundlephobia.com/package/gigachess"><img src="https://img.shields.io/bundlephobia/minzip/gigachess?style=flat-square&color=emerald" alt="bundle size"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square" alt="License: MIT"></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-Strict-blue?style=flat-square" alt="TypeScript"></a>
 </p>
 
 ---
 
-## ⚡ Why TurboChess?
+## ⚡ Why GigaChess?
 
 Until today, chess developers had to choose between two compromises:
 1. **`chess.js`**: Intuitive API, but slow (array-based board scans, string allocations on every move, no bitboards, no variation trees).
 2. **`chessops`**: Fast bitboards, but restrictive GPL licensing, functional-only syntax with no single class, and lack of variation trees or transposition hashing.
 
-**TurboChess eliminates this compromise.** It gives you:
+**GigaChess eliminates this compromise.** It gives you:
 - 🚀 **3.5x Faster than `chess.js`** across all standard operations.
 - ⚡ **Up to 3.3x Faster than `chessops`** on real-world workstation workloads.
-- 🔄 **1-Line Drop-in Replacement** for `chess.js` (`import { Chess } from 'turbochess'`) and `chessops` (`import * as chessops from 'turbochess/chessops'`).
+- 🔄 **1-Line Drop-in Replacement** for `chess.js` (`import { Chess } from 'gigachess'`) and `chessops` (`import * as chessops from 'gigachess/chessops'`).
 - 🌳 **Built-in `chesstree` Variation Trees** (`game.toTree()` and `Chess.loadTree(pgn)`).
 - 🔑 **Instant $O(1)$ 64-bit Polyglot Zobrist Hashing** (`game.zobrist()`).
 - 📦 **16-bit Binary Move Streams (`moves2`)** (25x smaller memory footprint per game).
@@ -39,7 +39,7 @@ Until today, chess developers had to choose between two compromises:
 
 ## 📊 Benchmark Comparison
 
-| Metric / Workload | 🚀 **TurboChess** | ♟️ **`chessops`** (0.15.1) | 📦 **`chess.js`** (1.4.0) | TurboChess Advantage |
+| Metric / Workload | 🚀 **GigaChess** | ♟️ **`chessops`** (0.15.1) | 📦 **`chess.js`** (1.4.0) | GigaChess Advantage |
 |---|---|---|---|---|
 | **License** | ✅ **100% MIT** | ❌ **GPL-3.0** | ✅ **BSD-2-Clause** | **Free for commercial use** |
 | **Sliding Piece Attacks** | **35.5 MAttacks/s** | 10.6 MAttacks/s | N/A *(array scan)* | **3.36x faster (+236%)** vs chessops |
@@ -60,7 +60,7 @@ Until today, chess developers had to choose between two compromises:
 ## 🛠️ Installation
 
 ```bash
-npm install turbochess
+npm install gigachess
 ```
 
 ---
@@ -74,7 +74,7 @@ Replace your import statement. Every method, property, and type signature works 
 // import { Chess } from 'chess.js';
 
 // After:
-import { Chess } from 'turbochess';
+import { Chess } from 'gigachess';
 
 const chess = new Chess();
 chess.move('e4');
@@ -91,8 +91,8 @@ Import the high-performance compatibility module with exact API shape and 100% M
 // import { parseFen } from 'chessops/fen';
 
 // After:
-import { Chess } from 'turbochess/chessops/chess';
-import { parseFen } from 'turbochess/chessops/fen';
+import { Chess } from 'gigachess/chessops/chess';
+import { parseFen } from 'gigachess/chessops/fen';
 ```
 
 ---
@@ -102,7 +102,7 @@ import { parseFen } from 'turbochess/chessops/fen';
 ### 1. Ultra-Fast Chessground UI Legal Moves
 Generate legal move dots for `@lichess-org/chessground` or any UI chessboard in microseconds:
 ```ts
-import { Chess } from 'turbochess';
+import { Chess } from 'gigachess';
 
 const game = new Chess();
 
@@ -116,7 +116,7 @@ const e2Dests = game.dests('e2');
 ### 2. Variation Trees & PGN Analysis (`toTree` & `loadTree`)
 Full recursive variation tree navigation and PGN export built right in:
 ```ts
-import { Chess } from 'turbochess';
+import { Chess } from 'gigachess';
 
 // 1. Export live game to an interactive variation tree:
 const game = new Chess();
@@ -136,7 +136,7 @@ const root = treeWrapper.getRoot();
 ### 3. $O(1)$ 64-bit Polyglot Zobrist Hashing
 Instant position fingerprinting for opening books, transpositions, and repetitions:
 ```ts
-import { Chess } from 'turbochess';
+import { Chess } from 'gigachess';
 
 const game = new Chess();
 game.move('e4');
@@ -148,7 +148,7 @@ console.log(game.zobristHex()); // "823c9b50fd114196"
 ### 4. 16-bit Packed Move Streams (`moves2`)
 Compress entire game databases down to 2 bytes per ply:
 ```ts
-import { Chess } from 'turbochess';
+import { Chess } from 'gigachess';
 
 const game = new Chess();
 game.move('e4');
@@ -165,11 +165,11 @@ console.log(replayedGame.fen() === game.fen()); // true
 
 ---
 
-## 🔬 How is TurboChess so Fast?
+## 🔬 How is GigaChess so Fast?
 
-TurboChess incorporates the same hardware-efficient architectural principles found in Stockfish and modern master engines:
+GigaChess incorporates the same hardware-efficient architectural principles found in Stockfish and modern master engines:
 
-1. **Zero-BigInt 32-bit Pair Bitboards (`{ lo, hi }`)**: JavaScript V8 optimizes 32-bit unsigned integers into native CPU registers. BigInt forces heap boxing and garbage collector churn.
+1. **Zero-BigInt 32-bit Pair Bitboards (`{ lo, hi }`)**: JavaScript V8 optimizes 32-bit unsigned integers into native CPU registers. BigInt forces heap boxing and garbage collector churn. All bitboards in GigaChess are split into low/high 32-bit unsigned integers.
 2. **Precomputed $64 \times 64$ Flat Ray & Between Tables**: Single-cycle `Uint32Array(4096)` array index lookups replace dynamic loops during pin and check resolution.
 3. **Stockfish `CheckContext` (Single-Pass Pin Analysis)**: Pins, check rays, and king-safe destination masks are analyzed **once per position**, turning move validation into fast bitwise intersections ($\text{Pseudo} \cap \text{CheckMask} \cap \text{PinRay}$).
 4. **Black Magic Sliding Bitboards**: $O(1)$ Bishop, Rook, and Queen ray generation delivering over **35.5 Million attacks/sec**.
@@ -180,4 +180,4 @@ TurboChess incorporates the same hardware-efficient architectural principles fou
 
 ## 📜 License
 
-MIT © [Itshak](https://github.com/itshak) & [TurboChess Contributors](https://github.com/itshak/turbochess/graphs/contributors).
+MIT © [Itshak](https://github.com/itshak) & [GigaChess Contributors](https://github.com/itshak/gigachess/graphs/contributors).

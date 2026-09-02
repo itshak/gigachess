@@ -47,7 +47,7 @@ const REPLAY_STREAMS = 3;      // game SAN streams for ply-by-ply fen/san parity
 const PGN_SPEED_GAMES_CAP = 1000; // timed PGN phase cap (full mode)
 
 function printHelp() {
-  console.log(`chessjs — turbochess/chessjs vs chess.js@1.4.0 (parity-first)
+  console.log(`chessjs — gigachess/chessjs vs chess.js@1.4.0 (parity-first)
 
 Corpora (pinned, see bench/data/README.md):
   ${CORPORA.lichessZst.path} (${CORPORA.lichessZst.sha256.slice(0, 12)}…)
@@ -175,7 +175,7 @@ export async function run(opts) {
   const pcFen = measure(fenWorkPc), jsFen = measure(fenWorkJs);
   metrics.fenPcFps = thr(fens.length, pcFen.median);
   metrics.fenJsFps = thr(fens.length, jsFen.median);
-  console.log(`  FEN parse+make: turbochess ${Math.round(metrics.fenPcFps).toLocaleString()}/s vs chess.js ${Math.round(metrics.fenJsFps).toLocaleString()}/s → ${(metrics.fenPcFps / metrics.fenJsFps).toFixed(2)}x (median of ${RUNS}, ${WARMUPS} warmups excluded)`);
+  console.log(`  FEN parse+make: gigachess ${Math.round(metrics.fenPcFps).toLocaleString()}/s vs chess.js ${Math.round(metrics.fenJsFps).toLocaleString()}/s → ${(metrics.fenPcFps / metrics.fenJsFps).toFixed(2)}x (median of ${RUNS}, ${WARMUPS} warmups excluded)`);
   gates.push(gate("FEN parse+make speed vs chess.js (report-only)", true, "report-only", `${(metrics.fenPcFps / metrics.fenJsFps).toFixed(2)}x`));
 
   // SAN make + dests over the corpus FENs
@@ -184,10 +184,10 @@ export async function run(opts) {
   const pcSd = measure(sanDestsPc), jsSd = measure(sanDestsJs);
   metrics.sanDestsPcFps = thr(fens.length, pcSd.median);
   metrics.sanDestsJsFps = thr(fens.length, jsSd.median);
-  console.log(`  SAN make + dests: turbochess ${Math.round(metrics.sanDestsPcFps).toLocaleString()}/s vs chess.js ${Math.round(metrics.sanDestsJsFps).toLocaleString()}/s → ${(metrics.sanDestsPcFps / metrics.sanDestsJsFps).toFixed(2)}x`);
+  console.log(`  SAN make + dests: gigachess ${Math.round(metrics.sanDestsPcFps).toLocaleString()}/s vs chess.js ${Math.round(metrics.sanDestsJsFps).toLocaleString()}/s → ${(metrics.sanDestsPcFps / metrics.sanDestsJsFps).toFixed(2)}x`);
   gates.push(gate("SAN make + dests speed vs chess.js (report-only)", true, "report-only", `${(metrics.sanDestsPcFps / metrics.sanDestsJsFps).toFixed(2)}x`));
 
-  // PGN streaming: turbochess parsePgn + facade replay vs chess.js loadPgn
+  // PGN streaming: gigachess parsePgn + facade replay vs chess.js loadPgn
   const pgnGames = games.slice(0, Math.min(games.length, PGN_SPEED_GAMES_CAP));
   const text = pgnGames.join("\n\n") + "\n";
   const bytes = Buffer.byteLength(text, "utf8");
@@ -214,10 +214,10 @@ export async function run(opts) {
   metrics.pgnJsGps = thr(pgnGames.length, jsPgn.median);
   const pcMBs = (bytes / 1048576) / (pcPgn.median / 1000);
   const jsMBs = (bytes / 1048576) / (jsPgn.median / 1000);
-  console.log(`  PGN games/s: turbochess ${Math.round(metrics.pgnPcGps).toLocaleString()} (${pcMBs.toFixed(1)} MB/s) vs chess.js loadPgn ${Math.round(metrics.pgnJsGps).toLocaleString()} (${jsMBs.toFixed(1)} MB/s) → ${(metrics.pgnPcGps / metrics.pgnJsGps).toFixed(2)}x (expected ≥1.5x)`);
+  console.log(`  PGN games/s: gigachess ${Math.round(metrics.pgnPcGps).toLocaleString()} (${pcMBs.toFixed(1)} MB/s) vs chess.js loadPgn ${Math.round(metrics.pgnJsGps).toLocaleString()} (${jsMBs.toFixed(1)} MB/s) → ${(metrics.pgnPcGps / metrics.pgnJsGps).toFixed(2)}x (expected ≥1.5x)`);
   gates.push(gate("PGN streaming speed vs chess.js (report-only, expected ≥1.5x)", true, "report-only", `${(metrics.pgnPcGps / metrics.pgnJsGps).toFixed(2)}x`));
 
-  // peak heap during the turbochess PGN phase (post-GC checkpoints)
+  // peak heap during the gigachess PGN phase (post-GC checkpoints)
   global.gc();
   let peak = 0;
   const interval = Math.max(1, Math.floor(pgnGames.length / 20));
@@ -231,13 +231,13 @@ export async function run(opts) {
     if (++count % interval === 0) { global.gc(); peak = Math.max(peak, process.memoryUsage().heapUsed); }
   }
   metrics.peakHeapMb = Math.round(peak / 1048576);
-  console.log(`  peakHeap (turbochess PGN replay, post-GC checkpoints): ${metrics.peakHeapMb} MB`);
+  console.log(`  peakHeap (gigachess PGN replay, post-GC checkpoints): ${metrics.peakHeapMb} MB`);
 
   // ---- Results file
   const date = new Date().toISOString().slice(0, 10);
   const lines = [
     `# chessjs lane results — ${date}`, "",
-    `turbochess/chessjs vs chess.js@1.4.0 (bench baseline only, never imported in src/).`,
+    `gigachess/chessjs vs chess.js@1.4.0 (bench baseline only, never imported in src/).`,
     `Corpus: ${source} + samplefen1000.epd + perftsuite.epd + wac_150.epd (pinned sha256).`,
     `Methodology: ${WARMUPS} warmups excluded, median of ${RUNS} runs, global.gc() between iterations.`, "",
     "| gate | target | actual |", "|---|---|---|",

@@ -1,13 +1,13 @@
-# AGENTS.md — TurboChess AI Agent Instructions
+# AGENTS.md — GigaChess AI Agent Instructions
 
-> This file is the canonical "README for AI agents" working on TurboChess.
+> This file is the canonical "README for AI agents" working on GigaChess.
 > All AI coding assistants (Gemini, Claude, Cursor, Copilot, JetBrains AI) should read this file before making any changes.
 
 ---
 
 ## Project Overview
 
-**TurboChess** is the fastest JavaScript and TypeScript chess engine and workstation library on Earth.
+**GigaChess** is the fastest JavaScript and TypeScript chess engine and workstation library on Earth.
 It unifies `chess.js` ergonomics, `chesstree` study trees, and Stockfish-level bitboard speed under a 100% permissive **MIT license**.
 
 - **License:** MIT
@@ -54,11 +54,11 @@ node --expose-gc bench/bench-real.mjs           # Full 20-run median verificatio
 - **ALWAYS** run `node --expose-gc bench/bench-real.mjs --quick` before declaring performance changes complete. All 24 gates must remain green.
 
 ### 2. Exact Parity (Non-Negotiable)
-- TurboChess maintains **100% exact parity** with `chess.js` on SAN/FEN/game state rules and `chessops` on legal movegen.
+- GigaChess maintains **100% exact parity** with `chess.js` on SAN/FEN/game state rules and `chessops` on legal movegen.
 - **NEVER** break the public API contracts or change movegen without running the complete test suite (`npm test`).
 
 ### 3. MIT License Clean-Room Integrity
-- TurboChess is 100% clean-room MIT.
+- GigaChess is 100% clean-room MIT.
 - **NEVER** copy code from GPL-only or restrictive third-party chess libraries.
 
 ---
@@ -66,7 +66,7 @@ node --expose-gc bench/bench-real.mjs           # Full 20-run median verificatio
 ## Repository Map
 
 ```
-turbochess/
+gigachess/
 ├── src/                           # TypeScript source code
 │   ├── chess.ts                   # Unified Super Chess class & core engine
 │   ├── attacks.ts                 # Black Magic & 64x64 flat ray/between tables

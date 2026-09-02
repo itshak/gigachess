@@ -1,0 +1,52 @@
+{
+  "name": "turbochess",
+  "version": "0.2.1",
+  "description": "Turbochess has been renamed to gigachess. Please install gigachess instead.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Itshak <aistreltsov@outlook.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/itshak/gigachess.git"
+  },
+  "bugs": {
+    "url": "https://github.com/itshak/gigachess/issues"
+  },
+  "homepage": "https://github.com/itshak/gigachess#readme",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js"
+    },
+    "./core": {
+      "types": "./core.d.ts",
+      "import": "./core.js"
+    },
+    "./pgn": {
+      "types": "./pgn.d.ts",
+      "import": "./pgn.js"
+    },
+    "./chess960": {
+      "types": "./chess960.d.ts",
+      "import": "./chess960.js"
+    },
+    "./chessops": {
+      "types": "./chessops/index.d.ts",
+      "import": "./chessops/index.js"
+    },
+    "./chessops/*": {
+      "types": "./chessops/*.d.ts",
+      "import": "./chessops/*.js"
+    },
+    "./chesstree": {
+      "types": "./chesstree.d.ts",
+      "import": "./chesstree.js"
+    }
+  },
+  "dependencies": {
+    "gigachess": "^0.2.0"
+  },
+  "scripts": {
+    "prepublishOnly": "echo 'Turbochess has been renamed to gigachess. Publishing transition shim.'"
+  }
+}

@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 const REPO = fileURLToPath(new URL("../../", import.meta.url));
 
 const ENTRIES = {
-  "turbochess (full)": `import { Chess } from "turbochess"; export const C = Chess;`,
+  "gigachess (full)": `import { Chess } from "gigachess"; export const C = Chess;`,
   "chess.js (1.4.0)": `import { Chess } from "chess.js"; export const C = Chess;`,
   "chessops (core bare)": `import { Chess } from "chessops"; export const C = Chess;`,
   "chessops (full: chess+fen+san)": `import { Chess } from "chessops"; import { parseFen } from "chessops/fen"; import { parseSan } from "chessops/san"; export const C = [Chess, parseFen, parseSan];`,
@@ -49,7 +49,10 @@ async function bundleSplit(entrySource, dir, label) {
     logLevel: "silent",
     nodePaths: [join(REPO, "node_modules")],
     alias: {
-      // package.json exports map of the local repo (name is turbochess-workstation)
+      "gigachess/core": join(REPO, "dist/core.js"),
+      "gigachess/pgn": join(REPO, "dist/pgn.js"),
+      "gigachess/chess960": join(REPO, "dist/chess960.js"),
+      "gigachess": join(REPO, "dist/index.js"),
       "turbochess/core": join(REPO, "dist/core.js"),
       "turbochess/pgn": join(REPO, "dist/pgn.js"),
       "turbochess/chess960": join(REPO, "dist/chess960.js"),
@@ -66,7 +69,7 @@ export const name = "bundle";
 
 export async function run(opts) {
   console.log(`\n=== suite: bundle (esbuild minified + gzip, splitting; unified package gate) ===`);
-  const dir = mkdtempSync(join(tmpdir(), "turbochess-bench-bundle-"));
+  const dir = mkdtempSync(join(tmpdir(), "gigachess-bench-bundle-"));
   const out = {};
   const lazies = [];
   for (const [label, src] of Object.entries(ENTRIES)) {
@@ -79,15 +82,15 @@ export async function run(opts) {
     console.log(`  ${label.padEnd(32)} static ${b.entry.length.toLocaleString()} B raw → ${entryGz.toLocaleString()} B gz${b.lazy.length ? ` | lazy chunks ${lazyGz.toLocaleString()} B gz | total ${allGz.toLocaleString()} B gz` : ""}`);
   }
 
-  const fullStaticGz = out["turbochess (full)"].gz;
-  const fullTotalGz = out["turbochess (full)"].allGz;
+  const fullStaticGz = out["gigachess (full)"].gz;
+  const fullTotalGz = out["gigachess (full)"].allGz;
   const jsChessGz = out["chess.js (1.4.0)"].gz;
   const jsRatio = (fullStaticGz / jsChessGz * 100);
-  console.log(`  turbochess vs chess.js: ${jsRatio.toFixed(1)}% of size (${fullStaticGz.toLocaleString()} B vs ${jsChessGz.toLocaleString()} B gz)`);
+  console.log(`  gigachess vs chess.js: ${jsRatio.toFixed(1)}% of size (${fullStaticGz.toLocaleString()} B vs ${jsChessGz.toLocaleString()} B gz)`);
   console.log(`  full (incl. lazy table chunks) total: ${fullTotalGz.toLocaleString()} B gz`);
 
   // Magic-table bytes (the base64 blobs) must load lazily outside the static entry chunk
-  const fullText = (await bundleSplit(ENTRIES["turbochess (full)"], dir, "full-deadcode")).entry.toString("utf8");
+  const fullText = (await bundleSplit(ENTRIES["gigachess (full)"], dir, "full-deadcode")).entry.toString("utf8");
   const blobSrc = readFileSync(join(REPO, "src", "rookMagicBlob.ts"), "utf8");
   const blobNeedle = blobSrc.slice(blobSrc.indexOf('"') + 1, blobSrc.indexOf('"') + 96);
   const hasMagicBytes = fullText.includes(blobNeedle);

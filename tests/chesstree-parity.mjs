@@ -102,7 +102,7 @@ function compareExport(name, co, tc) {
 }
 
 // ---------- corpus ----------
-console.log("chesstree-compat parity — turbochess/chesstree vs @itshak/chesstree@2.0.0 (dev baseline)\n");
+console.log("chesstree-compat parity — gigachess/chesstree vs @itshak/chesstree@2.0.0 (dev baseline)\n");
 
 // 1. Standard start, variations, comments
 const r1 = compareTree("standard+variations",
@@ -234,7 +234,7 @@ compareExport("variation-lead-comment", r7.co, r7.tc);
   check("loadTree navigates imported tree", tree2.nodeAtPath(tree2.longestValidPath("zzzzzzzzzz")) !== undefined);
   // chessops subpath exposes the integrated tree API (task 3.3)
   const co = await import("../dist/chessops/index.js");
-  check("turbochess/chessops exposes buildTree + pgnImport", typeof co.buildTree === "function" && typeof co.pgnImport === "function");
+  check("gigachess/chessops exposes buildTree + pgnImport", typeof co.buildTree === "function" && typeof co.pgnImport === "function");
   const coData = co.pgnImport(pgn);
   // mainline is a nested chain under the root (chesstree convention)
   let chain = 0, node = coData.treeParts[0];

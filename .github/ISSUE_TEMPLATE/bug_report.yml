@@ -9,7 +9,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: TurboChess Version
+      label: GigaChess Version
       placeholder: e.g. 0.2.0
     validations:
       required: true
@@ -19,7 +19,7 @@ body:
       label: Minimal Reproduction Code / FEN / PGN
       description: Please provide code or a FEN string reproducing the issue.
       placeholder: |
-        import { Chess } from 'turbochess';
+        import { Chess } from 'gigachess';
         const game = new Chess('...');
         game.move('...');
     validations:

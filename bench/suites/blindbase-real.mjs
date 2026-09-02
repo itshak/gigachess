@@ -153,7 +153,7 @@ export async function run(opts) {
     gates.push(gate("repertoire-build parity: identical merged node/edge counts",
       pcTree.size === coTree.size && pcEdges === coEdges,
       "identical", `${pcTree.size} nodes/${pcEdges} edges vs ${coTree.size}/${coEdges}`));
-    const pcM = measure(buildPc, "repertoire turbochess");
+    const pcM = measure(buildPc, "repertoire gigachess");
     const coM = measure(buildCo, "repertoire chessops");
     const ratio = coM.median / pcM.median;
     console.log(`  repertoire-build: ${fmtMs(pcM.median)} ms vs chessops ${fmtMs(coM.median)} ms -> ${ratio.toFixed(2)}x (${thr(N_LINES, pcM.median).toFixed(0)} lines/s, heap ${peakHeapMb()} MB)`);
@@ -222,7 +222,7 @@ export async function run(opts) {
       }
     }
     gates.push(gate("chessground-dests parity: identical dest maps", mismatch === 0, "0 mismatches", `${mismatch} mismatches over ${checked} positions`));
-    const pcM = measure(destsPc, "dests turbochess");
+    const pcM = measure(destsPc, "dests gigachess");
     const coM = measure(destsCo, "dests chessops");
     const ratio = coM.median / pcM.median;
     console.log(`  chessground-dests: ${fmtMs(pcM.median)} ms vs chessops ${fmtMs(coM.median)} ms -> ${ratio.toFixed(2)}x (${thr(N_POSITIONS, pcM.median).toFixed(0)} positions/s, heap ${peakHeapMb()} MB)`);
@@ -286,7 +286,7 @@ export async function run(opts) {
       }
     }
     gates.push(gate("uci-to-san parity: SAN byte-identical vs chessops", parityBad === 0, "0 mismatches", `${parityBad} mismatches over ${compared} plies`));
-    const pcM = measure(sanPc, "uci turbochess");
+    const pcM = measure(sanPc, "uci gigachess");
     const coM = measure(sanCo, "uci chessops");
     const ratio = coM.median / pcM.median;
     console.log(`  uci-to-san: ${fmtMs(pcM.median)} ms vs chessops ${fmtMs(coM.median)} ms -> ${ratio.toFixed(2)}x (${thr(N_PLIES, pcM.median).toFixed(0)} plies/s, heap ${peakHeapMb()} MB)`);

@@ -1,4 +1,4 @@
-// tests/chessjs-parity.mjs — parity suite for the turbochess/chessjs façade
+// tests/chessjs-parity.mjs — parity suite for the gigachess/chessjs façade
 // (change: purechess-remaining-cleanroom, tasks 4.1/4.2). Cross-checks every
 // observable output against chess.js@1.4.0 (dev-only bench baseline; never
 // imported in src/). Fails on any divergence.

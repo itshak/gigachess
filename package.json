@@ -1,6 +1,6 @@
 {
-  "name": "turbochess",
-  "version": "0.2.0",
+  "name": "gigachess",
+  "version": "0.2.1",
   "description": "The fastest chess engine in JavaScript. 1-line drop-in upgrade for chess.js and chessops with 3.5x faster move validation, 120,000 games/sec PGN parsing, and built-in variation trees.",
   "type": "module",
   "license": "MIT",
@@ -9,6 +9,8 @@
     "chess",
     "chess-engine",
     "chess-library",
+    "gigachess",
+    "turbochess",
     "bitboard",
     "stockfish",
     "chesstree",
@@ -27,12 +29,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/itshak/turbochess.git"
+    "url": "git+https://github.com/itshak/gigachess.git"
   },
   "bugs": {
-    "url": "https://github.com/itshak/turbochess/issues"
+    "url": "https://github.com/itshak/gigachess/issues"
   },
-  "homepage": "https://github.com/itshak/turbochess#readme",
+  "homepage": "https://github.com/itshak/gigachess#readme",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
