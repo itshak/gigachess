@@ -44,8 +44,12 @@
 - [ ] 7.2 Make `isCheck(pos)` branchless: `(pos.checkers.lo | pos.checkers.hi) !== 0`
 - [ ] 7.3 Store `kingSq: [number, number]` directly in the board state to eliminate dynamic `kingSquare` scans
 
-## 8. Phase 7 — Hardening, Fuzz Differential Testing & Archive
+## 8. Phase 7 — Hardening, Fuzz Differential Testing, Documentation & Archive
 
 - [ ] 8.1 Implement `tests/fuzz-differential.mjs` running 1,000 random game playouts in lockstep against `chess.js` and `chessops`
 - [ ] 8.2 Run full `bench/bench-micro.mjs` and `bench/bench-perft.mjs`, recording speedup delta table in `bench-results/gigachess-after.json`
-- [ ] 8.3 Run `npx openspec validate --changes`
+- [ ] 8.3 Update `README.md` benchmark and head-to-head comparison tables with verified post-optimization numbers and speedups
+- [ ] 8.4 Codify architectural decisions in `openspec/adr/014-maximum-performance-and-zero-allocation-architecture.md`
+- [ ] 8.5 Sync delta specs to main specifications (`openspec/specs/`)
+- [ ] 8.6 Run `npx openspec validate --changes`
+- [ ] 8.7 Archive completed change to `openspec/changes/archive/`
