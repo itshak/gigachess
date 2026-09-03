@@ -8,7 +8,9 @@ GigaChess JavaScript / TypeScript is engineered for ultra-high-performance chess
 
 **Goals:**
 - Deliver the fastest chess move generator, SAN parser, and perft engine in the JavaScript/TypeScript ecosystem.
+- Implement early Standard Chess vs Chess960 fast-path separation, optimizing the 99.9% common case.
 - Achieve zero heap allocations in all internal move generation and replay hot loops.
+- Implement `MoveSink` bulk popcounting and `MoveVisitor` zero-allocation callback patterns.
 - Maintain 100% backward compatibility with existing public APIs (`Chess`, `parseSan`, `makeSan`, `perft`, `allDests`).
 - Maintain 100% permissive MIT licensing with zero GPL dependencies.
 - Pass 100% of all differential fuzz tests and perft reference tests.
@@ -26,7 +28,20 @@ GigaChess JavaScript / TypeScript is engineered for ultra-high-performance chess
 - **Baseline Freeze:** Record initial baseline numbers in `bench-results/gigachess-baseline.json` before merging optimizations.
 - **Gating Band:** Require a median speedup with 0 regressions on identical inputs across 3 benchmark runs.
 
-### D2: Zero-Allocation Targeted SAN Parser & Suffix Optimization
+### D2: Early Standard Chess vs Chess960 Fast-Path Separation
+- **Decision:** Separate Standard Chess castling handling from Chess960 at the root of `Position`:
+  - In Standard Chess, represent castling rights as a 4-bit integer mask (`WK = 1, WQ = 2, BK = 4, BQ = 8`), completely eliminating `ReadonlySet<number>` and `new Set()` allocations.
+  - Rights updates on moves are executed via a single line:
+    `pos.castlingMask &= (CASTLE_CLEAR_STD[from] & CASTLE_CLEAR_STD[to]);`
+  - Clearance and transit checks use constant bitmasks:
+    - White O-O: `(occ.lo & 0x60) === 0`
+    - White O-O-O: `(occ.lo & 0x0E) === 0`
+    - Black O-O: `(occ.hi & 0x60000000) === 0`
+    - Black O-O-O: `(occ.hi & 0x0E000000) === 0`
+  - When Chess960 is enabled (`isChess960 === true`), fall back to the generalized `CASTLE_PATH` lookup tables.
+- **Impact:** Eliminates all `Set` object creations and dynamic file comparisons in 99.9% of games.
+
+### D3: Zero-Allocation Targeted SAN Parser & Suffix Optimization
 - **Decision:** Replace the brute-force `genLegalMovesForSan()` call in `parseSan()` with reverse attacker lookups:
   ```ts
   // 1. Identify destination square `to` and moving role `pieceRole`
@@ -39,26 +54,22 @@ GigaChess JavaScript / TypeScript is engineered for ultra-high-performance chess
 - **Suffix Fast-Path:** In `makeSan()`, only test `isCheckmate()` when `isCheck(next)` evaluates to true. When evaluating mate, immediately return false upon discovering the first legal evasion (king step or attacker block/capture).
 - **Impact:** Reduces SAN parse latency from ~6.5 µs down to <1 µs (6×–8× speedup).
 
-### D3: Piece-Centric Move Generation & Vectorized Pawn Shifts
+### D4: Piece-Centric Move Generation & Vectorized Pawn Shifts
 - **Decision:** Eliminate square-by-square iteration over `own` bitboards in `allDests()` and `genLegalMoves()`. Generate moves piece-by-piece:
   - **Pawns:** Compute single pushes `((pawns << 8) & ~occ)`, double pushes from rank 2/7, and left/right diagonal captures in parallel using bitwise shifts.
   - **Knights:** Iterate directly over `pos.board.knight & own` using `Math.clz32(lsb)`.
   - **Sliders:** Iterate directly over `bishop & own`, `rook & own`, and `queen & own`.
   - **King:** Direct step attacks from cached `kingSq`.
+  - **Color Specialization:** Monomorphic routines for White and Black pawns, avoiding `color === White ? 8 : -8` branches in loops.
 - **Why:** Eliminates all `board.pieceAt()` calls in move generation, which previously scanned 6–12 piece bitboards on every occupied square.
 
-### D4: Bulk Count Sink (`MoveSink` / `countLegalMoves`)
+### D5: `MoveSink` Bulk Popcounting & `MoveVisitor` Zero-Allocation Callbacks
 - **Decision:** Implement a dual-mode move generation architecture:
   - `generateLegalMoves(pos, ctx, sink: MoveSink)`
-  - `MoveCounter`: Accumulates `popcnt32(lo) + popcnt32(hi)` directly from target bitboards at perft leaves (depth 1), bypassing move list construction and LSB bit extraction.
-  - `MoveList`: Preallocated stack view collecting moves when the caller requires the list.
-- **Impact:** Yields a 1.3×–1.8× speedup in perft throughput.
-
-### D5: Zero-Copy 16-Bit Packed `moves2` & Visitor Callbacks
-- **Decision:** Expose `legalMovesInto(pos, out: Uint16Array | Uint32Array): number` emitting 16-bit packed words:
-  `word = from | (to << 6) | (promo << 12)`
-  Provide a visitor callback `forEachLegalMove(pos, (from, to, promo) => void)` for internal search and tree building without creating `Move` objects.
-- **Impact:** Eliminates GC pressure entirely during game replay and move tree exploration.
+  - **`MoveCounter` Sink**: Accumulates `popcnt32(lo) + popcnt32(hi)` directly from target bitboards at perft leaves (depth 1), bypassing move list construction and LSB bit extraction.
+  - **`MoveCollector` Sink**: Writes 16-bit packed words (`from | to << 6 | promo << 12`) into a flat `Uint16Array(256)` stack buffer.
+  - **`MoveVisitor`**: Expose `forEachLegalMove(pos, (from, to, promo) => void)` where V8 inlines non-escaping closures directly into the loop, allowing search and bot engines to run with zero allocations.
+- **Impact:** Yields a 1.5×–2.5× speedup in perft throughput and eliminates GC pressure.
 
 ### D6: Cached Checkers & Direct King Square Tracking
 - **Decision:** Store `checkers: SquareSet` in `Position` and `prev_checkers: SquareSet` in `Undo`. Maintain checkers incrementally across `makeMove()` / `unmakeMove()`.
@@ -74,14 +85,14 @@ GigaChess JavaScript / TypeScript is engineered for ultra-high-performance chess
 - **Decision:**
   - Enforce `>>> 0` unsigned 32-bit integer coercions on all bitwise operations to guarantee unboxed SMI register allocation in V8.
   - Maintain stable hidden classes (object shapes) for `Position` and `Board` structs without dynamic property injection or deletion.
-  - Keep hot helper routines under 600 AST nodes to ensure TurboFan inlining.
+  - Keep hot helper routines under 600 AST nodes to ensure TurboFan inlines them directly into caller loops.
   - Set `tsconfig.build.json` target to `ES2022` to emit modern native V8 opcodes (`Math.clz32`).
 
 ---
 
 ## Risks / Trade-offs
 
+- **[Risk]** Standard Chess fast path might desync with Chess960 if not tested uniformly.
+  - *Mitigation*: Differential testing against `chess.js` for Standard Chess and `python-chess` / `shakmaty` for Chess960.
 - **[Risk]** Adding `MoveSink` may add branching in move generation.
-  - *Mitigation*: Monomorphize or inline the two paths: dedicated `countLegalMoves()` function for leaf bulk counting, and `generateLegalMovesInto()` for move collection.
-- **[Risk]** Memory footprint of precomputed tables.
-  - *Mitigation*: The `CASTLE_PATH` table is 64 × 8 bytes = 512 bytes; the flat `LINE_RAY` table is 4096 × 8 bytes = 32 KB. Both fit easily into L1/L2 CPU caches.
+  - *Mitigation*: Dedicated `countLegalMoves()` function for leaf bulk counting, and `generateLegalMovesInto()` for move collection.
