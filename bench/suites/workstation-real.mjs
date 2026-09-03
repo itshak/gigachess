@@ -1,6 +1,5 @@
-// bench/suites/blindbase-real.mjs — real-world blind-base workstation
-// workloads (change turbochess-unified-api-and-perf, task 4.1 / spec
-// turbochess-blindbase-benchmarks). Profiles the 4 core workstation flows:
+// bench/suites/workstation-real.mjs — real-world chess workstation workloads.
+// Profiles the 4 core workstation flows:
 //   1. repertoire-build      — merge 5,000 opening lines into a prefix tree
 //                              keyed by normalized FENs
 //   2. reference-tree        — stream 10,000 master games through pgnImport
@@ -36,7 +35,7 @@ const normKey = (fen) => {
   return `${f[0]} ${f[1]} ${f[2]} ${f[4]} ${f[5]}`;
 };
 
-export const name = "blindbase-real";
+export const name = "workstation-real";
 
 let seed = 0xbb45e12;
 function rnd(n) {

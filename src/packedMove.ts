@@ -1,5 +1,5 @@
 // src/packedMove.ts — 16-bit packed move encoding ("moves2", design D3)
-// 2-byte format matching blind-base's gigabase_moves.rs:
+// 2-byte format matching gigachess 16-bit moves2 wire format:
 //   bits 0..5   (6 bits) from square index (0..63, a1 = 0)
 //   bits 6..11  (6 bits) to square index (0..63)
 //   bits 12..15 (4 bits) promotion code (0 = none, 1 = N, 2 = B, 3 = R, 4 = Q)
