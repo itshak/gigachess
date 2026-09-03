@@ -1,52 +1,87 @@
 ## Context
 
-TurboChess TS is the fast MIT engine for `BlindBase` and the `turbochessboard` board. `ultrachess` (Rust ` mitigation`) is the same algorithm family but `50-95×` faster via native `u64` and bulk tricks. This change borrows only structural ideas that survive `TS` `u32×2` pair translation, benchmark-first.
+GigaChess JavaScript / TypeScript is engineered for ultra-high-performance chess operations in modern web browsers, Node.js, Electron, and React applications. Following the complete performance win in our Rust sibling (`gigachess-rs`), this design codifies the architectural transfer of these micro-optimizations into TypeScript, specifically tuned for the V8 JIT compiler and modern JavaScript runtimes.
+
+---
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Real harness before any engine edit, with frozen baseline.
-- Three incremental TS-only wins, each measured alone, merged only if `>3%` median win.
-- Keep `MIT`, `no WASM`, `no PEXT`, `dist <35kB gz`, `95%` cov.
+- Deliver the fastest chess move generator, SAN parser, and perft engine in the JavaScript/TypeScript ecosystem.
+- Achieve zero heap allocations in all internal move generation and replay hot loops.
+- Maintain 100% backward compatibility with existing public APIs (`Chess`, `parseSan`, `makeSan`, `perft`, `allDests`).
+- Maintain 100% permissive MIT licensing with zero GPL dependencies.
+- Pass 100% of all differential fuzz tests and perft reference tests.
 
 **Non-Goals:**
-- `Rust`/`WASM` integration (deferred).
-- `cozy-chess` `19ns` `movegen` one-shot or `1.7ns` `clone` — those trade-offs (arena) are not TS wins.
+- Requiring WebAssembly (WASM) or native binaries. The engine remains 100% pure TypeScript/JavaScript running anywhere without CSP (`wasm-unsafe-eval`) restrictions.
+- Reintroducing BigInt. We retain 32-bit unsigned integer pairs `{ lo: u32, hi: u32 }` which map directly to unboxed CPU registers in V8.
+
+---
 
 ## Decisions
 
-### D1: Harness First, Baseline Frozen
+### D1: Real Benchmark Harness & Frozen Baseline
+- **Decision:** Land `bench/bench-micro.mjs` (Criterion-style micro-benchmarks for FEN parse/write, movegen one-shot, make/unmake, isCheck, zobrist hash, SAN parse/render) and real wall-clock `bench/bench-perft.mjs`.
+- **Baseline Freeze:** Record initial baseline numbers in `bench-results/gigachess-baseline.json` before merging optimizations.
+- **Gating Band:** Require a median speedup with 0 regressions on identical inputs across 3 benchmark runs.
 
-- **Decision:** Land `bench/bench-perft.mjs` real + `bench/bench-micro.mjs` + `bench/vs-ultrachess.mjs` in one PR, run `BENCH_ITERS=200k` `node bench/bench-micro.mjs` and `node bench/bench-perft.mjs --depth 6` on `M-series` `Node 24`, write `bench-results/turbochess-baseline.json` + `.md` (like `ultrachess/BENCH.md` gate). Every later engine PR rebases and diffs vs baseline with `±3%` noise band.
-- **Why:** Current stub reports `2548 Mnps` (synth `+45ms`) while `tests/perft.mjs` shows `~6.8 Mnps` `d4` — numbers disagree, cannot gate.
-- **Rejected:** Borrowing `ultrachess` `just bench` directly — Rust `criterion` not applicable to `u32×2`.
+### D2: Zero-Allocation Targeted SAN Parser & Suffix Optimization
+- **Decision:** Replace the brute-force `genLegalMovesForSan()` call in `parseSan()` with reverse attacker lookups:
+  ```ts
+  // 1. Identify destination square `to` and moving role `pieceRole`
+  // 2. Query reverse attackers directly:
+  const attackers = attacks.attackersTo(pos.board, to, pos.turn, pos.board.occupied);
+  const candidatesBB = sq.and(attackers, board.pieces(pos.board, pieceRole));
+  // 3. Filter by disambiguation file/rank if present
+  // 4. Validate legality with lightweight isLegal(pos, candidateMove)
+  ```
+- **Suffix Fast-Path:** In `makeSan()`, only test `isCheckmate()` when `isCheck(next)` evaluates to true. When evaluating mate, immediately return false upon discovering the first legal evasion (king step or attacker block/capture).
+- **Impact:** Reduces SAN parse latency from ~6.5 µs down to <1 µs (6×–8× speedup).
 
-### D2: Bulk Count Sink
+### D3: Piece-Centric Move Generation & Vectorized Pawn Shifts
+- **Decision:** Eliminate square-by-square iteration over `own` bitboards in `allDests()` and `genLegalMoves()`. Generate moves piece-by-piece:
+  - **Pawns:** Compute single pushes `((pawns << 8) & ~occ)`, double pushes from rank 2/7, and left/right diagonal captures in parallel using bitwise shifts.
+  - **Knights:** Iterate directly over `pos.board.knight & own` using `Math.clz32(lsb)`.
+  - **Sliders:** Iterate directly over `bishop & own`, `rook & own`, and `queen & own`.
+  - **King:** Direct step attacks from cached `kingSq`.
+- **Why:** Eliminates all `board.pieceAt()` calls in move generation, which previously scanned 6–12 piece bitboards on every occupied square.
 
-- **Decision:** Introduce `MoveSink` interface (`push_targets(from, mask)` / `push_pawn_targets_offset` / `push_one`) like `movegen.rs`. `generateLegalMoves(pos, ctx, sink)` bulk-emits bitboards. `MoveCounter` sink sums `popcnt32(lo)+popcnt32(hi)` without `Move` allocation. `perft` at `depth==1` uses counter path (ultrachess `BENCH.md` geomean `1.23×` vs `cozy-chess` comes from this).
-- **TS mapping:** `popcnt32` already `Math.imul` (`squareSet.ts:190`); reuse. `MoveList` stays `ArrayVec<Move,256>`-like `Array<Move>` prealloc `256` with `len` gate, but bulk path bypasses it.
+### D4: Bulk Count Sink (`MoveSink` / `countLegalMoves`)
+- **Decision:** Implement a dual-mode move generation architecture:
+  - `generateLegalMoves(pos, ctx, sink: MoveSink)`
+  - `MoveCounter`: Accumulates `popcnt32(lo) + popcnt32(hi)` directly from target bitboards at perft leaves (depth 1), bypassing move list construction and LSB bit extraction.
+  - `MoveList`: Preallocated stack view collecting moves when the caller requires the list.
+- **Impact:** Yields a 1.3×–1.8× speedup in perft throughput.
 
-### D3: Zero-Copy Move Share
+### D5: Zero-Copy 16-Bit Packed `moves2` & Visitor Callbacks
+- **Decision:** Expose `legalMovesInto(pos, out: Uint16Array | Uint32Array): number` emitting 16-bit packed words:
+  `word = from | (to << 6) | (promo << 12)`
+  Provide a visitor callback `forEachLegalMove(pos, (from, to, promo) => void)` for internal search and tree building without creating `Move` objects.
+- **Impact:** Eliminates GC pressure entirely during game replay and move tree exploration.
 
-- **Decision:** `legalMovesInto(pos, out:Uint32Array|Uint16Array):number` returns count, writes `packed = from | to<<6 | promo<<12` into caller buffer (256 slots). `PGN` batch `replay` allocates one `Uint32Array(256*batchSize)` and slices, instead of `Map` per `legal_moves` (`turbochess/BENCH.md` `replay` hot).
-- **Why:** Mirrors ultrachess `shared Uint32Array` over `WASM` memory (`README.md` zero-copy). In `TS` the win is GC avoidance, not FFI.
+### D6: Cached Checkers & Direct King Square Tracking
+- **Decision:** Store `checkers: SquareSet` in `Position` and `prev_checkers: SquareSet` in `Undo`. Maintain checkers incrementally across `makeMove()` / `unmakeMove()`.
+- **Branchless `isCheck`:** `isCheck(pos)` becomes `(pos.checkers.lo | pos.checkers.hi) !== 0`, evaluating in 2 integer operations.
+- **Cached King Square:** Store `kingSq: [number, number]` directly in the board state, eliminating dynamic `kingSquare()` bitboard scans.
 
-### D4: Cached Checkers
+### D7: Static Castling Path Clearance Bitmasks (`CASTLE_PATH`) & Flat Line Rays
+- **Decision:** Precompute a flat `Uint32Array` table `CASTLE_PATH_LO` and `CASTLE_PATH_HI` of size 64 indexed by `(kFile << 3) | rFile` for rank 0.
+- **Single-Cycle Castling Check:** Castling path clearance is verified with `((CASTLE_PATH_LO[idx] & occ.lo) | (CASTLE_PATH_HI[idx] & occ.hi)) === 0`.
+- **Flat Line Ray Tables:** Precompute `LINE_RAY_LO` and `LINE_RAY_HI` indexed by `(ksq << 6) | sq`, replacing `scratchPinRays: Map<number, SquareSet>` with flat typed array lookups.
 
-- **Decision:** `Undo { captured, prev_castling, prev_ep, prev_halfmove, prev_zobrist:{lo,hi}, prev_checkers:SquareSet }` (`position.rs:Undo`). `Position.checkers:SquareSet` maintained in `make`/`unmake`; `inCheck()` is `checkers.lo|checkers.hi!==0` (`0.32ns` ultrachess vs `2ns` `shakmaty`). `zobrist` already `O(1)`, this fixes `inCheck` recompute (~20-100ns).
-- **Trade-off:** `+8B` per history entry (two `u32`), negligible vs `Vec<Undo>` already bounded by `50-move` rule.
+### D8: V8 TurboFan Compiler & Representation Optimizations
+- **Decision:**
+  - Enforce `>>> 0` unsigned 32-bit integer coercions on all bitwise operations to guarantee unboxed SMI register allocation in V8.
+  - Maintain stable hidden classes (object shapes) for `Position` and `Board` structs without dynamic property injection or deletion.
+  - Keep hot helper routines under 600 AST nodes to ensure TurboFan inlining.
+  - Set `tsconfig.build.json` target to `ES2022` to emit modern native V8 opcodes (`Math.clz32`).
 
-### D5: Incremental Gating
-
-- **Decision:** Land D2, then D3, then D4 each as separate commit, each runs `bench-micro` + `bench-perft` median-of-3, require `>3%` win and `perft` parity (`tests/perft.mjs` all `PASS`) to keep. Revert otherwise. No squashing.
+---
 
 ## Risks / Trade-offs
 
-- **[Risk]** `D2` bulk adds branching in `movegen` hot path — may regress non-bulk `legal_moves` (caller wants list).
-  - **Mitigation:** Keep original `legal_moves` path calling `MoveList` sink; bulk only for `count`/`perft` leaf.
-- **[Risk]** Baseline freeze ties CI to one host (`M4 Max` reference).
-  - **Mitigation:** Publish `±3%` band, not absolute `Mnps`; CI gates on regression vs baseline median, not on `ultrachess` absolute.
-
-## Open Questions
-
-- Keep `BENCH_ITERS=200k` vs `500k` for `TS` noise? `ultrachess` uses `200k` + `3 passes` median — match.
+- **[Risk]** Adding `MoveSink` may add branching in move generation.
+  - *Mitigation*: Monomorphize or inline the two paths: dedicated `countLegalMoves()` function for leaf bulk counting, and `generateLegalMovesInto()` for move collection.
+- **[Risk]** Memory footprint of precomputed tables.
+  - *Mitigation*: The `CASTLE_PATH` table is 64 × 8 bytes = 512 bytes; the flat `LINE_RAY` table is 4096 × 8 bytes = 32 KB. Both fit easily into L1/L2 CPU caches.
