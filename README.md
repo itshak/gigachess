@@ -20,6 +20,8 @@
 
 ---
 
+> 🦀 **Looking for maximum native backend performance?** Check out [**`gigachess` (Rust)**](https://github.com/itshak/gigachess-rs) — the fastest chess move generator in Rust, featuring 540M nodes/sec perft throughput, hardware PEXT / Fancy Magic bitboards, 16-bit binary replay (1.4M games/sec), and zero heap allocations for database workstations and search engines. Available on [crates.io](https://crates.io/crates/gigachess).
+
 ## ⚡ Why GigaChess?
 
 Until today, chess developers had to choose between two compromises:
@@ -175,6 +177,17 @@ GigaChess incorporates the same hardware-efficient architectural principles foun
 4. **Black Magic Sliding Bitboards**: $O(1)$ Bishop, Rook, and Queen ray generation delivering over **35.5 Million attacks/sec**.
 5. **Incremental Zobrist XORs**: Hashing updates in $O(1)$ per move rather than rescanning the 64 squares.
 6. **Perft Leaf Popcounting**: Depth-1 node counting skips all JavaScript move object allocations.
+
+---
+
+## 🌐 GigaChess Dual-Ecosystem
+
+GigaChess is engineered for maximum performance across the entire chess stack:
+
+| Language & Package | Primary Environment | Performance Highlights | Repository |
+|---|---|---|---|
+| **`gigachess` (JS / TS)** *(this repo)* | Web frontends, Node.js, Electron, React UI | **3.5× faster than chess.js**, 120,000 games/s PGN parser, built-in variation trees | [GitHub](https://github.com/itshak/gigachess) / [npm](https://www.npmjs.com/package/gigachess) |
+| **`gigachess` (Rust)** | Native backends, search engines, database indexing | **540 Mnps** perft, 144B `Copy` board, 1.41M games/s replay, zero heap allocations | [GitHub](https://github.com/itshak/gigachess-rs) / [crates.io](https://crates.io/crates/gigachess) |
 
 ---
 
