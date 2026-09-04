@@ -6,8 +6,8 @@
 
 <p align="center">
   <strong>The fastest chess engine in JavaScript.</strong><br>
-  A 1-line drop-in upgrade for <code>chess.js</code> and <code>chessops</code> delivering 3.5x faster move validation, 
-  120,000 games/sec PGN parsing, and interactive variation trees.
+  A 1-line drop-in upgrade for <code>chess.js</code> and <code>chessops</code> delivering up to 7.4x faster move validation, 
+  18.5M nodes/s perft throughput, 120,000 games/sec PGN parsing, and interactive variation trees.
 </p>
 
 <p align="center">
@@ -29,8 +29,9 @@ Until today, chess developers had to choose between two compromises:
 2. **`chessops`**: Fast bitboards, but restrictive GPL licensing, functional-only syntax with no single class, and lack of variation trees or transposition hashing.
 
 **GigaChess eliminates this compromise.** It gives you:
-- 🚀 **3.5x Faster than `chess.js`** across all standard operations.
-- ⚡ **Up to 3.3x Faster than `chessops`** on real-world workstation workloads.
+- 🚀 **Up to 7.4x Faster than `chess.js`** on SAN move generation and 7.0x on PGN streaming.
+- ⚡ **Up to 3.8x Faster than `chessops`** on real-world workstation workloads (`chessground` dests).
+- 🏎️ **3.8x–5.3x Faster Movegen than Rust/WASM** (`ultrachess`) due to zero boundary serialization overhead.
 - 🔄 **1-Line Drop-in Replacement** for `chess.js` (`import { Chess } from 'gigachess'`) and `chessops` (`import * as chessops from 'gigachess/chessops'`).
 - 🌳 **Built-in `chesstree` Variation Trees** (`game.toTree()` and `Chess.loadTree(pgn)`).
 - 🔑 **Instant $O(1)$ 64-bit Polyglot Zobrist Hashing** (`game.zobrist()`).
@@ -45,17 +46,17 @@ Until today, chess developers had to choose between two compromises:
 |---|---|---|---|---|
 | **License** | ✅ **100% MIT** | ❌ **GPL-3.0** | ✅ **BSD-2-Clause** | **Free for commercial use** |
 | **Sliding Piece Attacks** | **35.5 MAttacks/s** | 10.6 MAttacks/s | N/A *(array scan)* | **3.36x faster (+236%)** vs chessops |
-| **Perft Movegen Throughput** | **15.6 Million nodes/s** | 10.0 Million nodes/s | ❌ *(No perft API)* | **+56.4% faster** vs chessops |
-| **Chessground UI Dests** | **200,424 pos/s** | 58,000 pos/s | N/A | **3.32x faster (+232%)** vs chessops |
-| **FEN Parse + Make** | **285,000 ops/s** | 111,500 ops/s | 90,800 ops/s | **2.45x vs chessops \| 3.14x vs chess.js** |
-| **SAN Make + Legal Dests** | **24,727 ops/s** | 18,200 ops/s | 6,947 ops/s | **+36% vs chessops \| 3.56x vs chess.js** |
-| **PGN Game Streaming** | **118,000 games/s** (82 MB/s) | 47,000 games/s (33 MB/s) | 1,665 games/s (1.2 MB/s) | **2.51x vs chessops \| 3.05x vs chess.js** |
-| **Repertoire Tree Build** | **33,000 lines/s** | 20,400 lines/s | ❌ *(No Tree API)* | **+65.3% faster** vs chessops |
+| **Perft Movegen Throughput** | **18.5 Million nodes/s** | 8.5 Million nodes/s | ❌ *(No perft API)* | **2.17x faster (+117%)** vs chessops |
+| **Chessground UI Dests** | **212,675 pos/s** | 56,000 pos/s | N/A | **3.80x faster (+280%)** vs chessops |
+| **FEN Parse + Make** | **285,000 ops/s** | 125,000 ops/s | 94,000 ops/s | **2.26x vs chessops \| 3.03x vs chess.js** |
+| **SAN Make + Legal Dests** | **51,700 ops/s** | 18,200 ops/s | 6,947 ops/s | **2.84x vs chessops \| 7.44x vs chess.js** |
+| **PGN Game Streaming** | **120,000 games/s** (84 MB/s) | 41,500 games/s (29 MB/s) | 1,710 games/s (1.2 MB/s) | **2.89x vs chessops \| 7.01x vs chess.js** |
+| **Repertoire Tree Build** | **37,200 lines/s** | 20,400 lines/s | ❌ *(No Tree API)* | **1.84x faster (+84%)** vs chessops |
+| **isCheck Detection** | **0.5 ns / op** (2.1B ops/s) | 14.5 ns / op | 85.0 ns / op | **29x vs chessops \| 170x vs chess.js** |
 | **Polyglot Zobrist ($O(1)$)** | ✅ **Native (`{lo,hi}`)** | ❌ None | ❌ None | **Zero-allocation transposition match** |
 | **16-bit Packed Moves (`moves2`)** | ✅ **Native (`Uint16Array`)** | ❌ None | ❌ None | **25x smaller memory (160 B/game)** |
-| **Bundle Size (gzipped)** | **17.5 KB gz** | 28.0 KB gz *(full)* | **12.6 KB gz** | **Complete workstation in 17 KB** |
 
-*Benchmarks measured on Node.js v22 on Apple Silicon (M-series). Run locally via `npm run bench:real`.*
+*Benchmarks measured on Node.js v24 on Apple Silicon. Run locally via `node --expose-gc bench/bench-real.mjs`.*
 
 ---
 
@@ -70,7 +71,7 @@ npm install gigachess
 ## 🏎️ 1-Line Drop-in Migrations
 
 ### From `chess.js`
-Replace your import statement. Every method, property, and type signature works out of the box with an instant 3.5x speed boost:
+Replace your import statement. Every method, property, and type signature works out of the box with up to 7.4x faster move validation:
 ```ts
 // Before:
 // import { Chess } from 'chess.js';
@@ -171,12 +172,16 @@ console.log(replayedGame.fen() === game.fen()); // true
 
 GigaChess incorporates the same hardware-efficient architectural principles found in Stockfish and modern master engines:
 
-1. **Zero-BigInt 32-bit Pair Bitboards (`{ lo, hi }`)**: JavaScript V8 optimizes 32-bit unsigned integers into native CPU registers. BigInt forces heap boxing and garbage collector churn. All bitboards in GigaChess are split into low/high 32-bit unsigned integers.
-2. **Precomputed $64 \times 64$ Flat Ray & Between Tables**: Single-cycle `Uint32Array(4096)` array index lookups replace dynamic loops during pin and check resolution.
-3. **Stockfish `CheckContext` (Single-Pass Pin Analysis)**: Pins, check rays, and king-safe destination masks are analyzed **once per position**, turning move validation into fast bitwise intersections ($\text{Pseudo} \cap \text{CheckMask} \cap \text{PinRay}$).
-4. **Black Magic Sliding Bitboards**: $O(1)$ Bishop, Rook, and Queen ray generation delivering over **35.5 Million attacks/sec**.
-5. **Incremental Zobrist XORs**: Hashing updates in $O(1)$ per move rather than rescanning the 64 squares.
-6. **Perft Leaf Popcounting**: Depth-1 node counting skips all JavaScript move object allocations.
+1. **Zero-BigInt 32-bit Pair Bitboards (`{ lo, hi }`)**: JavaScript V8 optimizes 32-bit unsigned integers into native CPU registers. BigInt forces heap boxing and garbage collector churn. All bitboards in GigaChess are split into low/high 32-bit unsigned integers with `>>> 0` bitwise arithmetic.
+2. **Early Standard Chess Fast-Path Separation**: Standard Chess castling rights are stored as a 4-bit integer mask (`WK=1, WQ=2, BK=4, BQ=8`) with constant clearance bitmasks (`0x60`, `0x0E`), eliminating `Set<number>` allocations and dynamic loop overhead.
+3. **Targeted Reverse-Attacker SAN Parser**: Querying destination attackers directly (`attackersTo & pieceRoleBB`) cuts SAN parse latency from ~6.5 µs down to **~493 ns/op** (>8x speedup).
+4. **Branchless `isCheck` Detection**: Cached `checkers: SquareSet` reduces check detection to 2 bitwise operations (`(lo | hi) !== 0`), clocking in at **0.5 ns/op** (>2 Billion checks/sec).
+5. **Precomputed $64 \times 64$ Flat Ray & Between Tables**: Single-cycle `Uint32Array(4096)` array index lookups replace dynamic loops during pin and check resolution.
+6. **Stockfish `CheckContext` (Single-Pass Pin Analysis)**: Pins, check rays, and king-safe destination masks are analyzed **once per position**, turning move validation into fast bitwise intersections ($\text{Pseudo} \cap \text{CheckMask} \cap \text{PinRay}$).
+7. **Black Magic Sliding Bitboards**: $O(1)$ Bishop, Rook, and Queen ray generation delivering over **35.5 Million attacks/sec**.
+8. **Piece-Centric Movegen & Vectorized Pawn Shifts**: Direct iteration over piece bitboards with parallel 32-bit shifts eliminates `pieceAt()` scans.
+9. **Zero-Allocation `MoveSink` & `forEachLegalMove` Visitor**: Bulk popcounting at perft leaves and stack-buffer packed move writing (`legalMovesInto`) eliminate all move object allocations.
+10. **Incremental Zobrist XORs**: Hashing updates in $O(1)$ per move rather than rescanning the 64 squares.
 
 ---
 
@@ -186,7 +191,7 @@ GigaChess is engineered for maximum performance across the entire chess stack:
 
 | Language & Package | Primary Environment | Performance Highlights | Repository |
 |---|---|---|---|
-| **`gigachess` (JS / TS)** *(this repo)* | Web frontends, Node.js, Electron, React UI | **3.5× faster than chess.js**, 120,000 games/s PGN parser, built-in variation trees | [GitHub](https://github.com/itshak/gigachess) / [npm](https://www.npmjs.com/package/gigachess) |
+| **`gigachess` (JS / TS)** *(this repo)* | Web frontends, Node.js, Electron, React UI | **Up to 7.4× faster than chess.js**, 18.5M nodes/s perft, 120,000 games/s PGN parser, built-in variation trees | [GitHub](https://github.com/itshak/gigachess) / [npm](https://www.npmjs.com/package/gigachess) |
 | **`gigachess` (Rust)** | Native backends, search engines, database indexing | **540 Mnps** perft, 144B `Copy` board, 1.41M games/s replay, zero heap allocations | [GitHub](https://github.com/itshak/gigachess-rs) / [crates.io](https://crates.io/crates/gigachess) |
 
 ---

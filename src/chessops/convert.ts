@@ -27,12 +27,7 @@ export const pieceFromEngine = (p: { color: EColor; role: ERole }): Piece => ({
 
 /** Facade Board -> engine board, normalized to unsigned bit patterns. */
 export const boardToEngine = (b: Board): EngineBoard => {
-  const src = b._b;
-  const out: Record<string, { lo: number; hi: number }> = {};
-  for (const k of Object.keys(src) as (keyof engineBoardMod.Board)[]) {
-    out[k] = { lo: src[k].lo >>> 0, hi: src[k].hi >>> 0 };
-  }
-  return out as unknown as EngineBoard;
+  return engineBoardMod.cloneBoard(b._b);
 };
 export const boardFromEngine = (b: EngineBoard): Board => {
   const facade = Board.empty();

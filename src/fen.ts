@@ -9,6 +9,14 @@ import type { Setup, CastlingRights, FenError, Result } from "./types.js";
 import { squareFile, squareRank, parseSquare, squareName } from "./util.js";
 import * as attacks from "./attacks.js";
 import { zobristTablesLoaded, calculateZobrist } from "./zobrist.js";
+import {
+  CASTLE_WK,
+  CASTLE_WQ,
+  CASTLE_BK,
+  CASTLE_BQ,
+  CASTLING_RIGHTS_TABLE,
+  CASTLING_FEN_STR,
+} from "./castling.js";
 
 // helpers to create CastlingRights
 function makeCastling(whiteSet: Set<number>, blackSet: Set<number>): CastlingRights {
@@ -16,6 +24,22 @@ function makeCastling(whiteSet: Set<number>, blackSet: Set<number>): CastlingRig
   const whiteQueen = whiteSet.has(0);
   const blackKing = blackSet.has(63);
   const blackQueen = blackSet.has(56);
+  let isStd = true;
+  for (const s of whiteSet) {
+    if (s !== 7 && s !== 0) { isStd = false; break; }
+  }
+  if (isStd) {
+    for (const s of blackSet) {
+      if (s !== 63 && s !== 56) { isStd = false; break; }
+    }
+  }
+  if (isStd) {
+    const mask = (whiteKing ? CASTLE_WK : 0) |
+                 (whiteQueen ? CASTLE_WQ : 0) |
+                 (blackKing ? CASTLE_BK : 0) |
+                 (blackQueen ? CASTLE_BQ : 0);
+    return CASTLING_RIGHTS_TABLE[mask];
+  }
   return {
     white: new Set(whiteSet),
     black: new Set(blackSet),
@@ -332,17 +356,23 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
     if (turn === Color.Black && whiteAttacked) return Err({ code: "fen/oppositeCheck" });
   }
 
-  // castling validation extra: if not chess960 and castling rights refer to missing rook/king not on original? For now skip strict
-
+  const is960 = !!opts?.chess960;
+  const kingSqPair: [number, number] = [wkSq ?? -1, bkSq ?? -1];
+  (curBoard as { kingSq?: [number, number] }).kingSq = kingSqPair;
+  const chk = attacks.kingAttackers(curBoard, turn);
   const setup: Setup = {
     board: curBoard,
     turn,
     castling,
+    castlingMask: castling.mask,
+    isChess960: is960 || castling.mask === undefined,
     epSquare,
     halfmoves: half,
     fullmoves: full,
     halfmove: half,
     fullmove: full,
+    kingSq: kingSqPair,
+    checkers: chk,
   };
   // Seed the initial Zobrist key when the Polyglot tables are already loaded
   // (lazy-loading contract — see src/zobrist.ts); makeMove then maintains it
@@ -392,21 +422,25 @@ export function makeFen(setup: Setup, opts?: { shredder?: boolean; chess960?: bo
   let castlingStr = "";
   const chess960 = !!opts?.chess960;
   const shredder = !!opts?.shredder;
-  const whiteSet = setup.castling.white;
-  const blackSet = setup.castling.black;
-  const hasWhite = whiteSet.size > 0;
-  const hasBlack = blackSet.size > 0;
-  if (!hasWhite && !hasBlack) {
-    castlingStr = "-";
+  if (!chess960 && !shredder && !setup.isChess960 && (setup.castlingMask !== undefined || setup.castling.mask !== undefined)) {
+    const m = (setup.castlingMask ?? setup.castling.mask!) & 0x0F;
+    castlingStr = CASTLING_FEN_STR[m];
   } else {
-    if (!chess960) {
-      // standard KQkq
-      if (whiteSet.has(7)) castlingStr += "K";
-      if (whiteSet.has(0)) castlingStr += "Q";
-      if (blackSet.has(63)) castlingStr += "k";
-      if (blackSet.has(56)) castlingStr += "q";
-      if (castlingStr === "") castlingStr = "-";
+    const whiteSet = setup.castling.white;
+    const blackSet = setup.castling.black;
+    const hasWhite = whiteSet.size > 0;
+    const hasBlack = blackSet.size > 0;
+    if (!hasWhite && !hasBlack) {
+      castlingStr = "-";
     } else {
+      if (!chess960) {
+        // standard KQkq
+        if (whiteSet.has(7)) castlingStr += "K";
+        if (whiteSet.has(0)) castlingStr += "Q";
+        if (blackSet.has(63)) castlingStr += "k";
+        if (blackSet.has(56)) castlingStr += "q";
+        if (castlingStr === "") castlingStr = "-";
+      } else {
       if (shredder) {
         // Shredder: emit KQkq if rooks on standard squares else fallback to file letters
         let emitted = false;
@@ -435,6 +469,7 @@ export function makeFen(setup: Setup, opts?: { shredder?: boolean; chess960?: bo
       }
     }
   }
+}
 
   const epStr = setup.epSquare === null || setup.epSquare === undefined ? "-" : squareName(setup.epSquare);
   const half = String(setup.halfmoves ?? setup.halfmove ?? 0);

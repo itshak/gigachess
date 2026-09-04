@@ -39,6 +39,7 @@ export type CastlingRights = {
   readonly whiteQueen: boolean;
   readonly blackKing: boolean;
   readonly blackQueen: boolean;
+  readonly mask?: number;
 };
 
 // Setup/Position are immutable value types (ADR-012 §4): the public API is
@@ -61,6 +62,13 @@ export type Setup = {
   // maintains these fields incrementally whenever the input position has them.
   readonly zobristLo?: number;
   readonly zobristHi?: number;
+  // 4-bit standard chess castling rights mask (WK=1, WQ=2, BK=4, BQ=8)
+  readonly castlingMask?: number;
+  readonly isChess960?: boolean;
+  // Precomputed/cached king squares [whiteKingSq, blackKingSq]
+  readonly kingSq?: readonly [number, number];
+  // Cached enemy checkers attacking pos.turn's king
+  readonly checkers?: import("./squareSet.js").SquareSet;
 };
 
 export type Position = Setup;

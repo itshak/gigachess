@@ -1,0 +1,63 @@
+{
+  "timestamp": "2026-09-03T21:50:18.753Z",
+  "engine": "gigachess",
+  "node": "v24.19.0",
+  "micro": {
+    "fenWrite_ns": 654.2762500000001,
+    "fenParse_ns": 1623.9516700000006,
+    "movegen_startpos_ns": 1159.5566599999984,
+    "movegen_kiwipete_ns": 2103.4433199999967,
+    "movegen_960_ns": 1181.5158400000018,
+    "makeUnmake_48ply_cycle_ns": 142818.02088334135,
+    "makeUnmake_48ply_ply_ns": 2975.3754350696113,
+    "isCheck_in_ns": 0.4864599999996244,
+    "isCheck_out_ns": 0.4549999999994725,
+    "zobrist_scratch_ns": 269.52020500000117,
+    "zobrist_incremental_ns": 37.30479500000001,
+    "san_parse_ns": 495.2924999999959,
+    "san_render_ns": 305.56290999999874,
+    "clone_ns": 46.05103999999756
+  },
+  "ultrachess_comparison": {
+    "fenWrite": {
+      "gigachess_ns": 550.2041799999995,
+      "ultrachess_ns": 349.80584000000135,
+      "ratio": 1.5728844892926812
+    },
+    "fenParse": {
+      "gigachess_ns": 1596.5333199999984,
+      "ultrachess_ns": 888.97332,
+      "ratio": 1.7959293986460678
+    },
+    "movegen_startpos": {
+      "gigachess_ns": 1891.4300000000003,
+      "ultrachess_ns": 5024.841639999995,
+      "ratio": 0.37641584262942107
+    },
+    "movegen_kiwipete": {
+      "gigachess_ns": 3064.998319999995,
+      "ultrachess_ns": 12022.621639999998,
+      "ratio": 0.2549359375830774
+    },
+    "isCheck": {
+      "gigachess_ns": 52.39168000000063,
+      "ultrachess_ns": 10.640000000003054,
+      "ratio": 4.924030075186616
+    },
+    "perft_d4": {
+      "gigachess_ms": 27.129209000000174,
+      "gigachess_mnps": 7.271903873054269,
+      "ultrachess_ms": 1.6918329999998605,
+      "ultrachess_mnps": 116.60784486413036,
+      "parity": true
+    }
+  },
+  "perft": {
+    "depth": 6,
+    "fen": "startpos",
+    "nodes": 119060324,
+    "medianMs": 9961.103583999999,
+    "mnps": 11.952523432367514,
+    "runs": 3
+  }
+}

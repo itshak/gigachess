@@ -15,6 +15,7 @@ export type Board = {
   readonly king: SquareSet;
   readonly occupied: SquareSet;
   readonly promoted: SquareSet;
+  readonly kingSq?: readonly [number, number];
 };
 
 export function emptyBoard(): Board {
@@ -30,6 +31,7 @@ export function emptyBoard(): Board {
     king: e,
     occupied: e,
     promoted: e,
+    kingSq: [-1, -1],
   };
 }
 
@@ -46,6 +48,7 @@ export function cloneBoard(board: Board): Board {
     king: { lo: board.king.lo >>> 0, hi: board.king.hi >>> 0 },
     occupied: { lo: board.occupied.lo >>> 0, hi: board.occupied.hi >>> 0 },
     promoted: { lo: board.promoted.lo >>> 0, hi: board.promoted.hi >>> 0 },
+    kingSq: board.kingSq ? [board.kingSq[0], board.kingSq[1]] : undefined,
   };
 }
 
@@ -75,7 +78,19 @@ export function cloneBoard(board: Board): Board {
  * objects never alias any Board's (immutable) field objects — see
  * newScratchBoard/copyBoardInto — and never escape rule 1.
  */
-export type WritableBoard = { [K in keyof Board]: sq.MutableSquareSet };
+export type WritableBoard = {
+  white: sq.MutableSquareSet;
+  black: sq.MutableSquareSet;
+  pawn: sq.MutableSquareSet;
+  knight: sq.MutableSquareSet;
+  bishop: sq.MutableSquareSet;
+  rook: sq.MutableSquareSet;
+  queen: sq.MutableSquareSet;
+  king: sq.MutableSquareSet;
+  occupied: sq.MutableSquareSet;
+  promoted: sq.MutableSquareSet;
+  kingSq: [number, number];
+};
 
 export function newScratchBoard(): WritableBoard {
   // Each field gets its OWN object: the fields are mutable now, so sharing one
@@ -91,6 +106,7 @@ export function newScratchBoard(): WritableBoard {
     king: { lo: 0, hi: 0 },
     occupied: { lo: 0, hi: 0 },
     promoted: { lo: 0, hi: 0 },
+    kingSq: [-1, -1],
   };
 }
 
@@ -108,6 +124,7 @@ export function cloneAsWritable(board: Board): WritableBoard {
     king: { lo: board.king.lo >>> 0, hi: board.king.hi >>> 0 },
     occupied: { lo: board.occupied.lo >>> 0, hi: board.occupied.hi >>> 0 },
     promoted: { lo: board.promoted.lo >>> 0, hi: board.promoted.hi >>> 0 },
+    kingSq: board.kingSq ? [board.kingSq[0], board.kingSq[1]] : [-1, -1],
   };
 }
 
@@ -124,6 +141,10 @@ export function copyBoardInto(dst: WritableBoard, src: Board): void {
   dst.king.lo = src.king.lo; dst.king.hi = src.king.hi;
   dst.occupied.lo = src.occupied.lo; dst.occupied.hi = src.occupied.hi;
   dst.promoted.lo = src.promoted.lo; dst.promoted.hi = src.promoted.hi;
+  if (src.kingSq) {
+    dst.kingSq[0] = src.kingSq[0];
+    dst.kingSq[1] = src.kingSq[1];
+  }
 }
 
 /** In-place: remove the piece (any color/role) at sqIdx. Hot-loop only.
@@ -139,6 +160,10 @@ export function clearSquareInPlace(b: WritableBoard, sqIdx: number): void {
     b.white.hi &= inv; b.black.hi &= inv; b.pawn.hi &= inv; b.knight.hi &= inv;
     b.bishop.hi &= inv; b.rook.hi &= inv; b.queen.hi &= inv; b.king.hi &= inv;
     b.occupied.hi &= inv; b.promoted.hi &= inv;
+  }
+  if (b.kingSq) {
+    if (b.kingSq[0] === sqIdx) b.kingSq[0] = -1;
+    else if (b.kingSq[1] === sqIdx) b.kingSq[1] = -1;
   }
 }
 
@@ -170,6 +195,9 @@ export function putPieceInPlace(b: WritableBoard, sqIdx: number, piece: { color:
       case Role.King: b.king.hi |= bit; break;
     }
     b.occupied.hi |= bit;
+  }
+  if (piece.role === Role.King && b.kingSq) {
+    b.kingSq[piece.color] = sqIdx;
   }
 }
 
@@ -205,6 +233,10 @@ export function hasPiece(board: Board, sqIdx: number): boolean {
 }
 
 export function kingSquare(board: Board, color: Color): number | undefined {
+  if (board.kingSq !== undefined) {
+    const k = board.kingSq[color];
+    if (k >= 0) return k;
+  }
   const ks = color === Color.White ? sq.and(board.white, board.king) : sq.and(board.black, board.king);
   return sq.first(ks);
 }

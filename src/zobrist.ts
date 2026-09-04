@@ -236,22 +236,32 @@ export function zobristAfterMove(
   } else if (captured !== undefined && captured !== null) {
     [lo, hi] = xorInto(lo, hi, pieceKeyIdx(captured.color, captured.role, move.to));
   }
-  // castling rights: symmetric XOR-out-old / XOR-in-new (handles king/rook moves)
-  for (const rs of pos.castling.white) {
-    const ks = kingSqOf(pos, Color.White);
-    if (ks !== undefined) [lo, hi] = xorInto(lo, hi, castlingKeyIdx(Color.White, rs, ks));
-  }
-  for (const rs of pos.castling.black) {
-    const ks = kingSqOf(pos, Color.Black);
-    if (ks !== undefined) [lo, hi] = xorInto(lo, hi, castlingKeyIdx(Color.Black, rs, ks));
-  }
-  for (const rs of newPos.castling.white) {
-    const ks = kingSqOf(newPos, Color.White);
-    if (ks !== undefined) [lo, hi] = xorInto(lo, hi, castlingKeyIdx(Color.White, rs, ks));
-  }
-  for (const rs of newPos.castling.black) {
-    const ks = kingSqOf(newPos, Color.Black);
-    if (ks !== undefined) [lo, hi] = xorInto(lo, hi, castlingKeyIdx(Color.Black, rs, ks));
+  // castling rights: fast bitmask diff for standard chess, fallback for 960
+  if (!pos.isChess960 && pos.castlingMask !== undefined && newPos.castlingMask !== undefined) {
+    const diff = pos.castlingMask ^ newPos.castlingMask;
+    if (diff !== 0) {
+      if (diff & 1) [lo, hi] = xorInto(lo, hi, IDX_CASTLING);
+      if (diff & 2) [lo, hi] = xorInto(lo, hi, IDX_CASTLING + 1);
+      if (diff & 4) [lo, hi] = xorInto(lo, hi, IDX_CASTLING + 2);
+      if (diff & 8) [lo, hi] = xorInto(lo, hi, IDX_CASTLING + 3);
+    }
+  } else {
+    for (const rs of pos.castling.white) {
+      const ks = kingSqOf(pos, Color.White);
+      if (ks !== undefined) [lo, hi] = xorInto(lo, hi, castlingKeyIdx(Color.White, rs, ks));
+    }
+    for (const rs of pos.castling.black) {
+      const ks = kingSqOf(pos, Color.Black);
+      if (ks !== undefined) [lo, hi] = xorInto(lo, hi, castlingKeyIdx(Color.Black, rs, ks));
+    }
+    for (const rs of newPos.castling.white) {
+      const ks = kingSqOf(newPos, Color.White);
+      if (ks !== undefined) [lo, hi] = xorInto(lo, hi, castlingKeyIdx(Color.White, rs, ks));
+    }
+    for (const rs of newPos.castling.black) {
+      const ks = kingSqOf(newPos, Color.Black);
+      if (ks !== undefined) [lo, hi] = xorInto(lo, hi, castlingKeyIdx(Color.Black, rs, ks));
+    }
   }
   // en passant state (both directions, legality-filtered)
   if (pos.epSquare !== null && pos.epSquare !== undefined && epIsHashable(pos, pos.epSquare, pos.turn)) {

@@ -338,6 +338,44 @@ export function between(from: number, to: number): SquareSet {
   return { lo: BETWEEN_LO[idx], hi: BETWEEN_HI[idx] };
 }
 
+export const LINE_RAY_LO = new Uint32Array(4096);
+export const LINE_RAY_HI = new Uint32Array(4096);
+
+for (let i = 0; i < 64; i++) {
+  const f1 = i & 7, r1 = i >> 3;
+  for (let j = 0; j < 64; j++) {
+    if (i === j) continue;
+    const f2 = j & 7, r2 = j >> 3;
+    const df = f2 - f1, dr = r2 - r1;
+    if (df !== 0 && dr !== 0 && Math.abs(df) !== Math.abs(dr)) continue;
+    const stepF = df === 0 ? 0 : df > 0 ? 1 : -1;
+    const stepR = dr === 0 ? 0 : dr > 0 ? 1 : -1;
+    let lo = 0, hi = 0;
+    let f = f1, r = r1;
+    while (f >= 0 && f < 8 && r >= 0 && r < 8) {
+      const s = (r << 3) | f;
+      if (s < 32) lo |= (1 << s) >>> 0;
+      else hi |= (1 << (s - 32)) >>> 0;
+      f += stepF; r += stepR;
+    }
+    f = f1 - stepF; r = r1 - stepR;
+    while (f >= 0 && f < 8 && r >= 0 && r < 8) {
+      const s = (r << 3) | f;
+      if (s < 32) lo |= (1 << s) >>> 0;
+      else hi |= (1 << (s - 32)) >>> 0;
+      f -= stepF; r -= stepR;
+    }
+    const idx = (i << 6) | j;
+    LINE_RAY_LO[idx] = lo >>> 0;
+    LINE_RAY_HI[idx] = hi >>> 0;
+  }
+}
+
+export function lineRay(from: number, to: number): SquareSet {
+  const idx = ((from & 63) << 6) | (to & 63);
+  return { lo: LINE_RAY_LO[idx], hi: LINE_RAY_HI[idx] };
+}
+
 // ---------- isAttacked / kingAttackers ----------
 /**
  * All pieces of `attacker` color attacking `square`. `occ` overrides the

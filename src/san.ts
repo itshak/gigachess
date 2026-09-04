@@ -2,42 +2,21 @@
 // Clean-room from spec tables + FIDE notes, no G P L
 
 import * as sq from "./squareSet.js";
+import type { SquareSet } from "./squareSet.js";
 import * as board from "./board.js";
 import * as chess from "./chess.js";
+import * as attacks from "./attacks.js";
 import { Color, Role } from "./types.js";
 import type { Position, Move, Result, SanError, UciError } from "./types.js";
 import { Err, Ok } from "./types.js";
 import { squareFile, squareRank, parseSquare, squareName } from "./util.js";
 
-function roleToSanChar(role: Role): string {
-  switch (role) {
-    case Role.King: return "K";
-    case Role.Queen: return "Q";
-    case Role.Rook: return "R";
-    case Role.Bishop: return "B";
-    case Role.Knight: return "N";
-    case Role.Pawn: return "";
-    default: return "";
-  }
-}
+const ROLE_SAN = ["", "N", "B", "R", "Q", "K"];
+const roleToSanChar = (role: Role): string => ROLE_SAN[role] ?? "";
 
-function sanCharToRole(ch: string): Role | undefined {
-  if (ch === "K") return Role.King;
-  if (ch === "Q") return Role.Queen;
-  if (ch === "R") return Role.Rook;
-  if (ch === "B") return Role.Bishop;
-  if (ch === "N") return Role.Knight;
-  return undefined;
-}
-
-function promoCharToRole(ch: string): Role | undefined {
-  const c = ch.toUpperCase();
-  if (c === "Q") return Role.Queen;
-  if (c === "R") return Role.Rook;
-  if (c === "B") return Role.Bishop;
-  if (c === "N") return Role.Knight;
-  return undefined;
-}
+const SAN_ROLES: Record<string, Role> = { K: Role.King, Q: Role.Queen, R: Role.Rook, B: Role.Bishop, N: Role.Knight };
+const sanCharToRole = (ch: string): Role | undefined => SAN_ROLES[ch];
+const promoCharToRole = (ch: string): Role | undefined => SAN_ROLES[ch.toUpperCase()];
 
 function normalizeCastlingSan(s: string): string {
   // tolerant 0-0 -> O-O
@@ -62,8 +41,10 @@ export function makeSan(move: Move, pos: Position): string {
     let base = isKingSide ? "O-O" : "O-O-O";
     // add check suffix
     const next = chess.makeMove(pos, move);
-    if (chess.isCheckmate(next)) base += "#";
-    else if (chess.isCheck(next)) base += "+";
+    if (chess.isCheck(next)) {
+      if (chess.isCheckmate(next)) base += "#";
+      else base += "+";
+    }
     return base;
   }
 
@@ -104,34 +85,27 @@ export function makeSan(move: Move, pos: Position): string {
 
   // Disambiguation for non-pawn (and pawn capture already handled)
   if (piece.role !== Role.Pawn) {
-    // Find all pieces of same role/color that can legally move to same destination
+    // Find other pieces of same role/color that can legally move to same destination
     const candidates: number[] = [];
     const own = pos.turn === Color.White ? pos.board.white : pos.board.black;
-    // Iterate over all squares with same role
-    const roleSet = (() => {
-      switch (piece.role) {
-        case Role.Knight: return pos.board.knight;
-        case Role.Bishop: return pos.board.bishop;
-        case Role.Rook: return pos.board.rook;
-        case Role.Queen: return pos.board.queen;
-        case Role.King: return pos.board.king;
-        default: return sq.empty();
+    let attackers: SquareSet;
+    switch (piece.role) {
+      case Role.Knight: attackers = sq.and(attacks.knightAttacks(move.to), sq.and(own, pos.board.knight)); break;
+      case Role.Bishop: attackers = sq.and(attacks.bishopAttacks(move.to, pos.board.occupied), sq.and(own, pos.board.bishop)); break;
+      case Role.Rook: attackers = sq.and(attacks.rookAttacks(move.to, pos.board.occupied), sq.and(own, pos.board.rook)); break;
+      case Role.Queen: attackers = sq.and(attacks.queenAttacks(move.to, pos.board.occupied), sq.and(own, pos.board.queen)); break;
+      case Role.King: attackers = sq.and(attacks.kingAttacks(move.to), sq.and(own, pos.board.king)); break;
+      default: attackers = sq.EMPTY; break;
+    }
+    const otherAttackers = sq.minus(attackers, sq.singleton(move.from));
+    if (!sq.isEmpty(otherAttackers)) {
+      const ctx = chess.analyzeCheckContext(pos);
+      for (const sqIdx of sq.iter(otherAttackers)) {
+        const cand = board.pieceAt(pos.board, sqIdx);
+        if (!cand) continue;
+        const d = chess.destsFast(pos, sqIdx, cand, ctx);
+        if (sq.has(d, move.to)) candidates.push(sqIdx);
       }
-    })();
-    const sameRole = sq.and(own, roleSet);
-    // CheckContext reuse (design D4): the position's check/pin masks are
-    // computed ONCE per makeSan call and shared across every candidate
-    // piece's dest evaluation, instead of re-running the full
-    // analyzeCheckContext inside chess.dests() per candidate — O(N x movegen)
-    // becomes O(N) with one shared context. Zero allocation beyond the
-    // context itself; SAN output is byte-identical (same destsFast semantics).
-    const ctx = chess.analyzeCheckContext(pos);
-    for (const sqIdx of sq.iter(sameRole)) {
-      if (sqIdx === move.from) continue;
-      const cand = board.pieceAt(pos.board, sqIdx);
-      if (!cand) continue;
-      const d = chess.destsFast(pos, sqIdx, cand, ctx);
-      if (sq.has(d, move.to)) candidates.push(sqIdx);
     }
     // Include moving piece itself, total candidates +1 = all that can reach dest
     // If there is any other candidate, need disambiguation
@@ -194,8 +168,10 @@ export function makeSan(move: Move, pos: Position): string {
 
   // Check / mate suffix
   const next = chess.makeMove(pos, move);
-  if (chess.isCheckmate(next)) san += "#";
-  else if (chess.isCheck(next)) san += "+";
+  if (chess.isCheck(next)) {
+    if (chess.isCheckmate(next)) san += "#";
+    else san += "+";
+  }
 
   return san;
 }
@@ -296,106 +272,100 @@ export function parseSan(san: string, pos: Position): Result<Move, SanError> {
   // Our disamb handling already captured that: for "exd5", rest after removing piece (none) and capture, rest = "e" => disambFile = 'e' . Good.
   // For pawn push "e4", rest = "" => no disamb.
 
-  // Now find legal moves matching
-  const legalMoves = genLegalMovesForSan(pos);
+  // Targeted reverse attacker lookup
+  const us = pos.turn;
+  const own = us === Color.White ? pos.board.white : pos.board.black;
+  const candidateFroms: number[] = [];
+
+  if (pieceRole === Role.Pawn) {
+    // 1. Pawn pushes
+    const pushFrom = us === Color.White ? to - 8 : to + 8;
+    if (pushFrom >= 0 && pushFrom < 64 && !board.pieceAt(pos.board, to)) {
+      const p = board.pieceAt(pos.board, pushFrom);
+      if (p && p.color === us && p.role === Role.Pawn) candidateFroms.push(pushFrom);
+    }
+    if (us === Color.White && squareRank(to) === 3) {
+      const dblFrom = to - 16;
+      if (!board.pieceAt(pos.board, to) && !board.pieceAt(pos.board, to - 8)) {
+        const p = board.pieceAt(pos.board, dblFrom);
+        if (p && p.color === us && p.role === Role.Pawn) candidateFroms.push(dblFrom);
+      }
+    } else if (us === Color.Black && squareRank(to) === 4) {
+      const dblFrom = to + 16;
+      if (!board.pieceAt(pos.board, to) && !board.pieceAt(pos.board, to + 8)) {
+        const p = board.pieceAt(pos.board, dblFrom);
+        if (p && p.color === us && p.role === Role.Pawn) candidateFroms.push(dblFrom);
+      }
+    }
+    // 2. Pawn diagonal attacks (normal captures or en-passant)
+    const pAtt = attacks.pawnAttacks(us === Color.White ? Color.Black : Color.White, to);
+    const pawnCaps = sq.and(pAtt, sq.and(own, pos.board.pawn));
+    for (const sqIdx of sq.iter(pawnCaps)) {
+      candidateFroms.push(sqIdx);
+    }
+  } else {
+    let attackers: SquareSet;
+    switch (pieceRole) {
+      case Role.Knight: attackers = sq.and(attacks.knightAttacks(to), sq.and(own, pos.board.knight)); break;
+      case Role.Bishop: attackers = sq.and(attacks.bishopAttacks(to, pos.board.occupied), sq.and(own, pos.board.bishop)); break;
+      case Role.Rook: attackers = sq.and(attacks.rookAttacks(to, pos.board.occupied), sq.and(own, pos.board.rook)); break;
+      case Role.Queen: attackers = sq.and(attacks.queenAttacks(to, pos.board.occupied), sq.and(own, pos.board.queen)); break;
+      case Role.King: attackers = sq.and(attacks.kingAttacks(to), sq.and(own, pos.board.king)); break;
+      default: attackers = sq.EMPTY; break;
+    }
+    for (const sqIdx of sq.iter(attackers)) {
+      candidateFroms.push(sqIdx);
+    }
+  }
+
+  // Disambiguation filtering
+  let filteredFroms = candidateFroms;
+  if (disambFile !== null) {
+    const reqFile = disambFile.charCodeAt(0) - 97;
+    filteredFroms = filteredFroms.filter(f => squareFile(f) === reqFile);
+  }
+  if (disambRank !== null) {
+    const reqRank = disambRank.charCodeAt(0) - 49;
+    filteredFroms = filteredFroms.filter(f => squareRank(f) === reqRank);
+  }
+  if (filteredFroms.length === 0) return Err({ code: "san/noLegalMove" });
+
+  // Legality filtering with single shared check context
+  const ctx = chess.analyzeCheckContext(pos);
   const candidates: Move[] = [];
-  for (const m of legalMoves) {
-    const fromPiece = board.pieceAt(pos.board, m.from);
+  const destRank = squareRank(to);
+
+  for (const from of filteredFroms) {
+    const fromPiece = board.pieceAt(pos.board, from);
     if (!fromPiece) continue;
-    // piece match
-    if (pieceRole !== null) {
-      // pieceRole is expected role; for pawn we set Role.Pawn
-      if (fromPiece.role !== pieceRole) continue;
-    } else {
-      if (fromPiece.role !== Role.Pawn) continue;
+    const isPromo = fromPiece.role === Role.Pawn && (destRank === 0 || destRank === 7);
+    if (isPromo && promotion === undefined) continue;
+    if (!isPromo && promotion !== undefined) continue;
+
+    const d = chess.destsFast(pos, from, fromPiece, ctx);
+    if (!sq.has(d, to)) continue;
+
+    let isEnPassant = false;
+    if (fromPiece.role === Role.Pawn && pos.epSquare !== null && to === pos.epSquare) {
+      const fileDiff = Math.abs(squareFile(to) - squareFile(from));
+      const dir = fromPiece.color === Color.White ? 1 : -1;
+      if (fileDiff === 1 && destRank - squareRank(from) === dir) isEnPassant = true;
     }
-    if (m.to !== to) continue;
-    // Capture flag in the SAN is cosmetic on INPUT (baseline parity): a legal
-    // move matching piece + destination is accepted whether or not the SAN's
-    // 'x' matches an actual capture (e.g. baseline accepts "Nxb5" for a quiet
-    // knight move when b5 is empty). Output (makeSan) still renders 'x' only
-    // for real captures, so announcer output is unchanged.
-    // promotion
-    if (promotion !== undefined) {
-      if (m.promotion !== promotion) continue;
-    } else {
-      if (m.isPromotion) continue;
-    }
-    // disambiguation
-    if (disambFile !== null) {
-      const f = String.fromCharCode(97 + squareFile(m.from));
-      if (f !== disambFile) continue;
-    }
-    if (disambRank !== null) {
-      const r = String.fromCharCode(49 + squareRank(m.from));
-      if (r !== disambRank) continue;
-    }
-    candidates.push(m);
+
+    candidates.push({
+      from,
+      to,
+      promotion: isPromo ? (promotion ?? Role.Queen) : null,
+      isPromotion: isPromo,
+      isEnPassant,
+      isCastling: false,
+    });
   }
 
   if (candidates.length === 0) return Err({ code: "san/noLegalMove" });
   if (candidates.length > 1) return Err({ code: "san/ambiguous" });
   const chosen = candidates[0];
-  // Optionally validate check suffix: if suffix present but after play check status mismatches, should we error? For now ignore, but we could validate
-  // If suffix is '+' but resulting pos not check, or '#' but not mate, should we error? Spec says SAN includes +/# based on resulting position, so we could validate but not required for parsing
-  // We'll optionally validate if suffix present
-  if (checkSuffix) {
-    const next = chess.makeMove(pos, chosen);
-    const isMate = chess.isCheckmate(next);
-    const isChk = chess.isCheck(next);
-    if (checkSuffix === "+" && !isChk) {
-      // SAN claims check but not check -> still treat as illegal? We could ignore
-    }
-    if (checkSuffix === "#" && !isMate) {
-      // mismatch
-    }
-  }
   return Ok(chosen);
-}
-
-// helper to generate legal moves for SAN matching (includes all promotion variants)
-function genLegalMovesForSan(pos: Position): Move[] {
-  // Use chess genLegalMoves internal? We can call chess.perft helper? But chess.genLegalMoves is not exported (private). We need to replicate or expose.
-  // For now, we will generate via allDests and then expand promotions
-  // Simpler: use chess.allDests and then for each destination, create Move(s) and test isLegal via chess.isLegal? But we need Move objects with promotion etc.
-  // We'll generate via iterating allDests and handling promotion expansion
-  const moves: Move[] = [];
-  const all = chess.allDests(pos);
-  for (const [from, set] of all) {
-    for (const to of sq.iter(set)) {
-      const piece = board.pieceAt(pos.board, from);
-      if (!piece) continue;
-      const destRank = squareRank(to);
-      const isPromo = piece.role === Role.Pawn && (destRank === 0 || destRank === 7);
-      if (isPromo) {
-        for (const promo of [Role.Queen, Role.Rook, Role.Bishop, Role.Knight] as const) {
-          const isEnPassant = false;
-          // pawn promotion capture is also capture, but set already includes captures
-          const target = board.pieceAt(pos.board, to);
-          const isCap = !!target || (pos.epSquare === to);
-          // Actually en passant to back rank not possible
-          const mv: Move = { from, to, promotion: promo, isPromotion: true, isEnPassant: false, isCastling: false };
-          // Need to set isEnPassant correctly for pawn promo capture en passant? Not needed
-          moves.push(mv);
-        }
-      } else {
-        const target = board.pieceAt(pos.board, to);
-        let isEnPassant = false;
-        if (piece.role === Role.Pawn && pos.epSquare !== null && to === pos.epSquare) {
-          const fileDiff = Math.abs(squareFile(to) - squareFile(from));
-          const dir = piece.color === Color.White ? 1 : -1;
-          if (fileDiff === 1 && destRank - squareRank(from) === dir) isEnPassant = true;
-        }
-        let isCastling = false;
-        if (piece.role === Role.King) {
-          // Shared detectCastling path (design D2) — no dest-heuristic here.
-          isCastling = chess.detectCastling(pos, from, to) !== null;
-        }
-        moves.push({ from, to, promotion: null, isPromotion: false, isEnPassant, isCastling });
-      }
-    }
-  }
-  return moves;
 }
 
 // ---------- UCI ----------

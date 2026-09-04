@@ -1,7 +1,7 @@
 {
   "name": "gigachess",
-  "version": "0.2.1",
-  "description": "The fastest chess engine in JavaScript. 1-line drop-in upgrade for chess.js and chessops with 3.5x faster move validation, 120,000 games/sec PGN parsing, and built-in variation trees.",
+  "version": "0.3.0",
+  "description": "The fastest chess engine in JavaScript. 1-line drop-in upgrade for chess.js and chessops with up to 7.4x faster move validation, 18.5M nodes/s perft, 120,000 games/sec PGN parsing, and built-in variation trees.",
   "type": "module",
   "license": "MIT",
   "author": "Itshak <aistreltsov@outlook.com>",
@@ -106,7 +106,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck && node tests/perft.mjs && node tests/castling.mjs && node tests/parity.mjs && node tests/purity.mjs && node tests/compat-chessops.mjs && node tests/chessjs-parity.mjs && node tests/chesstree-parity.mjs && node tests/zobrist-parity.mjs && node tests/packed-moves.mjs",
+    "test": "npm run typecheck && node tests/perft.mjs && node tests/castling.mjs && node tests/parity.mjs && node tests/purity.mjs && node tests/compat-chessops.mjs && node tests/chessjs-parity.mjs && node tests/chesstree-parity.mjs && node tests/zobrist-parity.mjs && node tests/packed-moves.mjs && node tests/zero-copy-moves.mjs && node tests/fuzz-differential.mjs",
+    "test:fuzz": "node tests/fuzz-differential.mjs",
     "bench": "node bench/bench-sliding.mjs --iters 1000000 && node bench/bench-perft.mjs --depth 5 && node bench/bench-pgn.mjs --games 1000 && node bench/bench-fen-san.mjs --iters 1000 && node bench/bench-bundle.mjs --entry core",
     "bench:sliding": "node bench/bench-sliding.mjs",
     "bench:perft": "node bench/bench-perft.mjs",
@@ -127,7 +128,8 @@
     "chessops": "0.15.1",
     "esbuild": "^0.25.0",
     "rescript": "^12.3.1",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "ultrachess": "^1.4.0"
   },
   "dependencies": {
     "@badrap/result": "0.3.1"

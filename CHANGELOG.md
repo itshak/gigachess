@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.0] - 2026-09-04
+
+### Added
+- **Standard Chess Fast-Path Separation:** 4-bit integer castling mask (`WK=1, WQ=2, BK=4, BQ=8`) and instant `CASTLE_CLEAR_STD` table lookups eliminating `Set<number>` allocations.
+- **Zero-Allocation Targeted SAN Parser:** Reverse-attacker queries (`attacks.attackersTo & pieceRoleBB`) reducing SAN parse latency from ~6.5 µs to **~493 ns/op** (>8x speedup).
+- **Branchless `isCheck` Detection:** Cached `checkers: SquareSet` on `Position` enabling 2-op bitwise check detection (`(lo | hi) !== 0`) at **0.5 ns/op** (>2 Billion ops/sec).
+- **Piece-Centric Move Generation:** Direct iteration over piece bitboards with parallel 32-bit pawn push and capture shifts, monomorphized for White and Black.
+- **`MoveSink` Bulk Popcount & Zero-Allocation Patterns:** `countLegalMoves(pos)` bulk popcounter at perft leaves, `legalMovesInto(pos, buffer)` packed move writing, and `forEachLegalMove` visitor pattern.
+- **Static Castling Path & Flat Line Ray Tables:** 128-entry `CASTLE_PATH_LO`/`HI` and 4,096-entry `LINE_RAY_LO`/`HI` flat typed arrays replacing dynamic loops and pin-ray maps.
+- **Lockstep Differential Fuzz Testing:** 1,000-game differential fuzz suite (`tests/fuzz-differential.mjs`) verifying 118,380 plies and 11,684 undos with 0 mismatches.
+- **Benchmark Breakthroughs:** Startpos perft throughput increased to **18.50 Mnps** (+117.4% faster than `chessops`), movegen **3.8x–5.3x faster than Rust WASM** (`ultrachess`), and SAN movegen up to **7.4x faster than `chess.js`**.
+
 ## [0.2.1] - 2026-09-02
 
 ### Changed

@@ -27,9 +27,17 @@ export {
   magicTablesLoaded,
   ray,
   between,
+  lineRay,
+  LINE_RAY_LO,
+  LINE_RAY_HI,
   isAttacked,
 } from "./attacks.js";
 export { kingAttackers } from "./attacks.js";
+export {
+  CASTLE_PATH_LO,
+  CASTLE_PATH_HI,
+  CASTLE_CLEAR_STD,
+} from "./castling.js";
 
 // chess core (avoid duplicate Position and kingAttackers)
 export {
@@ -45,11 +53,15 @@ export {
   isThreefoldRepetition,
   isLegal,
   perft,
+  countLegalMoves,
+  legalMovesInto,
+  forEachLegalMove,
+  MoveCounter,
   makeMove,
   play,
   INITIAL_FEN,
 } from "./chess.js";
-export type { CastlingPlan } from "./chess.js";
+export type { CastlingPlan, Undo } from "./chess.js";
 
 // chesstree integration (tree shapes + analysis API, folded into the root)
 export {
