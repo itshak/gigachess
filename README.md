@@ -32,6 +32,10 @@
 
 ---
 
+> 💡 **100% Pure TypeScript with Zero Dependencies**: GigaChess requires no native C++ binaries, node-gyp, or WebAssembly. It runs seamlessly in modern browsers, Node.js, Bun, Deno, and edge workers.
+
+---
+
 ## 📦 Installation
 
 ```bash
@@ -62,23 +66,24 @@ console.log(board.toFen());    // startpos restored
 
 ---
 
-## 📊 Benchmark Comparison
+## 📊 GigaChess vs `chess.js`
 
-Direct comparison measured under Node.js v24 on Apple Silicon (`bench/bench-real.mjs` & `bench/bench-native-vs-baseline.mjs`):
+Measured under Node.js v24 on Apple Silicon:
 
-| Metric / Feature | 🚀 **GigaChess** | 📦 **`chess.js`** (1.4.0) | ♟️ **`chessops`** (0.15.1) | Advantage |
-|---|---|---|---|---|
-| **License** | ✅ **100% MIT** | ✅ BSD-2-Clause | ❌ GPL-3.0 | **Permissive for commercial use** |
-| **Move Execution (`make`+`unmake`)** | **5,986,400 ops/s** (167 ns) | 134,500 ops/s (7,434 ns) | N/A *(Functional clone)* | **44.5x faster (+4,350%)** |
-| **Legal Move Generation** | **541,200 pos/s** (1,848 ns) | 49,200 pos/s (20,341 ns) | 350,000 pos/s | **11.0x faster (+1,001%)** |
-| **Perft Movegen Throughput** | **18,678,516 nodes/s** | ~500,000 nodes/s | 9,930,000 nodes/s | **1.88x vs chessops \| 37x vs chess.js** |
-| **Chessground UI Dests** | **215,585 pos/s** | N/A | 58,100 pos/s | **3.71x faster (+271%)** |
-| **PGN Streaming Throughput** | **128,701 games/s** (89 MB/s) | 3,634 games/s (2.5 MB/s) | 46,296 games/s (32 MB/s) | **2.78x vs chessops \| 35x vs chess.js** |
-| **FEN Parse + Make** | **458,961 ops/s** | 91,214 ops/s | 188,473 ops/s | **2.43x vs chessops \| 5.03x vs chess.js** |
-| **SAN Make + Legal Dests** | **49,444 ops/s** | 6,992 ops/s | 18,200 ops/s | **2.72x vs chessops \| 7.07x vs chess.js** |
-| **Memory Footprint (80-Ply Game)** | **160 Bytes** (`Uint16Array`) | ~4,200 Bytes | ~2,500 Bytes | **26x less memory** |
-| **Polyglot Zobrist Hash ($O(1)$)** | ✅ **Native (`{lo,hi}`)** | ❌ None | ❌ None | **Zero-allocation incremental** |
-| **Variation Tree Navigation** | ✅ **Built-in (`chesstree`)** | ❌ None | ❌ None | **Recursive PGN & comments** |
+| Feature / Benchmark | 🚀 **GigaChess** | 📦 **`chess.js`** (1.4.0) | Advantage |
+|---|---|---|---|
+| **Move Execution (`make` + `unmake`)** | **5,986,400 ops/s** (167 ns) | 134,500 ops/s (7,434 ns) | **44.5x faster (+4,350%)** |
+| **Legal Move Generation** | **541,200 pos/s** (1,848 ns) | 49,200 pos/s (20,341 ns) | **11.0x faster (+1,001%)** |
+| **Perft Movegen (Depth Search)** | **18,678,516 nodes/s** | ~500,000 nodes/s | **37x faster** |
+| **Game Stream Replay** | **4,803,000 plies/s** | 649,000 plies/s | **7.4x faster (+640%)** |
+| **Check & Status Query (`inCheck`)** | **4.9 ns** (203M ops/s) | 26.3 ns (38M ops/s) | **5.3x faster (+434%)** |
+| **PGN Parsing & Streaming** | **128,701 games/s** (89 MB/s) | 3,634 games/s (2.5 MB/s) | **35.4x faster (+3,440%)** |
+| **SAN Move Validation & Make** | **49,444 ops/s** | 6,992 ops/s | **7.07x faster (+607%)** |
+| **FEN Parsing & Setup** | **458,961 ops/s** | 91,214 ops/s | **5.03x faster (+403%)** |
+| **Memory per 80-Ply Game** | **160 Bytes** (`Uint16Array`) | ~4,200 Bytes (Heap Objects) | **26x less memory** |
+| **64-bit Polyglot Zobrist Hash** | ✅ **Built-in ($O(1)$ incremental)** | ❌ None | **Transposition & repetition** |
+| **Variation Trees & Analysis** | ✅ **Built-in (`chesstree`)** | ❌ None | **Branching, comments, glyphs** |
+| **Chess960 (Fischer Random)** | ✅ **Full 960 support** | ⚠️ Partial / legacy bugs | **Full standard & Chess960** |
 
 ---
 
@@ -162,7 +167,7 @@ const board = Board.fromMoves2(moves);
 ## 🔬 Under the Hood: Why GigaChess is Fast
 
 1. **In-Place Bitboard Mutation**: Unlike engines that clone full state on every move, `Board` mutates bitboards in-place and returns a compact `Undo` for instant $O(1)$ rollback.
-2. **Zero-BigInt 32-bit Integer Pairs**: 64-bit `BigInt` forces object allocation on the heap. GigaChess executes all bitboards as 32-bit unsigned integer pairs (`lo >>> 0`, `hi >>> 0`), running in native CPU registers.
+2. **Zero-BigInt 32-bit Integer Pairs**: 64-bit `BigInt` forces object allocation on the heap. GigaChess executes all bitboards as 32-bit unsigned integer pairs (`lo >>> 0`, `hi >>> 0`), running directly in CPU registers.
 3. **Stockfish Single-Pass Pin Analysis (`CheckContext`)**: Checkers and pin lines are computed once per position, turning legal move validation into fast bitwise intersections.
 4. **16-bit Unboxed Small Integers (Smis)**: Packed moves are stored as 16-bit integers, bypassing garbage collection pauses.
 
