@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.0] - 2026-09-05
+
+### Added
+- **Native Stateful `Board` Root API:** Promoted the high-performance in-place stateful `Board` engine to root default (`import { Board } from 'gigachess'`), delivering **44.5x faster move execution** (5.98M ops/s) and **11x faster legal movegen** (541k pos/s).
+- **Decoupled `chess.js` Wrapper:** `Chess` is now available as a dedicated drop-in wrapper via `import { Chess } from 'gigachess/chessjs'` with full method parity.
+- **Chess960 Polyglot Zobrist Scheme:** Full 16-key castling Zobrist derivation matching canonical Polyglot keys and deterministic splitmix64 PRNG constants.
+- **Zero-Allocation Legal Move Buffers:** Direct writing into `Uint16Array(256)` via `board.legalMoves(buffer)`.
+- **Streamlined TypeScript Marketing Documentation:** Minimalist marketing README and updated branding focused on pure TypeScript performance.
+
 ## [0.3.0] - 2026-09-04
 
 ### Added
