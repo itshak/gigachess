@@ -1,7 +1,7 @@
 // src/fen.ts — parseFen / makeFen with six-field validation per purechess-rules
 // Clean-room from spec tables + FIDE notes, no G P L, no english hard-coded strings beyond codes
 
-import type { Board } from "./board.js";
+import type { BoardLike } from "./board.js";
 import * as board from "./board.js";
 import * as sq from "./squareSet.js";
 import { Color, Role, Err, Ok } from "./types.js";
@@ -162,7 +162,7 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
     file++;
   }
   if (file !== 8 || r !== 0) return Err({ code: "fen/invalidPiecePlacement" });
-  const curBoard: Board = board.cloneBoard(scratch);
+  const curBoard: BoardLike = board.cloneBoard(scratch);
 
   // ----- active color -----
   let turn: Color;
@@ -274,7 +274,7 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
   // Structural validation (square name + rank for the side to move) stays
   // unconditional per purechess-rules. The capturability check moves behind
   // `strict` (design D3): real-world corpora (lichess FENs after any double
-  // push) and turbochess's own makeFen output contain unreachable ep squares,
+  // push) and gigachess's own makeFen output contain unreachable ep squares,
   // and baseline accepts them — rejecting them broke round-trip for ~4.7% of
   // real-game positions.
   let epSquare: number | null = null;

@@ -1,6 +1,6 @@
 // src/baseline/types.ts — baseline-exact public types (string enums, constants)
 // Part of the baseline-compatible public API (ADR-014). Backed by the
-// immutable turbochess engine; callers' inputs are never mutated.
+// immutable gigachess engine; callers' inputs are never mutated.
 
 export const FILE_NAMES = ["a", "b", "c", "d", "e", "f", "g", "h"] as const;
 export type FileName = (typeof FILE_NAMES)[number];

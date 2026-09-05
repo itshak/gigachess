@@ -13,9 +13,9 @@ const ROLES: Role[] = ["pawn", "knight", "bishop", "rook", "queen", "king"];
 
 export class Board implements Iterable<[Square, Piece]>, ByRole<SquareSet>, ByColor<SquareSet> {
   /** Internal engine (immutable) board. Mutating methods replace it wholesale. */
-  _b: engine.Board;
+  _b: engine.BoardLike;
 
-  private constructor(b: engine.Board) {
+  private constructor(b: engine.BoardLike) {
     this._b = b;
   }
 
@@ -67,7 +67,7 @@ export class Board implements Iterable<[Square, Piece]>, ByRole<SquareSet>, ByCo
   }
   // Write-through property setters (baseline allows direct field mutation);
   // each setter replaces the role/color field in the engine board.
-  private replace(name: keyof engine.Board, s: SquareSet): void {
+  private replace(name: keyof engine.BoardLike, s: SquareSet): void {
     // normalize to unsigned before handing bits to the engine
     this._b = { ...this._b, [name]: { lo: s.lo >>> 0, hi: s.hi >>> 0 } };
   }

@@ -1,11 +1,11 @@
-// src/baseline/compat.ts — thin conversion layer over turbochess/board-movegen.
+// src/baseline/compat.ts — thin conversion layer over gigachess/board-movegen.
 // Converts facade movegen output (`Position.allDests()` → Map<Square,
 // SquareSet>) into board-renderer `Dests` shapes (Map<Key, Key[]> of
 // algebraic square names). NO move generation happens here — every legal-move
 // question is delegated to the engine per openspec/specs/purechess-board-movegen
 // (purechess-rules for castling rights). Pure functions only: pure {lo,hi}
 // pairs (no 64-bit integer math), no state, inputs never mutated. Clean-room:
-// built from the turbochess-* specs only (see proposal FORBIDDEN/ALLOWED sources).
+// built from the gigachess-* specs only (see proposal FORBIDDEN/ALLOWED sources).
 import type { Position } from "./chess.js";
 import { makeSquare } from "./util.js";
 

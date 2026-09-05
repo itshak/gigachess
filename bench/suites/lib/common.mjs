@@ -97,7 +97,7 @@ export function measure(fn, label = "") {
     const t0 = performance.now();
     fn();
     samples[i] = performance.now() - t0;
-    // Real-time progress (turbochess-unified-api-and-perf, task 4.2 / spec:
+    // Real-time progress (gigachess-unified-api-and-perf, task 4.2 / spec:
     // the harness SHALL emit live progress during long measurement cycles so
     // contributors and CI never perceive a hang). Suites that don't pass a
     // label keep the previous silent behavior.

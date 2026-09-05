@@ -1,5 +1,5 @@
 // src/baseline/setup.ts — baseline-exact Setup interface and helpers (ADR-014).
-// Pockets/remainingChecks are always undefined: turbochess implements standard
+// Pockets/remainingChecks are always undefined: gigachess implements standard
 // chess only (no Crazyhouse/3check — variants are out of project scope).
 import { Board } from "./board.js";
 import { SquareSet } from "./squareSet.js";

@@ -1,13 +1,14 @@
 // tests/zobrist-parity.mjs — Zobrist hashing verification (change
-// turbochess-unified-api-and-perf, task 2.1). Verifies, per the
-// turbochess-zobrist-and-moves2 spec:
+// gigachess-unified-api-and-perf, task 2.1). Verifies, per the
+// gigachess-zobrist-and-moves2 spec:
 //   1. incremental (makeMove-maintained) key === from-scratch calculateZobrist
 //      at EVERY ply of 100-ply games,
 //   2. transposition equivalence (different move orders → identical key),
 //   3. Polyglot en-passant legality filtering (unreachable ep file omitted),
 //   4. known Polyglot reference hashes (startpos + after 1.e4 / 1.d4).
 // Run from repo root after `npm run build`.
-import { Chess, calculateZobrist, ensureZobristLoaded, zobristTablesLoaded, zobristHex, parseFen, makeMove, parseSan } from "../dist/index.js";
+import { calculateZobrist, ensureZobristLoaded, zobristTablesLoaded, zobristHex, parseFen, makeMove, parseSan } from "../dist/index.js";
+import { Chess } from "../dist/chessjs.js";
 
 let pass = 0, fail = 0;
 function check(name, cond, extra = "") {
@@ -125,5 +126,47 @@ check("zobrist tables loaded", zobristTablesLoaded());
   check("en-passant key incremental === scratch", matchesScratch(g4));
 }
 
+// ---- 6. Chess960 cross-language parity (gigachess-rs ADR-003) ----
+{
+  // 1. Kiwipete
+  const kiwipete = parseFen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
+  check("kiwipete FEN parses", kiwipete.ok);
+  if (kiwipete.ok) {
+    const k = calculateZobrist(kiwipete.value);
+    check("kiwipete hash matches gigachess-rs (c3ce103f01d15e1d)", zobristHex(k) === "c3ce103f01d15e1d", zobristHex(k));
+  }
+
+  // 2. Pinned-ep position
+  const pinnedEp = parseFen("8/8/8/8/k2Pp2Q/8/8/4K3 b - d3 0 1");
+  check("pinned-ep FEN parses", pinnedEp.ok);
+  if (pinnedEp.ok) {
+    const k = calculateZobrist(pinnedEp.value);
+    check("pinned-ep hash matches gigachess-rs (83bf25e378cb17d0)", zobristHex(k) === "83bf25e378cb17d0", zobristHex(k));
+  }
+
+  // 3. Chess960 start positions
+  const pos0 = parseFen("bbqnnrkr/pppppppp/8/8/8/8/PPPPPPPP/BBQNNRKR w KQkq - 0 1");
+  check("pos 0 FEN parses", pos0.ok);
+  if (pos0.ok) {
+    const k = calculateZobrist(pos0.value);
+    check("pos 0 hash matches gigachess-rs (d551843a235a6f67)", zobristHex(k) === "d551843a235a6f67", zobristHex(k));
+  }
+
+  const pos284 = parseFen("nbrknrbq/pppppppp/8/8/8/8/PPPPPPPP/NBRKNRBQ w KQkq - 0 1");
+  check("pos 284 FEN parses", pos284.ok);
+  if (pos284.ok) {
+    const k = calculateZobrist(pos284.value);
+    check("pos 284 hash matches gigachess-rs (8ec2cfedfaa4fb83)", zobristHex(k) === "8ec2cfedfaa4fb83", zobristHex(k));
+  }
+
+  const pos959 = parseFen("rkrnnqbb/pppppppp/8/8/8/8/PPPPPPPP/RKRNNQBB w KQkq - 0 1");
+  check("pos 959 FEN parses", pos959.ok);
+  if (pos959.ok) {
+    const k = calculateZobrist(pos959.value);
+    check("pos 959 hash matches gigachess-rs (3ce0fce3f1b4b622)", zobristHex(k) === "3ce0fce3f1b4b622", zobristHex(k));
+  }
+}
+
 console.log(`\n==== RESULT: ${pass} passed, ${fail} failed ====`);
 process.exit(fail > 0 ? 1 : 0);
+

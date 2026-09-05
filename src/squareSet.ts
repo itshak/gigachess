@@ -1,6 +1,6 @@
 // src/squareSet.ts — {lo,hi} pair, pure ops, target ES2020
 // Language-neutral spec: lo bits 0..31 -> A1..H4, hi bits 0..31 -> A5..H8
-// MIT turbochess, clean-room from specs + FIDE notes + magic-bits/RecklessMagics JSON (no G P L)
+// MIT gigachess, clean-room from specs + FIDE notes + magic-bits/RecklessMagics JSON (no G P L)
 
 export type SquareSet = {
   readonly lo: number;

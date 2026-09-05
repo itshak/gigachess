@@ -1,9 +1,9 @@
 // src/chesstree.ts — clean-room chesstree-compatible analysis-tree layer
-// (`turbochess/chesstree`). Public shapes mirror the `@itshak/chesstree`
+// (`gigachess/chesstree`). Public shapes mirror the `@itshak/chesstree`
 // `.d.ts` ONLY — no third-party engine code was read or copied (same clean-room policy
-// as the chessops compat, ADR-014/015). All logic is backed by the turbochess
-// engine (`parseSan`/`makeMove`/`makeFen`/`makeUci`) and `turbochess/pgn`.
-// Not part of the third-party baseline; MIT like the rest of turbochess.
+// as the chessops compat, ADR-014/015). All logic is backed by the gigachess
+// engine (`parseSan`/`makeMove`/`makeFen`/`makeUci`) and `gigachess/pgn`.
+// Not part of the third-party baseline; MIT like the rest of gigachess.
 import { parsePgn, type GameTree as CoreGameTree, type PgnMove } from "./pgn.js";
 import { parseFen, makeFen } from "./fen.js";
 import { makeMove, isCheck } from "./chess.js";
@@ -639,6 +639,6 @@ export const pgnExport = {
   },
 };
 
-/** chesstree-compatible alias — `import { buildTree } from "turbochess/chesstree"`. */
+/** chesstree-compatible alias — `import { buildTree } from "gigachess/chesstree"`. */
 export const buildTree = build;
 

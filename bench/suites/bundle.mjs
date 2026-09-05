@@ -2,7 +2,7 @@
 // purechess-benchmarks delta of change purechess-gates-green, task 4.1/4.2).
 // esbuild-bundles (splitting: on, so dynamic imports become separate lazy
 // chunks — same as production bundlers) a consumer importing Chess from
-// `turbochess/core`, `turbochess` (full), and `chessops`; reports gzipped sizes
+// `gigachess/core`, `gigachess` (full), and `chessops`; reports gzipped sizes
 // and gates:
 //   - core static bundle ≤120% of the chessops Chess-import gz (the former
 //     "core ≥30% smaller than chessops" clause compared a data-carrying core
@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 const REPO = fileURLToPath(new URL("../../", import.meta.url));
 
 const ENTRIES = {
-  "gigachess (full)": `import { Chess } from "gigachess"; export const C = Chess;`,
+  "gigachess (full)": `import { Board } from "gigachess"; export const C = Board;`,
   "chess.js (1.4.0)": `import { Chess } from "chess.js"; export const C = Chess;`,
   "chessops (core bare)": `import { Chess } from "chessops"; export const C = Chess;`,
   "chessops (full: chess+fen+san)": `import { Chess } from "chessops"; import { parseFen } from "chessops/fen"; import { parseSan } from "chessops/san"; export const C = [Chess, parseFen, parseSan];`,
@@ -52,11 +52,12 @@ async function bundleSplit(entrySource, dir, label) {
       "gigachess/core": join(REPO, "dist/core.js"),
       "gigachess/pgn": join(REPO, "dist/pgn.js"),
       "gigachess/chess960": join(REPO, "dist/chess960.js"),
+      "gigachess/chessjs": join(REPO, "dist/chessjs.js"),
       "gigachess": join(REPO, "dist/index.js"),
-      "turbochess/core": join(REPO, "dist/core.js"),
-      "turbochess/pgn": join(REPO, "dist/pgn.js"),
-      "turbochess/chess960": join(REPO, "dist/chess960.js"),
-      "turbochess": join(REPO, "dist/index.js"),
+      "gigachess/core": join(REPO, "dist/core.js"),
+      "gigachess/pgn": join(REPO, "dist/pgn.js"),
+      "gigachess/chess960": join(REPO, "dist/chess960.js"),
+      "gigachess": join(REPO, "dist/index.js"),
     },
   });
   // entry chunk = output named after the entry file; the rest are lazy chunks

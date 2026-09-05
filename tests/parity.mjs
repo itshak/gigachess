@@ -17,7 +17,7 @@ function check(name, cond, extra = "") {
 
 // ---------------------------------------------------------------------------
 // Castling representation: converged. Per ADR-013 as amended (ADR-013 bake-off,
-// change purechess-gates-green), turbochess now uses the chessops-style
+// change purechess-gates-green), gigachess now uses the chessops-style
 // king-captures-rook encoding (e1h1/e8a8) as its single canonical
 // representation, so dests/SAN/UCI compare byte-identically against chessops
 // with no canonicalization helpers. (The former normDest/normDestCo helpers

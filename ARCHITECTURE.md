@@ -1,7 +1,7 @@
 # GigaChess Architecture & Performance Blueprint
 
-> **GigaChess** is a native, local-first, zero-BigInt chess bitboard engine and workstation library.
-> It unifies **`chess.js` ergonomics**, **`chesstree` study trees**, and **Stockfish-level bitboard speed** under a 100% **MIT license**.
+> **GigaChess** is a native, local-first, zero-BigInt chess bitboard engine and library.
+> It unifies **native Rust-mirrored `Board` performance**, **`chess.js` ergonomics**, **`chesstree` study trees**, and **Stockfish-level bitboard speed** under a 100% **MIT license**.
 
 ---
 
@@ -10,7 +10,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                            Public API Layer                                 │
-│  `Chess` Class  │  `Chess960`  │  `parsePgn`  │  `toTree()`  │  `moves2`    │
+│  `Board` Class  │  `Undo`  │  `Chess` (facade)  │  `parsePgn`  │  `moves2`  │
 └──────────────────────────────────────┬──────────────────────────────────────┘
                                        │
 ┌──────────────────────────────────────▼──────────────────────────────────────┐
@@ -61,12 +61,15 @@ Sliding piece attacks (Bishop, Rook, Queen) use Black Magic bitboard lookups for
 
 ## 📊 Benchmark Summary
 
-- **UI Legal Dests (Chessground):** **3.32x faster (+232%)** vs `chessops`
-- **Sliding Piece Attacks:** **3.36x faster (+236%)** vs `chessops`
-- **PGN Streaming:** **2.50x faster (+150%)** vs `chessops` | **3.05x faster** vs `chess.js`
-- **Single-Pass FEN Scanner:** **2.45x faster (+145%)** vs `chessops` | **3.14x faster** vs `chess.js`
-- **Recursive Movegen (Perft):** **15.6 Million nodes/sec (+56.4% faster)** vs `chessops`
-- **Static Bundle Size:** **17.5 KB gz** (Includes Chess, 960, PGN, Trees, Zobrist, Moves2)
+- **Move Execution (`makeMove` + `unmakeMove`):** **44.5x faster (+4,350%)** vs `chess.js` (5.98M ops/s)
+- **Legal Move Generation:** **11.0x faster (+1,001%)** vs `chess.js` (541k pos/s)
+- **Recursive Movegen (Perft):** **18.7 Million nodes/sec (1.88x faster)** vs `chessops` | **37x faster** vs `chess.js`
+- **Chessground UI Dests:** **3.71x faster (+271%)** vs `chessops` (215,585 pos/s)
+- **Sliding Piece Attacks (Black Magic):** **25.1 MAttacks/sec (2.69x faster)** vs `chessops`
+- **PGN Streaming:** **128,701 games/sec (2.78x faster)** vs `chessops` | **35x faster** vs `chess.js`
+- **FEN Parse + Make:** **458,961 ops/s (2.43x faster)** vs `chessops` | **5.03x faster** vs `chess.js`
+- **SAN Make + Legal Dests:** **49,444 ops/s (2.72x faster)** vs `chessops` | **7.07x faster** vs `chess.js`
+- **Static Bundle Size:** **17.4 KB gz** (Includes Board, Chess facade, 960, PGN, Trees, Zobrist, Moves2)
 
 ---
 
@@ -76,5 +79,6 @@ Sliding piece attacks (Bishop, Rook, Queen) use Black Magic bitboard lookups for
 - [ADR-010: Chessops Migration](openspec/adr/010-chessops-migration.md)
 - [ADR-013: Castling Destination Normalization](openspec/adr/013-castling-dest-normalization.md)
 - [ADR-014: Chessops Exact Compatibility](openspec/adr/014-chessops-exact-public-api.md)
-- [ADR-015: Turbochess Branding](openspec/adr/015-turbochess-rename.md)
-- [ADR-016: Engine Architecture & Bitboard Optimizations](openspec/adr/016-turbochess-engine-architecture-and-optimizations.md)
+- [ADR-015: GigaChess Branding](openspec/adr/015-gigachess-rename.md)
+- [ADR-016: Engine Architecture & Bitboard Optimizations](openspec/adr/016-gigachess-engine-architecture-and-optimizations.md)
+- [ADR-017: Rust-Mirrored Native Board API & Chess960 Zobrist](openspec/adr/017-rust-mirrored-native-board-api-and-chess960-zobrist.md)

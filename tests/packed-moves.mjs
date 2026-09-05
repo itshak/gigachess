@@ -1,6 +1,6 @@
 // tests/packed-moves.mjs — 16-bit packed move encoding ("moves2") verification
-// (change turbochess-unified-api-and-perf, task 2.2). Verifies, per the
-// turbochess-zobrist-and-moves2 spec:
+// (change gigachess-unified-api-and-perf, task 2.2). Verifies, per the
+// gigachess-zobrist-and-moves2 spec:
 //   1. lossless round-trip of every legal move (normal, castling, en passant,
 //      underpromotions) through packMove/unpackMove,
 //   2. high-speed binary replay: Chess.fromMoves2(Uint16Array) reproduces the
@@ -8,7 +8,8 @@
 //   3. little-endian Uint8Array wire form round-trip,
 //   4. memory footprint (160 bytes per 80-ply game in Uint16Array).
 // Run from repo root after `npm run build`.
-import { Chess, packMove, unpackMove, roleToPromoCode, promoCodeToRole, PROMO_NONE, PROMO_KNIGHT, PROMO_QUEEN } from "../dist/index.js";
+import { Board, packMove, unpackMove, roleToPromoCode, promoCodeToRole, PROMO_NONE, PROMO_KNIGHT, PROMO_QUEEN } from "../dist/index.js";
+import { Chess } from "../dist/chessjs.js";
 
 let pass = 0, fail = 0;
 function check(name, cond, extra = "") {

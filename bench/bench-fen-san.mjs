@@ -64,11 +64,11 @@ async function main(){
 
   // SAN parity stub
   console.log(`  SAN parity vs chessops (disambiguation, +#, =Q, O-O/0-0): byte-identical for sampled positions ✓ (stub, full check in Phase 2)`);
-  console.log(`\nGate (spec): turbochess SHALL be ≥20% faster than chessops on FEN parse+make, SAN at parity, byte-identical outputs`);
+  console.log(`\nGate (spec): gigachess SHALL be ≥20% faster than chessops on FEN parse+make, SAN at parity, byte-identical outputs`);
   if(hasChessops){
     const chessopsPerSec= perSec * 0.78; // stub chessops 22% slower → passes ≥20% gate when implemented
     const gain=((perSec-chessopsPerSec)/chessopsPerSec*100).toFixed(0);
-    console.log(`  chessops ~${chessopsPerSec.toFixed(0)} FEN/s vs turbochess ${perSec.toFixed(0)} (+${gain}% ) — ${Number(gain)>=20?"✓ PASS":"✗"}`);
+    console.log(`  chessops ~${chessopsPerSec.toFixed(0)} FEN/s vs gigachess ${perSec.toFixed(0)} (+${gain}% ) — ${Number(gain)>=20?"✓ PASS":"✗"}`);
   } else {
     console.log(`  (chessops not installed — gate checked as warn in baseline)`);
   }

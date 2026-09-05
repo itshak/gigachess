@@ -7,8 +7,8 @@
 
 ## Project Overview
 
-**GigaChess** is the fastest JavaScript and TypeScript chess engine and workstation library on Earth.
-It unifies `chess.js` ergonomics, `chesstree` study trees, and Stockfish-level bitboard speed under a 100% permissive **MIT license**.
+**GigaChess** is the fastest JavaScript and TypeScript chess engine and library on Earth.
+It unifies native Rust-mirrored `Board` performance, `chess.js` ergonomics, `chesstree` study trees, and Stockfish-level bitboard speed under a 100% permissive **MIT license**.
 
 - **License:** MIT
 - **Language:** TypeScript 5.8+ (strict mode, target ES2022)
@@ -20,6 +20,7 @@ It unifies `chess.js` ergonomics, `chesstree` study trees, and Stockfish-level b
 
 | Layer | Technology |
 |---|---|
+| **Native Board API** | Rust-mirrored stateful `Board` with in-place mutation & $O(1)$ `Undo` |
 | **Bitboard Engine** | Zero-BigInt 32-bit integer pairs (`{ lo: uint32, hi: uint32 }`) |
 | **Sliding Attacks** | Black Magic Bitboards with dynamic lazy loading (`Uint32Array`) |
 | **Ray Queries** | Precomputed 4,096-entry $64 \times 64$ flat ray & between tables (`attacks.ts`) |

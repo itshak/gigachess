@@ -1,6 +1,6 @@
 // src/baseline/index.ts — baseline-compatible public API (ADR-014).
 // Mirrors the baseline root module layout: `import { Chess, parseFen, ... }
-// from "turbochess/chessops" (formerly turbochess/baseline, ADR-015)`. Backed by the immutable turbochess engine.
+// from "gigachess/chessops" (formerly gigachess/baseline, ADR-015)`. Backed by the immutable gigachess engine.
 export * from "./types.js";
 export * from "./squareSet.js";
 export * from "./board.js";
@@ -10,7 +10,7 @@ export * from "./fen.js";
 export * from "./san.js";
 export * from "./util.js";
 export * from "./debug.js";
-// Integrated tree analysis (change turbochess-unified-api-and-perf, task 3.3):
+// Integrated tree analysis (change gigachess-unified-api-and-perf, task 3.3):
 // the workstation consumes chessops + chesstree from ONE package. Re-exports
 // the clean-room chesstree layer (buildTree / pgnImport / pgnExport /
 // TreeWrapper) alongside the chessops-shaped API.

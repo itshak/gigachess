@@ -1,6 +1,6 @@
 // src/attacks.ts — leaper tables + fancy per-square Black Magic sliding
 // (lazily loaded from generated base64 blobs) via bench/magic-tables
-// MIT turbochess, clean-room from specs + FIDE notes (no G P L)
+// MIT gigachess, clean-room from specs + FIDE notes (no G P L)
 
 import * as sq from "./squareSet.js";
 import type { SquareSet } from "./squareSet.js";
@@ -155,7 +155,7 @@ export function pawnAttacks(color: Color, sqIdx: number): SquareSet {
 //   - speed: 35.1 vs 30.0 MAttacks/s (indexed typed-array reads beat object
 //     property loads) — see bench/results/real-2026-08-30.md appendix.
 //
-// The table modules are NEVER in the static import graph of `turbochess/core`
+// The table modules are NEVER in the static import graph of `gigachess/core`
 // (bundle gate): they load via dynamic `import()` behind
 // `ensureMagicTablesLoaded()`. Until loaded — or if loading fails — the naive
 // ray-walk fallback serves; it is measured at 1.66× baseline, so a
@@ -384,7 +384,7 @@ export function lineRay(from: number, to: number): SquareSet {
  * that sliders x-raying the king stay "attacking" through its old square).
  */
 export function attackersTo(
-  board: import("./board.js").Board,
+  board: import("./board.js").BoardLike,
   square: number,
   attacker: Color,
   occ: SquareSet = board.occupied,
@@ -418,7 +418,7 @@ export function attackersTo(
   return { lo, hi };
 }
 
-export function isAttacked(board: import("./board.js").Board, square: number, attacker: Color): boolean {
+export function isAttacked(board: import("./board.js").BoardLike, square: number, attacker: Color): boolean {
   // Inlined bitwise attack test (spec: no intermediate SquareSet allocations).
   // A pawn of `attacker` attacks `square` iff it stands on a square returned by
   // pawnAttacks(opposite color, square) (the mirror of the forward attack set).
@@ -443,7 +443,7 @@ export function isAttacked(board: import("./board.js").Board, square: number, at
   return false;
 }
 
-export function kingAttackers(board: import("./board.js").Board, kingColor: Color): SquareSet {
+export function kingAttackers(board: import("./board.js").BoardLike, kingColor: Color): SquareSet {
   const ks = kingColor === Color.White ? sq.and(board.white, board.king) : sq.and(board.black, board.king);
   const ksq = sq.first(ks);
   if (ksq === undefined) return sq.empty();

@@ -1,10 +1,10 @@
 // src/chess.ts — core chess rules, Position/Setup, dests, isLegal, isCheck, perft etc
-// MIT turbochess, clean-room from specs + FIDE notes (no G P L)
+// MIT gigachess, clean-room from specs + FIDE notes (no G P L)
 
 import * as sq from "./squareSet.js";
 import type { SquareSet } from "./squareSet.js";
 import * as board from "./board.js";
-import type { Board } from "./board.js";
+import { Board, type Undo as BoardUndo } from "./board.js";
 import * as attacks from "./attacks.js";
 import { Color, Role } from "./types.js";
 import type { Setup, Move, Result, CastlingRights, Position } from "./types.js";
@@ -158,112 +158,19 @@ function positionsEqualForRepetition(a: Position, b: Position): boolean {
 // input keep working (UCI protocol boundary documented in ADR-013: engines
 // are sent e1g1 for standard castling; conversion belongs to the engine
 // boundary, not to makeUci).
-export type CastlingPlan = {
-  side: "king" | "queen";
-  kingFrom: number;
-  kingTo: number; // normalized landing square (6/2/62/58)
-  rookFrom: number;
-  rookTo: number; // 5/3/61/59
+import {
+  detectCastling,
+  castlingPlanFor,
+  planForDest,
+} from "./castling.js";
+import type { CastlingPlan } from "./castling.js";
+
+export {
+  detectCastling,
+  castlingPlanFor,
+  planForDest,
 };
-
-function castlingPlanFor(color: Color, ks: number, rs: number): CastlingPlan {
-  const rank = squareRank(ks);
-  const isKingSide = squareFile(rs) > squareFile(ks);
-  return {
-    side: isKingSide ? "king" : "queen",
-    kingFrom: ks,
-    kingTo: isKingSide ? (rank << 3) | 6 : (rank << 3) | 2,
-    rookFrom: rs,
-    rookTo: isKingSide ? (rank << 3) | 5 : (rank << 3) | 3,
-  };
-}
-
-/** Finds the position's castling plan (if any) targeting square `to` (either
- * the rook origin or the normalized landing square). Shared by the hot loops. */
-function planForDest(plans: CastlingPlan[], to: number): CastlingPlan | null {
-  for (let i = 0; i < plans.length; i++) {
-    const p = plans[i];
-    if (p.rookFrom === to || p.kingTo === to) return p;
-  }
-  return null;
-}
-
-/**
- * Single source of truth for castling detection, shared by makeMove, isLegal,
- * makeSan, destsFast and genLegalMoves (design D2). Accepts both input
- * representations:
- *  - king→own-rook square (baseline / 960 input, e1h1), and
- *  - king→normalized landing square (e1g1; a two-file king step),
- * provided the corresponding castling right exists and the rook is actually
- * on its origin square. Returns null for every non-castling move — in
- * particular for an ordinary one-square king step to g1/c1/g8/c8, which the
- * previous per-call-site heuristics misclassified when ANY color (even the
- * opponent) held castling rights (root cause of the perft parity defect).
- */
-export function detectCastling(pos: Position, from: number, to: number): CastlingPlan | null {
-  if (!pos.isChess960) {
-    const mask = pos.castlingMask ?? getCastlingMask(pos);
-    if (mask === 0) return null;
-    if (pos.turn === Color.White) {
-      if ((mask & (CASTLE_WK | CASTLE_WQ)) === 0 || from !== 4) return null;
-      if (to === 7 || to === 6) {
-        if ((mask & CASTLE_WK) === 0) return null;
-        if (to === 6 && board.pieceAt(pos.board, 6)) return null;
-        const rp = board.pieceAt(pos.board, 7);
-        if (rp && rp.color === Color.White && rp.role === Role.Rook) return PLAN_WHITE_K;
-      } else if (to === 0 || to === 2) {
-        if ((mask & CASTLE_WQ) === 0) return null;
-        if (to === 2 && board.pieceAt(pos.board, 2)) return null;
-        const rp = board.pieceAt(pos.board, 0);
-        if (rp && rp.color === Color.White && rp.role === Role.Rook) return PLAN_WHITE_Q;
-      }
-      return null;
-    } else {
-      if ((mask & (CASTLE_BK | CASTLE_BQ)) === 0 || from !== 60) return null;
-      if (to === 63 || to === 62) {
-        if ((mask & CASTLE_BK) === 0) return null;
-        if (to === 62 && board.pieceAt(pos.board, 62)) return null;
-        const rp = board.pieceAt(pos.board, 63);
-        if (rp && rp.color === Color.Black && rp.role === Role.Rook) return PLAN_BLACK_K;
-      } else if (to === 56 || to === 58) {
-        if ((mask & CASTLE_BQ) === 0) return null;
-        if (to === 58 && board.pieceAt(pos.board, 58)) return null;
-        const rp = board.pieceAt(pos.board, 56);
-        if (rp && rp.color === Color.Black && rp.role === Role.Rook) return PLAN_BLACK_Q;
-      }
-      return null;
-    }
-  }
-
-  // Chess960 fallback
-  if (pos.castling.white.size === 0 && pos.castling.black.size === 0) return null;
-  const piece = board.pieceAt(pos.board, from);
-  if (!piece || piece.role !== Role.King || piece.color !== pos.turn) return null;
-  const rights = piece.color === Color.White ? pos.castling.white : pos.castling.black;
-  if (rights.size === 0) return null;
-  const rank = squareRank(from);
-  // Input form 1: king captures own rook on its origin square (baseline/960).
-  if (rights.has(to) && squareRank(to) === rank) {
-    const target = board.pieceAt(pos.board, to);
-    if (target && target.color === piece.color && target.role === Role.Rook) {
-      return castlingPlanFor(piece.color, from, to);
-    }
-  }
-  // Input form 2: normalized landing square — a two-file step on the same rank.
-  if (squareRank(to) === rank && Math.abs(squareFile(to) - squareFile(from)) === 2) {
-    // The landing square must be empty for castling.
-    if (!board.pieceAt(pos.board, to)) {
-      for (const rs of rights) {
-        const plan = castlingPlanFor(piece.color, from, rs);
-        if (plan.kingTo !== to) continue;
-        // The right's rook must actually be present on its origin square.
-        const rp = board.pieceAt(pos.board, rs);
-        if (rp && rp.color === piece.color && rp.role === Role.Rook) return plan;
-      }
-    }
-  }
-  return null;
-}
+export type { CastlingPlan };
 
 // ---------- move execution (play) ----------
 /**
@@ -1496,16 +1403,18 @@ function colorName(turn: Color): ColorName {
   return turn === Color.White ? "w" : "b";
 }
 
-export type Undo = {
+export type HistoryEntry = {
   readonly before: Position;
   readonly after: Position;
   readonly move: Move;
   readonly san: string;
+  readonly boardUndo?: BoardUndo;
   readonly prev_checkers?: SquareSet;
   readonly prev_zobrist?: ZobristKey;
 };
 
-export type HistoryEntry = Undo;
+export type { BoardUndo as Undo };
+export { Board };
 
 /** Expands pawn back-rank destinations into the four promotions. */
 function buildMoves(pos: Position, role: number, from: number, to: number): Move[] {
@@ -1553,30 +1462,23 @@ function hasLegalEpCapture(pos: Position): boolean {
  * over the immutable engine core, extended with the high-performance
  * bitboard surface, zero-alloc Zobrist hashing and 16-bit packed moves2, and
  * native tree navigation. Lives at the ROOT entrypoint so the tree-shakeable
- * `turbochess/core` graph stays free of FEN/PGN/tree facade code.
+ * `gigachess/core` graph stays free of FEN/PGN/tree facade code.
  */
 export class Chess {
+  #board: Board;
   #startFen: string;
   #history: HistoryEntry[] = [];
 
-  #pos: Position;
-
   constructor(fen: string | Position = INITIAL_FEN) {
-    if (typeof fen === "string") {
-      const r = parseFen(fen);
-      if (!r.ok) throw new Error(`Invalid FEN: ${fen}`);
-      this.#pos = r.value;
-    } else {
-      this.#pos = fen;
-    }
-    this.#startFen = this.#fenOf(this.#pos);
+    this.#board = new Board(fen);
+    this.#startFen = this.#fenOf(this.#board.pos);
   }
 
   /** Replaces the current position (throws on an invalid FEN). */
   load(fen: string): void {
     const r = parseFen(fen);
     if (!r.ok) throw new Error(`Invalid FEN: ${fen}`);
-    this.#pos = r.value;
+    this.#board = new Board(r.value);
     this.#startFen = this.#fenOf(r.value);
     this.#history = [];
   }
@@ -1588,17 +1490,17 @@ export class Chess {
 
   /** Current FEN (byte-identical to the engine's makeFen modulo ep filtering). */
   fen(): string {
-    return this.#fenOf(this.#pos);
+    return this.#fenOf(this.#board.pos);
   }
 
   /** Side to move: "w" | "b". */
   turn(): ColorName {
-    return colorName(this.#pos.turn);
+    return colorName(this.#board.turn);
   }
 
   /** Current fullmove number (starts at 1). */
   moveNumber(): number {
-    return this.#pos.fullmoves ?? this.#pos.fullmove ?? 1;
+    return this.#board.fullmoves;
   }
 
   /**
@@ -1607,43 +1509,54 @@ export class Chess {
    * object. Returns the verbose move, or null when the move is illegal.
    */
   move(input: string | { from: string; to: string; promotion?: string }): VerboseMove | null {
-    const pos = this.#pos;
+    const pos = this.#board.pos;
     let mv: Move | null = null;
+    let moveWord: number | null = null;
     if (typeof input === "string") {
       const sanRes = parseSan(input, pos);
       if (sanRes.ok) {
         mv = sanRes.value;
+        moveWord = packOf(mv);
       } else {
         const uciRes = parseUci(input);
-        if (uciRes.ok && isLegal(pos, uciRes.value)) mv = uciRes.value;
+        if (uciRes.ok && isLegal(pos, uciRes.value)) {
+          mv = uciRes.value;
+          moveWord = packOf(mv);
+        }
       }
     } else {
       const from = parseSquare(input.from);
       const to = parseSquare(input.to);
       if (from !== undefined && to !== undefined) {
-        const piece = pieceAt(pos.board, from);
+        const piece = pieceAt(this.#board.board, from);
         const promotion = input.promotion
           ? ({ q: 4, r: 3, b: 2, n: 1 } as Record<string, Role>)[input.promotion.toLowerCase()]
           : undefined;
         for (const cand of buildMoves(pos, piece ? piece.role : -1, from, to)) {
           if (cand.promotion !== null && cand.promotion !== undefined && promotion !== undefined && cand.promotion !== promotion) continue;
-          if (isLegal(pos, cand)) { mv = cand; break; }
+          if (isLegal(pos, cand)) {
+            mv = cand;
+            moveWord = packOf(mv);
+            break;
+          }
         }
       }
     }
-    if (!mv) return null;
-    const san = makeSan(mv, pos);
-    const after = makeMove(pos, mv);
-    this.#pos = after;
+    if (!mv || moveWord === null) return null;
+    const before = this.#board.toPosition();
+    const san = makeSan(mv, before);
+    const boardUndo = this.#board.makeMove(moveWord);
+    const after = this.#board.toPosition();
     this.#history.push({
-      before: pos,
+      before,
       after,
       move: mv,
       san,
-      prev_checkers: pos.checkers,
-      prev_zobrist: pos.zobristLo !== undefined && pos.zobristHi !== undefined ? { lo: pos.zobristLo, hi: pos.zobristHi } : undefined,
+      boardUndo,
+      prev_checkers: before.checkers,
+      prev_zobrist: before.zobristLo !== undefined && before.zobristHi !== undefined ? { lo: before.zobristLo, hi: before.zobristHi } : undefined,
     });
-    return this.#describe(pos, mv, after, san);
+    return this.#describe(before, mv, after, san);
   }
 
   /**
@@ -1654,10 +1567,10 @@ export class Chess {
   moves(options: { square?: string; verbose: true }): VerboseMove[];
   moves(options?: { square?: string; verbose?: false }): string[];
   moves(options?: { square?: string; verbose?: boolean }): string[] | VerboseMove[] {
-    const pos = this.#pos;
+    const pos = this.#board.pos;
     const out: (string | VerboseMove)[] = [];
     const emit = (from: number, set: { lo: number; hi: number }) => {
-      const piece = pieceAt(pos.board, from);
+      const piece = pieceAt(this.#board.board, from);
       if (!piece) return;
       sq.forEachSquare(set, (to) => {
         for (const mv of buildMoves(pos, piece.role, from, to)) {
@@ -1691,28 +1604,32 @@ export class Chess {
   undo(): VerboseMove | null {
     const last = this.#history.pop();
     if (!last) return null;
-    this.#pos = last.before;
+    if (last.boardUndo) {
+      this.#board.unmakeMove(last.boardUndo);
+    } else {
+      this.#board = new Board(last.before);
+    }
     return this.#describe(last.before, last.move, last.after, last.san);
   }
 
-  isCheck(): boolean { return isCheck(this.#pos); }
-  inCheck(): boolean { return isCheck(this.#pos); }
-  isCheckmate(): boolean { return isCheckmate(this.#pos); }
-  isStalemate(): boolean { return isStalemate(this.#pos); }
+  isCheck(): boolean { return this.#board.inCheck(); }
+  inCheck(): boolean { return this.#board.inCheck(); }
+  isCheckmate(): boolean { return isCheckmate(this.#board.pos); }
+  isStalemate(): boolean { return isStalemate(this.#board.pos); }
 
   /** Draw by insufficient material, the fifty-move rule, or threefold repetition. */
   isDraw(): boolean {
-    if (isInsufficientMaterial(this.#pos)) return true;
-    if (isFiftyMoveDraw(this.#pos)) return true;
+    if (isInsufficientMaterial(this.#board.pos)) return true;
+    if (isFiftyMoveDraw(this.#board.pos)) return true;
     if (isThreefoldRepetition(this.#positions())) return true;
     return false;
   }
 
   /** Draw by the fifty-move rule. */
-  isDrawByFiftyMoves(): boolean { return isFiftyMoveDraw(this.#pos); }
+  isDrawByFiftyMoves(): boolean { return isFiftyMoveDraw(this.#board.pos); }
 
   /** Draw by insufficient material. */
-  isInsufficientMaterial(): boolean { return isInsufficientMaterial(this.#pos); }
+  isInsufficientMaterial(): boolean { return isInsufficientMaterial(this.#board.pos); }
 
   /** Draw by threefold repetition over the game's position history. */
   isThreefoldRepetition(): boolean { return isThreefoldRepetition(this.#positions()); }
@@ -1724,7 +1641,7 @@ export class Chess {
   get(square: string): { type: PieceChar; color: ColorName } | undefined {
     const sqIdx = parseSquare(square);
     if (sqIdx === undefined) return undefined;
-    const p = pieceAt(this.#pos.board, sqIdx);
+    const p = pieceAt(this.#board.board, sqIdx);
     if (!p) return undefined;
     return { type: ROLE_CHARS[p.role], color: colorName(p.color) };
   }
@@ -1736,7 +1653,7 @@ export class Chess {
       const row: ({ square: string; type: PieceChar; color: ColorName } | null)[] = [];
       for (let file = 0; file < 8; file++) {
         const sqIdx = rank * 8 + file;
-        const p = pieceAt(this.#pos.board, sqIdx);
+        const p = pieceAt(this.#board.board, sqIdx);
         row.push(p ? { square: squareName(sqIdx), type: ROLE_CHARS[p.role], color: colorName(p.color) } : null);
       }
       rows.push(row);
@@ -1779,29 +1696,31 @@ export class Chess {
   dests(square: string | number): SquareSet {
     const sqIdx = typeof square === "number" ? square : parseSquare(square);
     if (sqIdx === undefined) return { lo: 0, hi: 0 };
-    return dests(this.#pos, sqIdx);
+    return dests(this.#board.pos, sqIdx);
   }
 
   /** Legal destinations for every piece of the side to move. */
-  allDests(): Map<number, SquareSet> { return allDests(this.#pos); }
+  allDests(): Map<number, SquareSet> { return allDests(this.#board.pos); }
 
   /** True when `move` is legal in the current position. */
-  isLegal(move: Move): boolean { return isLegal(this.#pos, move); }
+  isLegal(move: Move): boolean { return isLegal(this.#board.pos, move); }
 
   /** Genuine recursive perft node count (no shortcuts). */
-  perft(depth: number): number { return perft(this.#pos, depth); }
+  perft(depth: number): number { return this.#board.perft(depth); }
 
   /** Applies an engine move in place (immutable core stays pure underneath). */
   play(move: Move): this {
-    const before = this.#pos;
+    const before = this.#board.toPosition();
     const san = makeSan(move, before);
-    const after = makeMove(before, move);
-    this.#pos = after;
+    const moveWord = packOf(move);
+    const boardUndo = this.#board.makeMove(moveWord);
+    const after = this.#board.toPosition();
     this.#history.push({
       before,
       after,
       move,
       san,
+      boardUndo,
       prev_checkers: before.checkers,
       prev_zobrist: before.zobristLo !== undefined && before.zobristHi !== undefined ? { lo: before.zobristLo, hi: before.zobristHi } : undefined,
     });
@@ -1810,14 +1729,11 @@ export class Chess {
 
   /** Current 64-bit Zobrist key (zero-BigInt {lo, hi} halves). */
   zobrist(): ZobristKey {
-    if (this.#pos.zobristLo !== undefined && this.#pos.zobristHi !== undefined) {
-      return { lo: this.#pos.zobristLo >>> 0, hi: this.#pos.zobristHi >>> 0 };
-    }
-    return calculateZobrist(this.#pos);
+    return this.#board.zobrist();
   }
 
   /** Current Zobrist key as 16 zero-padded hex digits (hi first). */
-  zobristHex(): string { return zobristHex(this.zobrist()); }
+  zobristHex(): string { return this.#board.zobristHex(); }
 
   /** Packs the game's move history into a 16-bit moves2 stream. */
   toMoves2(): Uint16Array {
@@ -1831,7 +1747,7 @@ export class Chess {
     this.load(startFen);
     this.#startFen = startFen;
     for (const mv of packedToMoves(buffer)) {
-      if (!isLegal(this.#pos, mv)) throw new Error(`moves2 replay: illegal move ${mv.from}->${mv.to}`);
+      if (!isLegal(this.#board.pos, mv)) throw new Error(`moves2 replay: illegal move ${mv.from}->${mv.to}`);
       this.play(mv);
     }
   }
@@ -1857,8 +1773,9 @@ export class Chess {
   get startFen(): string { return this.#startFen; }
 
   /** Live engine position (read-only view over the internal state). */
-  get pos(): Position { return this.#pos; }
-  get _pos(): Position { return this.#pos; }
+  get pos(): Position { return this.#board.pos; }
+  get _pos(): Position { return this.#board.pos; }
+  get boardInstance(): Board { return this.#board; }
 
   /** Internal history log (read-only view; used by toTree). */
   get historyEntries(): readonly HistoryEntry[] { return this.#history; }

@@ -6,7 +6,7 @@
 // Games pack into a flat Uint16Array (160 bytes per 80-ply game) for 25x–50x
 // memory reduction over object moves, with ultra-fast binary replay and a
 // direct Tauri IPC bridge (little-endian Uint8Array form).
-// MIT turbochess.
+// MIT gigachess.
 
 import { Role } from "./types.js";
 import type { Move } from "./types.js";

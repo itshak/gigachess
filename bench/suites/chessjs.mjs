@@ -20,7 +20,7 @@
 //
 // Gates are PARITY-FIRST: any SAN/FEN byte mismatch above the 0.1% tolerance
 // aborts with PARITY FAIL before any speed number is reported. Speed rows are
-// report-only (turbochess is expected to win PGN streaming and FEN, but a
+// report-only (gigachess is expected to win PGN streaming and FEN, but a
 // narrow miss does not fail CI — only parity does).
 // perft: chess.js has no perft API — noted N/A. UCI: compared via verbose `lan`.
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
@@ -37,7 +37,7 @@ import {
   WARMUPS,
   RUNS,
 } from "./lib/common.mjs";
-import { Chess as PcChess } from "../../dist/index.js";
+import { Chess as PcChess } from "../../dist/chessjs.js";
 import { parsePgn as pcParsePgn } from "../../dist/pgn.js";
 import { Chess as JsChess } from "chess.js";
 
@@ -65,7 +65,7 @@ Phases:
 }
 
 /**
- * Builds the FEN corpus: unique positions replayed from real games (turbochess
+ * Builds the FEN corpus: unique positions replayed from real games (gigachess
  * facade SAN replay) + samplefen1000.epd + perftsuite.epd + wac_150.epd FENs.
  */
 function buildFenCorpus(games, target) {
@@ -126,7 +126,7 @@ export async function run(opts) {
   const show = (kind, msg) => { if (examples.length < 10) examples.push(`${kind}: ${msg}`); };
   for (const fen of fens) {
     let pc, js;
-    try { pc = new PcChess(fen); } catch (e) { fenBad++; show("fen-load", `turbochess rejected ${fen}: ${e.message}`); continue; }
+    try { pc = new PcChess(fen); } catch (e) { fenBad++; show("fen-load", `gigachess rejected ${fen}: ${e.message}`); continue; }
     try { js = new JsChess(fen); } catch (e) { fenBad++; show("fen-load", `chessjs accepted, chess.js rejected ${fen}: ${e.message.slice(0, 60)}`); continue; }
     if (pc.fen() !== js.fen()) { fenBad++; show("fen", `${fen}\n      pc : ${pc.fen()}\n      js : ${js.fen()}`); }
     if (JSON.stringify(sortedSans(pc)) !== JSON.stringify(sortedSans(js))) { sanBad++; show("san", fen); }

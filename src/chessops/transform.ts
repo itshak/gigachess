@@ -5,7 +5,7 @@
 // inputs never mutated, pure {lo,hi} pairs (no 64-bit integer math). Clean-room:
 // built from openspec/specs/purechess-board-movegen only (see proposal
 // FORBIDDEN/ALLOWED sources). Double-mirror is the identity (board.equals holds).
-import type { Board as EngineBoard } from "../board.js";
+import type { BoardLike as EngineBoard } from "../board.js";
 import type { SquareSet as EngineSet } from "../squareSet.js";
 import { boardFromEngine, boardToEngine } from "./convert.js";
 import type { Board } from "./board.js";

@@ -48,7 +48,7 @@ export type CastlingRights = {
 // runtime; it makes accidental field writes and Set mutations of shared
 // sub-objects a type error instead of a silent corruption.
 export type Setup = {
-  readonly board: import("./board.js").Board;
+  readonly board: import("./board.js").BoardLike;
   readonly turn: Color;
   readonly castling: CastlingRights;
   readonly epSquare: number | null;
@@ -100,7 +100,7 @@ export function Err<T, E>(error: E): Result<T, E> {
   return { ok: false, error };
 }
 
-// Error codes → i18n keys turbochess.<module>.<code> (renamed from turbochess.*, ADR-015)
+// Error codes → i18n keys gigachess.<module>.<code> (renamed from gigachess.*, ADR-015)
 export type FenError = { code: string; message?: string };
 export type SanError = { code: string; message?: string };
 export type UciError = { code: string; message?: string };

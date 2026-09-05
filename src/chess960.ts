@@ -1,11 +1,11 @@
 // src/chess960.ts — Chess960 (Fischer Random) support, X-FEN/Shredder dual
-// MIT turbochess, clean-room from specs + FIDE notes (no G P L)
+// MIT gigachess, clean-room from specs + FIDE notes (no G P L)
 // Re-uses core chess.ts logic which already handles 960 castling via generic rook sets
 
 import * as chess from "./chess.js";
 import type { Setup } from "./types.js";
 import { Color } from "./types.js";
-export { Chess, dests, allDests, isCheck, isCheckmate, isStalemate, perft, makeMove } from "./chess.js";
+export { dests, allDests, isCheck, isCheckmate, isStalemate, perft, makeMove } from "./chess.js";
 
 // Chess960 position is same as Setup but with chess960 flag handling for FEN
 // Provide helper to create Chess960 position with 960 castling parsing already done via fen.ts

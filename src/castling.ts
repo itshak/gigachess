@@ -1,6 +1,15 @@
 // src/castling.ts — Standard Chess 4-bit castling mask, O(1) clear table, and precomputed rights
 import type { CastlingRights, Position } from "./types.js";
-import type { CastlingPlan } from "./chess.js";
+import { Color, Role } from "./types.js";
+import { squareRank, squareFile } from "./util.js";
+
+export type CastlingPlan = {
+  side: "king" | "queen";
+  kingFrom: number;
+  kingTo: number; // normalized landing square (6/2/62/58)
+  rookFrom: number;
+  rookTo: number; // 5/3/61/59
+};
 
 export const CASTLE_WK = 1; // 0b0001
 export const CASTLE_WQ = 2; // 0b0010
@@ -156,3 +165,102 @@ for (let kFile = 0; kFile < 8; kFile++) {
     CASTLE_TRAVERSAL_BLACK[idx] = travB;
   }
 }
+
+export function castlingPlanFor(color: Color, ks: number, rs: number): CastlingPlan {
+  const rank = squareRank(ks);
+  const isKingSide = squareFile(rs) > squareFile(ks);
+  return {
+    side: isKingSide ? "king" : "queen",
+    kingFrom: ks,
+    kingTo: isKingSide ? (rank << 3) | 6 : (rank << 3) | 2,
+    rookFrom: rs,
+    rookTo: isKingSide ? (rank << 3) | 5 : (rank << 3) | 3,
+  };
+}
+
+export function planForDest(plans: CastlingPlan[], to: number): CastlingPlan | null {
+  for (let i = 0; i < plans.length; i++) {
+    const p = plans[i];
+    if (p.rookFrom === to || p.kingTo === to) return p;
+  }
+  return null;
+}
+
+function pieceRoleAndColorAt(b: Position["board"], sqIdx: number): { color: Color; role: Role } | undefined {
+  const bit = sqIdx < 32 ? (1 << sqIdx) >>> 0 : (1 << (sqIdx - 32)) >>> 0;
+  const occ = sqIdx < 32 ? b.occupied.lo : b.occupied.hi;
+  if (((occ & bit) >>> 0) === 0) return undefined;
+  const whiteW = sqIdx < 32 ? b.white.lo : b.white.hi;
+  const color = ((whiteW & bit) >>> 0) !== 0 ? Color.White : Color.Black;
+  const rookW = sqIdx < 32 ? b.rook.lo : b.rook.hi;
+  if (((rookW & bit) >>> 0) !== 0) return { color, role: Role.Rook };
+  const kingW = sqIdx < 32 ? b.king.lo : b.king.hi;
+  if (((kingW & bit) >>> 0) !== 0) return { color, role: Role.King };
+  return { color, role: Role.Pawn };
+}
+
+export function detectCastling(pos: Position, from: number, to: number): CastlingPlan | null {
+  if (!pos.isChess960) {
+    const mask = pos.castlingMask ?? getCastlingMask(pos);
+    if (mask === 0) return null;
+    if (pos.turn === Color.White) {
+      if ((mask & (CASTLE_WK | CASTLE_WQ)) === 0 || from !== 4) return null;
+      if (to === 7 || to === 6) {
+        if ((mask & CASTLE_WK) === 0) return null;
+        if (to === 6 && pieceRoleAndColorAt(pos.board, 6)) return null;
+        const rp = pieceRoleAndColorAt(pos.board, 7);
+        if (rp && rp.color === Color.White && rp.role === Role.Rook) return PLAN_WHITE_K;
+      } else if (to === 0 || to === 2) {
+        if ((mask & CASTLE_WQ) === 0) return null;
+        if (to === 2 && pieceRoleAndColorAt(pos.board, 2)) return null;
+        const rp = pieceRoleAndColorAt(pos.board, 0);
+        if (rp && rp.color === Color.White && rp.role === Role.Rook) return PLAN_WHITE_Q;
+      }
+      return null;
+    } else {
+      if ((mask & (CASTLE_BK | CASTLE_BQ)) === 0 || from !== 60) return null;
+      if (to === 63 || to === 62) {
+        if ((mask & CASTLE_BK) === 0) return null;
+        if (to === 62 && pieceRoleAndColorAt(pos.board, 62)) return null;
+        const rp = pieceRoleAndColorAt(pos.board, 63);
+        if (rp && rp.color === Color.Black && rp.role === Role.Rook) return PLAN_BLACK_K;
+      } else if (to === 56 || to === 58) {
+        if ((mask & CASTLE_BQ) === 0) return null;
+        if (to === 58 && pieceRoleAndColorAt(pos.board, 58)) return null;
+        const rp = pieceRoleAndColorAt(pos.board, 56);
+        if (rp && rp.color === Color.Black && rp.role === Role.Rook) return PLAN_BLACK_Q;
+      }
+      return null;
+    }
+  }
+
+  // Chess960 fallback
+  if (pos.castling.white.size === 0 && pos.castling.black.size === 0) return null;
+  const piece = pieceRoleAndColorAt(pos.board, from);
+  if (!piece || piece.role !== Role.King || piece.color !== pos.turn) return null;
+  const rights = piece.color === Color.White ? pos.castling.white : pos.castling.black;
+  if (rights.size === 0) return null;
+  const rank = squareRank(from);
+  // Input form 1: king captures own rook on its origin square (baseline/960).
+  if (rights.has(to) && squareRank(to) === rank) {
+    const target = pieceRoleAndColorAt(pos.board, to);
+    if (target && target.color === piece.color && target.role === Role.Rook) {
+      return castlingPlanFor(piece.color, from, to);
+    }
+  }
+  // Input form 2: normalized landing square — a two-file step on the same rank.
+  if (squareRank(to) === rank && Math.abs(squareFile(to) - squareFile(from)) === 2) {
+    // The landing square must be empty for castling.
+    if (!pieceRoleAndColorAt(pos.board, to)) {
+      for (const rs of rights) {
+        const plan = castlingPlanFor(piece.color, from, rs);
+        if (plan.kingTo !== to) continue;
+        // The right's rook must actually be present on its origin square.
+        const rp = pieceRoleAndColorAt(pos.board, rs);
+        if (rp && rp.color === piece.color && rp.role === Role.Rook) return plan;
+      }
+    }
+  }
+  return null;
+}
+

@@ -1,6 +1,7 @@
 // tests/fuzz-differential.mjs — 1,000 random game lockstep differential fuzzer
 // verifies GigaChess against chess.js and chessops across tens of thousands of plies.
-import { Chess as GigaChess, countLegalMoves } from "../dist/index.js";
+import { countLegalMoves } from "../dist/index.js";
+import { Chess as GigaChess } from "../dist/chessjs.js";
 import { Chess as JsChess } from "chess.js";
 
 // Seeded LCG PRNG for reproducibility

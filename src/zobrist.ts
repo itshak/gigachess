@@ -5,7 +5,7 @@
 // Constants are the standard Polyglot opening-book random array (781 entries;
 // interop-critical fixed numeric data), stored in src/zobristBlob.ts as base64
 // of little-endian u64 bytes — the same size/load rationale as the magic-table
-// blobs. The blob module is NEVER in the static import graph of turbochess/core
+// blobs. The blob module is NEVER in the static import graph of gigachess/core
 // (bundle gate): it loads via dynamic import() behind `ensureZobristLoaded()`.
 // Until loaded — or if loading fails — hashing is unavailable (positions carry
 // no zobrist fields; `makeMove` skips maintenance) and callers can probe with
@@ -22,7 +22,7 @@
 //            side to move exists (pseudo-legal capture), per Polyglot/Shakmaty
 //   780      side to move (XORed when WHITE is to move — python-chess
 //            `hash_turn` semantics, which match the Polyglot book format)
-// MIT turbochess.
+// MIT gigachess.
 
 import { Color, Role } from "./types.js";
 import type { Position } from "./types.js";
@@ -38,6 +38,27 @@ const IDX_SIDE = 780;
 let keyLo: Uint32Array | null = null;
 let keyHi: Uint32Array | null = null;
 let loadPromise: Promise<void> | null = null;
+
+/**
+ * splitmix64 state seed for the 12 derived Chess960 castling keys (ADR-003).
+ * Published seed: 0x00C0_FFEE_DABA_D00D.
+ */
+export const CASTLE_KEY_SEED = 0x00C0_FFEE_DABA_D00Dn;
+
+const MASK64 = 0xFFFF_FFFF_FFFF_FFFFn;
+
+function splitmix64(stateRef: { state: bigint }): bigint {
+  stateRef.state = (stateRef.state + 0x9E37_79B9_7F4A_7C15n) & MASK64;
+  let z = stateRef.state;
+  z = ((z ^ (z >> 30n)) * 0xBF58_476D_1CE4_E5B9n) & MASK64;
+  z = ((z ^ (z >> 27n)) * 0x94D0_49BB_1331_11EBn) & MASK64;
+  return (z ^ (z >> 31n)) & MASK64;
+}
+
+let castleKeyLo: Uint32Array | null = null;
+let castleKeyHi: Uint32Array | null = null;
+
+export { castleKeyLo, castleKeyHi, keyLo, keyHi, IDX_EP, IDX_SIDE };
 
 /**
  * Loads the Polyglot key blob (idempotent). Safe to call repeatedly; the
@@ -58,6 +79,43 @@ export function ensureZobristLoaded(): Promise<void> {
       }
       keyLo = lo;
       keyHi = hi;
+
+      // Initialize the 16 rook-file castling keys (ADR-003, decision D2)
+      // Indexed by `colorIdx * 8 + file` (Black = 0, White = 1, file = 0..7)
+      const cLo = new Uint32Array(16);
+      const cHi = new Uint32Array(16);
+
+      const stateRef = { state: CASTLE_KEY_SEED };
+      const prng = new BigUint64Array(12);
+      for (let i = 0; i < 12; i++) {
+        prng[i] = splitmix64(stateRef);
+      }
+
+      // Black (color index 0) files b..g (1..6)
+      for (let f = 1; f <= 6; f++) {
+        const val = prng[f - 1];
+        cLo[f] = Number(val & 0xFFFF_FFFFn) >>> 0;
+        cHi[f] = Number((val >> 32n) & 0xFFFF_FFFFn) >>> 0;
+      }
+      // White (color index 1) files b..g (1..6) -> indices 8+f = 9..14
+      for (let f = 1; f <= 6; f++) {
+        const val = prng[6 + f - 1];
+        cLo[8 + f] = Number(val & 0xFFFF_FFFFn) >>> 0;
+        cHi[8 + f] = Number((val >> 32n) & 0xFFFF_FFFFn) >>> 0;
+      }
+
+      // Pin the a/h keys to the Polyglot castling keys:
+      // White O-O (h-file) = 1*8+7 = 15 -> Polyglot 768
+      // White O-O-O (a-file) = 1*8+0 = 8 -> Polyglot 769
+      // Black O-O (h-file) = 0*8+7 = 7 -> Polyglot 770
+      // Black O-O-O (a-file) = 0*8+0 = 0 -> Polyglot 771
+      cLo[15] = lo[768]; cHi[15] = hi[768];
+      cLo[8] = lo[769]; cHi[8] = hi[769];
+      cLo[7] = lo[770]; cHi[7] = hi[770];
+      cLo[0] = lo[771]; cHi[0] = hi[771];
+
+      castleKeyLo = cLo;
+      castleKeyHi = cHi;
     });
     // see attacks.ts: fire-and-forget callers must not trigger an
     // unhandled-rejection warning; awaiting callers still observe the error.
@@ -68,10 +126,10 @@ export function ensureZobristLoaded(): Promise<void> {
 
 /** Whether the Zobrist tables are loaded (false ⇒ hashing is skipped). */
 export function zobristTablesLoaded(): boolean {
-  return keyLo !== null && keyHi !== null;
+  return keyLo !== null && keyHi !== null && castleKeyLo !== null && castleKeyHi !== null;
 }
 
-function pieceKeyIdx(color: Color, role: Role, sqIdx: number): number {
+export function pieceKeyIdx(color: Color, role: Role, sqIdx: number): number {
   // Polyglot layout (python-chess ZobristHasher.hash_board): piece_index =
   // 2*role + colorPivot where role order is pawn, knight, bishop, rook,
   // queen, king and the color pivot follows python-chess's occupied_co
@@ -80,25 +138,46 @@ function pieceKeyIdx(color: Color, role: Role, sqIdx: number): number {
   return (2 * role + (color === Color.White ? 1 : 0)) * 64 + sqIdx;
 }
 
-function castlingKeyIdx(color: Color, rookSq: number, kingSq: number): number {
-  const kingside = squareFile(rookSq) > squareFile(kingSq);
-  // Polyglot/python-chess layout: 768 W-K, 769 W-Q, 770 B-K, 771 B-Q.
-  return IDX_CASTLING + 2 * color + (kingside ? 0 : 1);
+/**
+ * Castling key index: `(color === White ? 1 : 0) * 8 + rookFile` (ADR-003).
+ */
+export function castlingKeyIdx(color: Color, rookSq: number, _kingSq?: number): number {
+  const colorIdx = color === Color.White ? 1 : 0;
+  const file = rookSq & 7;
+  return (colorIdx << 3) | file;
+}
+
+export function castleFileKey(color: Color, file: number): ZobristKey {
+  if (!zobristTablesLoaded()) throw new Error("zobrist tables not loaded — call ensureZobristLoaded() first");
+  const colorIdx = color === Color.White ? 1 : 0;
+  const idx = (colorIdx << 3) | (file & 7);
+  return { lo: (castleKeyLo as Uint32Array)[idx], hi: (castleKeyHi as Uint32Array)[idx] };
+}
+
+function xorCastleInto(lo: number, hi: number, castleIdx: number): [number, number] {
+  const t = castleKeyLo as Uint32Array;
+  const h = castleKeyHi as Uint32Array;
+  return [(lo ^ t[castleIdx]) >>> 0, (hi ^ h[castleIdx]) >>> 0];
 }
 
 /** True when a pawn of `side` stands adjacent to the ep square (legal capture). */
-function epIsHashable(pos: Position, epSquare: number, side: Color): boolean {
+export function epIsHashable(
+  target: Position | import("./board.js").BoardLike | { board: import("./board.js").BoardLike },
+  epSquare: number,
+  side: Color,
+): boolean {
+  const b = "board" in target && target.board ? target.board : (target as import("./board.js").BoardLike);
   const file = epSquare & 7;
   const pawnRank = (epSquare >> 3) + (side === Color.White ? -1 : 1);
   if (pawnRank < 0 || pawnRank > 7) return false;
-  const colorOcc = side === Color.White ? pos.board.white : pos.board.black;
+  const colorOcc = side === Color.White ? b.white : b.black;
   for (let df = -1; df <= 1; df += 2) {
     const f = file + df;
     if (f < 0 || f > 7) continue;
     const sqIdx = (pawnRank << 3) | f;
     const bit = sqIdx < 32 ? (1 << sqIdx) >>> 0 : (1 << (sqIdx - 32)) >>> 0;
     const occWord = sqIdx < 32 ? colorOcc.lo : colorOcc.hi;
-    const pawnWord = sqIdx < 32 ? pos.board.pawn.lo : pos.board.pawn.hi;
+    const pawnWord = sqIdx < 32 ? b.pawn.lo : b.pawn.hi;
     if (((occWord & pawnWord & bit) >>> 0) !== 0) return true;
   }
   return false;
@@ -161,14 +240,12 @@ export function calculateZobrist(pos: Position): ZobristKey {
       }
     }
   }
-  // castling rights (relative to each color's king square)
+  // castling rights (indexed by (color, rook file) — ADR-003 / 16 keys)
   for (let color = 0; color <= 1; color++) {
     const rights = color === Color.White ? pos.castling.white : pos.castling.black;
     if (rights.size === 0) continue;
-    const ksq = kingSqOf(pos, color as Color);
-    if (ksq === undefined) continue;
     for (const rs of rights) {
-      [lo, hi] = xorInto(lo, hi, castlingKeyIdx(color as Color, rs, ksq));
+      [lo, hi] = xorCastleInto(lo, hi, castlingKeyIdx(color as Color, rs));
     }
   }
   // en passant (only when a legal capture exists — Polyglot semantics)
@@ -240,27 +317,23 @@ export function zobristAfterMove(
   if (!pos.isChess960 && pos.castlingMask !== undefined && newPos.castlingMask !== undefined) {
     const diff = pos.castlingMask ^ newPos.castlingMask;
     if (diff !== 0) {
-      if (diff & 1) [lo, hi] = xorInto(lo, hi, IDX_CASTLING);
-      if (diff & 2) [lo, hi] = xorInto(lo, hi, IDX_CASTLING + 1);
-      if (diff & 4) [lo, hi] = xorInto(lo, hi, IDX_CASTLING + 2);
-      if (diff & 8) [lo, hi] = xorInto(lo, hi, IDX_CASTLING + 3);
+      if (diff & 1) [lo, hi] = xorCastleInto(lo, hi, 15); // WK: White h-file (768)
+      if (diff & 2) [lo, hi] = xorCastleInto(lo, hi, 8);  // WQ: White a-file (769)
+      if (diff & 4) [lo, hi] = xorCastleInto(lo, hi, 7);  // BK: Black h-file (770)
+      if (diff & 8) [lo, hi] = xorCastleInto(lo, hi, 0);  // BQ: Black a-file (771)
     }
   } else {
     for (const rs of pos.castling.white) {
-      const ks = kingSqOf(pos, Color.White);
-      if (ks !== undefined) [lo, hi] = xorInto(lo, hi, castlingKeyIdx(Color.White, rs, ks));
+      [lo, hi] = xorCastleInto(lo, hi, castlingKeyIdx(Color.White, rs));
     }
     for (const rs of pos.castling.black) {
-      const ks = kingSqOf(pos, Color.Black);
-      if (ks !== undefined) [lo, hi] = xorInto(lo, hi, castlingKeyIdx(Color.Black, rs, ks));
+      [lo, hi] = xorCastleInto(lo, hi, castlingKeyIdx(Color.Black, rs));
     }
     for (const rs of newPos.castling.white) {
-      const ks = kingSqOf(newPos, Color.White);
-      if (ks !== undefined) [lo, hi] = xorInto(lo, hi, castlingKeyIdx(Color.White, rs, ks));
+      [lo, hi] = xorCastleInto(lo, hi, castlingKeyIdx(Color.White, rs));
     }
     for (const rs of newPos.castling.black) {
-      const ks = kingSqOf(newPos, Color.Black);
-      if (ks !== undefined) [lo, hi] = xorInto(lo, hi, castlingKeyIdx(Color.Black, rs, ks));
+      [lo, hi] = xorCastleInto(lo, hi, castlingKeyIdx(Color.Black, rs));
     }
   }
   // en passant state (both directions, legality-filtered)

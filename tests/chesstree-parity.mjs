@@ -1,5 +1,5 @@
 // tests/chesstree-parity.mjs — chesstree-compat parity suite (change
-// turbochess-adopt, tasks 5.2). Cross-checks every output of the clean-room
+// gigachess-adopt, tasks 5.2). Cross-checks every output of the clean-room
 // `dist/chesstree.js` facade against the GPL-3.0 `@itshak/chesstree@2.0.0`
 // DEV-ONLY baseline (never imported from src/ — same policy as
 // tests/compat-chessops.mjs). Castling UCI is compared under the ADR-013
@@ -201,10 +201,11 @@ compareExport("variation-lead-comment", r7.co, r7.tc);
     tcPgn.includes("1. e4 e5 (1... c5) 2. Nf3 *"));
 }
 
-// ---- unified Chess.toTree/loadTree (change turbochess-unified-api-and-perf,
+// ---- unified Chess.toTree/loadTree (change gigachess-unified-api-and-perf,
 // task 3.1) — root Chess exposes native tree navigation + PGN rendering ----
 {
-  const { Chess: UnifiedChess, makeFen } = await import("../dist/index.js");
+  const { Chess: UnifiedChess } = await import("../dist/chessjs.js");
+  const { makeFen } = await import("../dist/index.js");
   const g = new UnifiedChess();
   for (const san of ["e4", "e5", "Nf3", "Nc6", "Bb5"]) g.move(san);
   const tree = g.toTree();

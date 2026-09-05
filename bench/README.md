@@ -1,8 +1,8 @@
-# bench — Turbochess Benchmark Harness
+# bench — GigaChess Benchmark Harness
 
 **Change:** `purechess-library` (Phase 1 baseline)  
 **Baseline lib:** `chessops@0.15.1` (GPL-3.0-or-later) — the candidate `A: hq` is a thin wrapper over `chessops` `bishopAttacks`/`rookAttacks`.  
-**Target lib:** `turbochess` (MIT, `turbochess/core`, `turbochess/pgn`, `turbochess/chess960`). Previously distributed as `turbochess` — one-release alias kept, see `openspec/adr/015-turbochess-rename.md`.
+**Target lib:** `gigachess` (MIT, `gigachess/core`, `gigachess/pgn`, `gigachess/chess960`). Previously distributed as `gigachess` — one-release alias kept, see `openspec/adr/015-gigachess-rename.md`.
 
 ## Pinning — reproducible measurement
 
@@ -25,8 +25,8 @@ bench/
   bench-perft.mjs          # perft(6) startpos = 119060324 nodes, nodes/s vs chessops
   bench-pgn.mjs            # chunked streaming PGN, games/s, MB/s, peak heap
   bench-fen-san.mjs        # 10k FEN round-trips + SAN parity, FEN parse+make vs chessops
-  bench-bundle.mjs         # esbuild + sideEffects:false + exports map, turbochess/core gz target
-  bench-ci.mjs             # gated CI — fails on any SHALL if threshold not met (harness passes even when turbochess stubbed)
+  bench-bundle.mjs         # esbuild + sideEffects:false + exports map, gigachess/core gz target
+  bench-ci.mjs             # gated CI — fails on any SHALL if threshold not met (harness passes even when gigachess stubbed)
   candidates/
     hq.mjs                 # candidate A adapter
     black-magic.mjs        # candidate B lo/hi fixed-shift + table lookup (tables via bench/magic-tables/*.json)
@@ -82,7 +82,7 @@ cat bench/data/lichess_db.sample.pgn | head -n 40
 
 ### Corpus size notes
 
-- Baseline sample is **deliberately tiny** (10 games) so `npm run bench` is fast; full 100k is gated behind `--corpus bench/data/lichess_db.sample.pgn --games 100000` and CI will download/verify out-of-tree (`../turbochess-refs/lichess_db.pgn`) if needed.
+- Baseline sample is **deliberately tiny** (10 games) so `npm run bench` is fast; full 100k is gated behind `--corpus bench/data/lichess_db.sample.pgn --games 100000` and CI will download/verify out-of-tree (`../gigachess-refs/lichess_db.pgn`) if needed.
 
 ## Harness invocation (one command per spec)
 
@@ -106,14 +106,14 @@ npm run bench:pgn -- --corpus bench/data/lichess_db.sample.pgn
 node bench/bench-fen-san.mjs --iters 10000
 npm run bench:fen-san
 
-# Bundle — tree-shaking, esbuild, sideEffects:false, turbochess/core vs chessops gz
+# Bundle — tree-shaking, esbuild, sideEffects:false, gigachess/core vs chessops gz
 npm run bench:bundle -- --entry core
 node bench/bench-bundle.mjs --help
 
 # All
 npm run bench
 
-# CI gate (fails if any SHALL not met — harness itself passes even when turbochess stubbed, warnings only)
+# CI gate (fails if any SHALL not met — harness itself passes even when gigachess stubbed, warnings only)
 npm run bench:ci
 ```
 
@@ -122,12 +122,12 @@ npm run bench:ci
 | Bench | Metric | Gate (SHALL) | Target | Notes |
 |-------|--------|--------------|--------|-------|
 | `bench-sliding` | `MQueens/s` per candidate (10M random occupancies, 5-run median) | `B: Black Magic lo/hi` **≥30%** higher than `A: HQ` to win, else HQ fallback | B wins | Warmup excluded, `Math.imul` + `>>> shift` + table lookup |
-| `bench-perft` | `nodes/s`, node count | turbochess **≥ parity** vs chessops (target +15%), perft(6) startpos = **119060324** | parity | Movegen correctness + speed |
+| `bench-perft` | `nodes/s`, node count | gigachess **≥ parity** vs chessops (target +15%), perft(6) startpos = **119060324** | parity | Movegen correctness + speed |
 | `bench-pgn` | `games/s`, `MB/s`, peak heap, `makePgn(parsePgn)` round-trip | **≥50%** higher `games/s` than chessops, **≤110%** heap, identical counts | stream wins via chunked parser | 100k-game pinned corpus |
 | `bench-fen-san` | `FEN parse+make` throughput, `SAN` throughput, byte-identical outputs | **≥20%** faster FEN, SAN at parity, byte-identical for legal | FEN wins via less alloc | 10k FEN sample |
-| `bench-bundle` | gzipped `turbochess/core` vs `chessops` full | **≥30%** smaller gzipped, `turbochess` re-export all ≤110% of chessops | tree-shaking | `sideEffects:false` + `exports` map |
+| `bench-bundle` | gzipped `gigachess/core` vs `chessops` full | **≥30%** smaller gzipped, `gigachess` re-export all ≤110% of chessops | tree-shaking | `sideEffects:false` + `exports` map |
 
-All gates are **gated, not just logged** — `npm run bench:ci` fails if any `SHALL` in `specs/purechess-benchmarks/spec.md` is not met (when turbochess is fully implemented; baseline warns but harness passes per task 5.3).
+All gates are **gated, not just logged** — `npm run bench:ci` fails if any `SHALL` in `specs/purechess-benchmarks/spec.md` is not met (when gigachess is fully implemented; baseline warns but harness passes per task 5.3).
 
 ## Measurement discipline
 
@@ -157,7 +157,7 @@ cat bench/results/sliding-2026-08-30.md
 
 ```bash
 npm run bench:bundle -- --entry core
-# proves turbochess/core gzipped will target ≥30% smaller than chessops full import (gate checked, even if src/ stubbed)
+# proves gigachess/core gzipped will target ≥30% smaller than chessops full import (gate checked, even if src/ stubbed)
 ```
 
 Uses `esbuild` with `bundle:true`, `minify:true`, `sideEffects:false` check and `exports` map.
@@ -171,8 +171,8 @@ Uses `esbuild` with `bundle:true`, `minify:true`, `sideEffects:false` check and 
 
 ## Phase 1 vs Phase 2
 
-- **Phase 1 (this baseline):** harness scaffolding + bake-off Task 1 (board encoding + slider) wired, but `turbochess` `src/` still stubbed — `bench:ci` may warn on stubbed turbochess but harness itself passes.
-- **Phase 2 (`turbochess-spec`):** spec agent emits `purechess-rules`, `purechess-board-movegen`, `purechess-pgn-fen` delta specs + `magic-tables/*.json`; impl then fills `src/` and gates actually enforce.
+- **Phase 1 (this baseline):** harness scaffolding + bake-off Task 1 (board encoding + slider) wired, but `gigachess` `src/` still stubbed — `bench:ci` may warn on stubbed gigachess but harness itself passes.
+- **Phase 2 (`gigachess-spec`):** spec agent emits `purechess-rules`, `purechess-board-movegen`, `purechess-pgn-fen` delta specs + `magic-tables/*.json`; impl then fills `src/` and gates actually enforce.
 
 ## Candidate C — ReScript status (task 4.3)
 
@@ -205,7 +205,7 @@ npm run bench:ci                          # harness green even when stubbed
 
 ## Real-world suites (`purechess-bench-real`, change of 2026-08-30)
 
-`bench/bench-real.mjs` orchestrates six suites that measure turbochess against
+`bench/bench-real.mjs` orchestrates six suites that measure gigachess against
 `chessops@0.15.1` on **real-world corpora** with parity checked **before**
 timing (a faster-but-wrong library must fail, not win):
 
@@ -216,7 +216,7 @@ timing (a faster-but-wrong library must fail, not win):
 | `pgn-stream` | first 100,000 games of the pinned 2013-01 Lichess `.zst` | game counts + SAN streams + `makePgn(parsePgn(g))` round-trips vs chessops for every legal game | ≥+50% `games/s` per chunk size; peak heap ≤110% |
 | `fen-san-uci` | 10k+ FENs replayed from real games + `samplefen1000.epd` + perft FENs + Chess960/X-FEN samples | FEN round-trips byte-identical; SAN make/parse byte-identical; UCI identical modulo ADR-013 castling normalization | parity ≥99% (failures enumerated); FEN parse+make ≥+20% |
 | `dests-terminal` | 10k unique positions replayed from real games | `allDests` (castling normalized), `isLegal`, all terminal predicates | 100% parity, then dests throughput reported |
-| `bundle` | esbuild-minified consumers (`turbochess/core`, `turbochess` full, `chessops` full) | — | core gz ≥30% smaller than chessops; full ≤110%; `parsePgn` + Chess960 tables absent from core |
+| `bundle` | esbuild-minified consumers (`gigachess/core`, `gigachess` full, `chessops` full) | — | core gz ≥30% smaller than chessops; full ≤110%; `parsePgn` + Chess960 tables absent from core |
 
 ### Reproduction
 
@@ -274,7 +274,7 @@ exits 0). Headline numbers after the fix:
 - **fen-san-uci:** FEN 99.97%, SAN make 100%, SAN parse 100%, UCI 100% ✓;
   FEN parse+make throughput 2.022× chessops (≥+20% gate met with margin).
   The 3 remaining FEN diffs are the known Chess960/X-FEN `makeFen` rendering
-  cases (turbochess emits X-FEN file letters where chessops keeps `KQkq`);
+  cases (gigachess emits X-FEN file letters where chessops keeps `KQkq`);
   enumerated in the suite output, within the ≥99% gate.
 - **Bundle:** ✓ core static 6,317 B gz (118.4% of the chessops Chess-import
   5,336 B gz, gate ≤120%) with **zero magic-table bytes** in the static
@@ -317,7 +317,7 @@ Consequences for benchmark/parity tooling:
 ### En-passant FEN policy (chessops-compatible)
 
 `parseFen` accepts structurally valid ep squares even when no capture is
-possible (lichess FENs and turbochess's own `makeFen` output round-trip
+possible (lichess FENs and gigachess's own `makeFen` output round-trip
 byte-identically; ~4.7% of real-game positions were previously rejected).
 Structural validation (square + rank for the side to move) stays
 unconditional; `parseFen(fen, { strict: true })` restores the capturability

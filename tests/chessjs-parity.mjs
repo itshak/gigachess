@@ -2,7 +2,7 @@
 // (change: purechess-remaining-cleanroom, tasks 4.1/4.2). Cross-checks every
 // observable output against chess.js@1.4.0 (dev-only bench baseline; never
 // imported in src/). Fails on any divergence.
-import { Chess as PcChess } from "../dist/index.js";
+import { Chess as PcChess } from "../dist/chessjs.js";
 import { Chess as JsChess } from "chess.js";
 
 let pass = 0, fail = 0;

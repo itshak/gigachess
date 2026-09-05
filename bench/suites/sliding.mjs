@@ -2,7 +2,7 @@
 // Harvests occupancy bitboards from perft trees of the 6 standard perft
 // positions (NOT uniform-random occupancies), dedups via the lo*2^32+hi key,
 // and benchmarks queenAttacks over up to 10M unique real occupancies.
-// Parity: attack sets must be bit-identical (turbochess Black Magic vs
+// Parity: attack sets must be bit-identical (gigachess Black Magic vs
 // chessops HQ) on the first 100k samples BEFORE any timing is reported.
 import { assertCorpus, CORPORA, gate, measure, parseSuiteArgs, thr } from "./lib/common.mjs";
 import { parseFen, allDests, makeMove, pieceAt, queenAttacks as pcQueen, iter as sqIter, ensureMagicTablesLoaded as pcEnsureMagicTables, magicTablesLoaded as pcMagicLoaded } from "../../dist/index.js";
@@ -19,7 +19,7 @@ const PERFT_POS = [
 ];
 
 /**
- * Walks the perft tree of each position (turbochess public API), inserting the
+ * Walks the perft tree of each position (gigachess public API), inserting the
  * occupancy bitboard of every visited position into an open-addressing hash
  * set keyed by lo*2^32+hi (uint32 pair table — same dedup semantics, far less
  * memory than a BigInt Set). Stops at `target` unique samples or corpus

@@ -10,8 +10,8 @@
 // Parity is verified BEFORE any speed is reported (same parity-first policy
 // as the other suites); chessops baselines run the identical workload.
 import { gate, measure, parseSuiteArgs, thr, loadLichessGames, fmtMs, peakHeapMb } from "./lib/common.mjs";
+import { Chess as PcChess } from "../../dist/chessjs.js";
 import {
-  Chess as PcChess,
   parseFen as pcParseFen,
   allDests as pcAllDests,
   parseUci as pcParseUci,
@@ -30,7 +30,7 @@ import { makeSan as coMakeSan } from "chessops/san";
 const normKey = (fen) => {
   const f = fen.split(" ");
   // drop the ep field: engines legitimately differ on raw-vs-filtered ep
-  // emission (turbochess emits the raw square, chessops filters unreachable
+  // emission (gigachess emits the raw square, chessops filters unreachable
   // ones); repertoire merging keys on placement/turn/castling/counters
   return `${f[0]} ${f[1]} ${f[2]} ${f[4]} ${f[5]}`;
 };
@@ -201,7 +201,7 @@ export async function run(opts) {
       const pos = CoChess.fromSetup(setup).unwrap();
       for (const [from, list] of pos.allDests()) {
         const arr = [...list].map((d) => sqName(d));
-        if (arr.length === 0) continue; // turbochess allDests omits empty sets
+        if (arr.length === 0) continue; // gigachess allDests omits empty sets
         out.set(sqName(from), arr);
       }
     }

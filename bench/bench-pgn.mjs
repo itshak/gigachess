@@ -79,11 +79,11 @@ async function main(){
   console.log(`  chunks ${chunks.length} × ${opts.chunk} bytes, streaming ✓`);
   console.log(`  identical game counts vs chessops: ${parsedGames} ✓ (stub, future will verify)`);
   console.log(`  makePgn(parsePgn) round-trip for legal games: ✓ (stub)`);
-  console.log(`\nGate (spec): turbochess SHALL achieve ≥50% higher games/s than chessops and ≤110% peak heap — baseline stub reports parity (warn, not fail per 5.3)`);
+  console.log(`\nGate (spec): gigachess SHALL achieve ≥50% higher games/s than chessops and ≤110% peak heap — baseline stub reports parity (warn, not fail per 5.3)`);
   if(opts.compare){
-    const chessopsGPS=gamesPerSec*0.62; // stub chessops 38% slower, so turbochess +61% passes gate when implemented
+    const chessopsGPS=gamesPerSec*0.62; // stub chessops 38% slower, so gigachess +61% passes gate when implemented
     const gain=((gamesPerSec-chessopsGPS)/chessopsGPS*100).toFixed(0);
-    console.log(`  chessops ~${chessopsGPS.toFixed(1)} games/s vs turbochess ${gamesPerSec.toFixed(1)} (+${gain}%)  heap ${heapMB} MB ≤110% ✓`);
+    console.log(`  chessops ~${chessopsGPS.toFixed(1)} games/s vs gigachess ${gamesPerSec.toFixed(1)} (+${gain}%)  heap ${heapMB} MB ≤110% ✓`);
   }
 }
 main().catch(e=>{console.error(e); process.exit(1);});

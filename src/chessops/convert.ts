@@ -2,7 +2,7 @@
 // Not part of the public API. The facade never mutates caller-provided values;
 // conversions produce fresh engine positions (the engine itself is immutable).
 import * as engineBoardMod from "../board.js";
-import type { Board as EngineBoard } from "../board.js";
+import type { BoardLike as EngineBoard } from "../board.js";
 import type { Move as EngineMove, Position as EnginePosition } from "../types.js";
 import { Role as ERole, Color as EColor } from "../types.js";
 import type { CastlingRights as EngineCastlingRights } from "../types.js";

@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-04  
 **Status:** Accepted  
-**Change:** `turbochess-perf-ultrachess-staged`  
+**Change:** `gigachess-perf-ultrachess-staged`  
 
 ---
 

@@ -61,7 +61,7 @@ export async function run(opts) {
     const pc = parseFen(entry.fen);
     const coSetup = coParseFen(entry.fen);
     if (!pc.ok || coSetup.isErr) {
-      parityFailures.push({ fen: entry.fen, depth: 0, detail: !pc.ok ? `turbochess parseFen failed: ${pc.error?.code}` : "chessops parseFen failed" });
+      parityFailures.push({ fen: entry.fen, depth: 0, detail: !pc.ok ? `gigachess parseFen failed: ${pc.error?.code}` : "chessops parseFen failed" });
       continue;
     }
     const pos = { ...pc.value, halfmove: 0, fullmove: 1 };
@@ -73,11 +73,11 @@ export async function run(opts) {
       const coN = Number(coPerft(coPos.clone(), d));
       comparisons++;
       if (pcN !== coN) {
-        parityFailures.push({ fen: entry.fen, depth: d, detail: `turbochess=${pcN} chessops=${coN}` });
+        parityFailures.push({ fen: entry.fen, depth: d, detail: `gigachess=${pcN} chessops=${coN}` });
       }
       const expected = entry.depths.find((x) => x.depth === d);
       if (expected && expected.nodes !== null && pcN !== expected.nodes) {
-        parityFailures.push({ fen: entry.fen, depth: d, detail: `turbochess=${pcN} corpus=${expected.nodes}` });
+        parityFailures.push({ fen: entry.fen, depth: d, detail: `gigachess=${pcN} corpus=${expected.nodes}` });
       }
       deepest = pcN;
     }

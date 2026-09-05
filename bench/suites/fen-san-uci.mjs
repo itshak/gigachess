@@ -2,7 +2,7 @@
 // 10k+ FENs from real games plus Chess960/X-FEN samples. FEN parse→make
 // round-trips must be byte-identical vs chessops; SAN make/parse (incl. +/#/=Q
 // disambiguation) byte-identical; makeUci identical modulo ADR-013 castling
-// normalization (turbochess e1g1 vs chessops e1h1 → canonicalized to landing
+// normalization (gigachess e1g1 vs chessops e1h1 → canonicalized to landing
 // square). Parity ≥99% with failures enumerated BEFORE throughput reporting.
 import { assertCorpus, CORPORA, gate, loadLichessGames, measure, parseSuiteArgs, thr } from "./lib/common.mjs";
 import { readFileSync } from "node:fs";
@@ -48,7 +48,7 @@ function fenFromFile(line) {
 }
 
 /**
- * Builds the FEN corpus: unique positions replayed from real games (turbochess
+ * Builds the FEN corpus: unique positions replayed from real games (gigachess
  * SAN replay) + samplefen1000.epd + perftsuite.epd FENs + Chess960 samples.
  */
 function buildFenCorpus(games, target, quick) {
@@ -130,7 +130,7 @@ export async function run(opts) {
     const pcR = pcParseFen(fen, { chess960: is960 });
     const coS = coParseFen(fen);
     if (pcR.ok !== !coS.isErr) {
-      failures.push(`${fen}: parse agreement broken (turbochess ok=${pcR.ok}, chessops ok=${!coS.isErr})`);
+      failures.push(`${fen}: parse agreement broken (gigachess ok=${pcR.ok}, chessops ok=${!coS.isErr})`);
       continue;
     }
     if (!pcR.ok) continue; // both reject
@@ -142,7 +142,7 @@ export async function run(opts) {
     // FEN parse→make round-trip: byte-identical between libs
     const pcFen = pcMakeFen(pcSetup, { chess960: is960 });
     const coFen = coMakeFen(coS.value);
-    if (pcFen !== coFen) failures.push(`${fen}: makeFen differs | turbochess: ${pcFen} | chessops: ${coFen}`);
+    if (pcFen !== coFen) failures.push(`${fen}: makeFen differs | gigachess: ${pcFen} | chessops: ${coFen}`);
 
     positions.push({ fen, pcPos, coPos, is960, pcSetup, coSetup: coS.value });
   }
@@ -181,7 +181,7 @@ export async function sanUciPhase(ctx) {
         const promos = piece === PAWN && (to < 8 || to >= 56) ? [QUEEN, ROOK, BISHOP, KNIGHT] : [undefined];
         for (const promo of promos) {
           const pcMove = { from, to, promotion: promo };
-          // turbochess-normalized castling dest (g/c) → chessops rook-square dest
+          // gigachess-normalized castling dest (g/c) → chessops rook-square dest
           let coTo = to;
           if (piece === KING && coSet && !coSet.has(to)) {
             const rankBase = to & ~7;
@@ -199,7 +199,7 @@ export async function sanUciPhase(ctx) {
             continue;
           }
           if (pcSan !== coSan) {
-            show("sanDiff", `${fen}: SAN differs ${from}-${to}: turbochess "${pcSan}" vs chessops "${coSan}"`);
+            show("sanDiff", `${fen}: SAN differs ${from}-${to}: gigachess "${pcSan}" vs chessops "${coSan}"`);
             continue;
           }
           sanMakeSame++;
@@ -210,13 +210,13 @@ export async function sanUciPhase(ctx) {
           const pcTo = pcParsed.ok && pcParsed.value && typeof pcParsed.value === "object" ? pcParsed.value.to : undefined;
           const coToN = coParsed ? normDestCo(coPos, coParsed.from ?? coMove.from, coParsed.to) : undefined;
           if (pcTo === coToN) sanParseSame++;
-          else show("sanParse", `${fen}: SAN parse "${pcSan}" resolves differently: turbochess=${pcTo} chessops=${coToN}`);
+          else show("sanParse", `${fen}: SAN parse "${pcSan}" resolves differently: gigachess=${pcTo} chessops=${coToN}`);
 
           uciTotal++;
           const pcUci = pcMakeUci(pcMove);
           const coUci = normUciCo(coPos, coMove, coMakeUci(coMove));
           if (pcUci === coUci) uciSame++;
-          else show("uci", `${fen}: UCI differs for ${pcSan}: turbochess=${pcUci} chessops(norm)=${coUci}`);
+          else show("uci", `${fen}: UCI differs for ${pcSan}: gigachess=${pcUci} chessops(norm)=${coUci}`);
         }
       }
     }
@@ -229,7 +229,7 @@ export async function sanUciPhase(ctx) {
   const parseAgree = failures.filter((f) => f.includes("parse agreement broken")).length;
   const fenParity = fens.length ? (fens.length - fenDiff - parseAgree) / fens.length : 1;
   console.log(`  SAN make: ${sanMakeSame}/${sanMakeTotal} identical | SAN parse: ${sanParseSame}/${sanParseTotal} | UCI (ADR-013 normalized): ${uciSame}/${uciTotal}`);
-  console.log(`  parse agreement: ${fens.length - parseAgree}/${fens.length} (turbochess rejects ${parseAgree} FENs chessops accepts)`);
+  console.log(`  parse agreement: ${fens.length - parseAgree}/${fens.length} (gigachess rejects ${parseAgree} FENs chessops accepts)`);
   for (const f of failures) {
     if (f.includes("SAN differs") || f.includes("resolves differently") || f.includes("UCI differs")) console.log(`    ${f}`);
   }
