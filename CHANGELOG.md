@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.1] - 2026-09-05
+
+### Fixed
+- **True Zero Dependencies:** Inlined lightweight `Result` type matching `@badrap/result` contract in `gigachess/chessops`, removing `@badrap/result` from production dependencies (`dependencies: {}`).
+
 ## [0.4.0] - 2026-09-05
 
 ### Added

@@ -1,7 +1,7 @@
 // src/baseline/fen.ts — baseline-exact FEN API (ADR-014), backed by the
 // immutable engine parser (which additionally accepts unreachable ep squares
 // and 4-field FENs per the purechess-rules spec — baseline-compatible).
-import { Result } from "@badrap/result";
+import { Result } from "./result.js";
 import * as engineFen from "../fen.js";
 import { Board } from "./board.js";
 import { SquareSet } from "./squareSet.js";

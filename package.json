@@ -1,6 +1,6 @@
 {
   "name": "gigachess",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "The fastest chess library and engine in TypeScript. 45x faster than chess.js, 18.7M nodes/s perft, zero dependencies, 100% MIT.",
   "type": "module",
   "license": "MIT",
@@ -130,8 +130,5 @@
     "rescript": "^12.3.1",
     "typescript": "^5.7.0",
     "ultrachess": "^1.4.0"
-  },
-  "dependencies": {
-    "@badrap/result": "0.3.1"
   }
 }
