@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/social-preview.png" width="100%" alt="GigaChess Social Preview" />
+  <img src="./assets/logo.png" width="220" alt="GigaChess Logo" />
 </p>
 
 <h1 align="center">GigaChess</h1>
