@@ -1,7 +1,7 @@
 {
   "name": "gigachess",
   "version": "0.3.0",
-  "description": "The fastest chess engine and library in JavaScript & TypeScript. Blisteringly fast native Rust-mirrored Board API with 45x faster move execution (5.9M ops/s), 11x faster legal movegen, 18.7M nodes/s perft, zero-alloc Zobrist hashing, and optional chess.js and chessops compatibility wrappers.",
+  "description": "The fastest chess library and engine in TypeScript. High-performance Board API with 45x faster move execution (5.98M ops/s), 11x faster legal movegen, 18.7M nodes/s perft, zero-alloc Zobrist hashing, and drop-in chess.js compatibility.",
   "type": "module",
   "license": "MIT",
   "author": "Itshak <aistreltsov@outlook.com>",

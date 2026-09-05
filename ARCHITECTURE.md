@@ -1,7 +1,7 @@
 # GigaChess Architecture & Performance Blueprint
 
 > **GigaChess** is a native, local-first, zero-BigInt chess bitboard engine and library.
-> It unifies **native Rust-mirrored `Board` performance**, **`chess.js` ergonomics**, **`chesstree` study trees**, and **Stockfish-level bitboard speed** under a 100% **MIT license**.
+> It unifies **native stateful `Board` performance**, **`chess.js` ergonomics**, **`chesstree` study trees**, and **Stockfish-level bitboard speed** under a 100% **MIT license**.
 
 ---
 
