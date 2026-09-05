@@ -44,10 +44,15 @@ Rather than making/unmaking trial moves on a scratch board for every candidate p
 $$\text{LegalDests} = \text{PseudoDests} \cap \text{CheckMask} \cap \text{PinRay}$$
 
 ### 4. Incremental $O(1)$ 64-bit Polyglot Zobrist Hashing
-Position hashing is computed incrementally inside `makeMove` by XORing moving pieces, captured pieces, castling right deltas, and EP files. Transposition matching and three-fold repetition checks compare `{ lo, hi }` integer pairs with zero FEN stringifications.
+Position hashing is computed incrementally inside `makeMove` by XORing moving pieces, captured pieces, castling right deltas, and EP files:
+- **Standard Chess**: Bit-identical to canonical 64-bit Polyglot keys (`0x463b96181691fc9c` startpos), using the pseudo-legal en-passant condition and White-turn XOR.
+- **Chess960**: 16 per-rook-file castling keys indexed by `color * 8 + file` (files a/h pin to Polyglot 768..771; files b..g derived via deterministic splitmix64 PRNG seed `0x00C0_FFEE_DABA_D00D`) matching `gigachess-rs` (ADR-003).
+Transposition matching and three-fold repetition checks compare `{ lo, hi }` integer pairs with zero FEN stringifications.
 
 ### 5. 16-bit Packed Move Streams (`moves2`)
-Move history and game databases are serialized into raw `Uint16Array` buffers (2 bytes per ply, 160 bytes for an 80-ply game vs >4,000 bytes for JavaScript objects), delivering a **25x reduction in memory footprint**.
+Move history and game databases are serialized into raw `Uint16Array` buffers (2 bytes per ply, 160 bytes for an 80-ply game vs >4,000 bytes for JavaScript objects), delivering a **25x reduction in memory footprint**:
+- **Bit layout**: `(from & 0x3f) | ((to & 0x3f) << 6) | ((promo & 0x0f) << 12)` (promo: 0=none, 1=N, 2=B, 3=R, 4=Q).
+- **Castling wire representation**: King-from → rook-square (`e1h1`, `e1a1`, `e8h8`, `e8a8` standard; king → initial rook square for Chess960), 100% unified with `gigachess-rs` and UCI-960 conventions. Zero-copy binary transfer over Tauri IPC.
 
 ### 6. Black Magic Bitboards with Lazy Loading
 Sliding piece attacks (Bishop, Rook, Queen) use Black Magic bitboard lookups for $O(1)$ throughput (35.5 Million attacks/sec). Magic table payloads are stored as base64 blobs and load asynchronously via dynamic `import()`, keeping the initial static bundle graph to just **17.5 KB gz**.

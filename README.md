@@ -138,6 +138,8 @@ const root = treeWrapper.getRoot();
 
 ### 3. $O(1)$ 64-bit Polyglot Zobrist Hashing
 Instant position fingerprinting for opening books, transpositions, and repetitions:
+- **Standard Chess**: Canonical 64-bit Polyglot random keys (781 entries, verified against startpos `0x463b96181691fc9c`). Pseudo-legal en-passant condition and White-turn XOR matching the Polyglot book format and `gigachess-rs`.
+- **Chess960**: 16 per-rook-file castling keys indexed by `color * 8 + file` (files a/h pin to Polyglot 768..771; files b..g derived via deterministic splitmix64 seed `0x00C0_FFEE_DABA_D00D`) matching `gigachess-rs`.
 ```ts
 import { Chess } from 'gigachess';
 
@@ -150,6 +152,11 @@ console.log(game.zobristHex()); // "823c9b50fd114196"
 
 ### 4. 16-bit Packed Move Streams (`moves2`)
 Compress entire game databases down to 2 bytes per ply:
+- **Wire Format (16-bit word)**: `(from & 0x3f) | ((to & 0x3f) << 6) | ((promo & 0x0f) << 12)`
+  - Bits 0..5: origin square index (`0..63`, a1 = 0)
+  - Bits 6..11: destination square index (`0..63`)
+  - Bits 12..15: promotion code (`0` = none, `1` = N, `2` = B, `3` = R, `4` = Q)
+- **Castling Wire Representation**: Always king-from → rook-square (`e1h1`, `e1a1`, `e8h8`, `e8a8` for standard chess; initial king → initial rook square for Chess960). Fully consistent with `gigachess-rs` and UCI-960 conventions.
 ```ts
 import { Chess } from 'gigachess';
 
