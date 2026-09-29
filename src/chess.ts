@@ -4,18 +4,20 @@
 import * as sq from "./squareSet.js";
 import type { SquareSet } from "./squareSet.js";
 import * as board from "./board.js";
-import { Board, type Undo as BoardUndo } from "./board.js";
+import { Board, type Undo as BoardUndo, type NullUndo } from "./board.js";
 import * as attacks from "./attacks.js";
 import { Color, Role } from "./types.js";
 import type { Setup, Move, Result, CastlingRights, Position } from "./types.js";
 import { opposite, squareFile, squareRank, parseSquare, squareName } from "./util.js";
-import { zobristTablesLoaded, zobristAfterMove, calculateZobrist, zobristHex } from "./zobrist.js";
+import { zobristTablesLoaded, zobristAfterMove, zobristAfterNullMove, calculateZobrist, zobristHex } from "./zobrist.js";
 import type { ZobristKey } from "./zobrist.js";
 import { parseFen, makeFen } from "./fen.js";
 import { parseSan, makeSan, parseUci, makeUci } from "./san.js";
 import {
   packOf,
   packedToMoves,
+  isNullMove,
+  nullMove,
   PROMO_NONE,
   PROMO_KNIGHT,
   PROMO_BISHOP,
@@ -58,6 +60,31 @@ export function isCheck(pos: Position): boolean {
 
 export function kingAttackers(pos: Position, color: Color): SquareSet {
   return attacks.kingAttackers(pos.board, color);
+}
+
+/**
+ * In-check test computed FRESH from the attack tables — never from the cached
+ * `checkers` bitboard.
+ *
+ * The null-move legality gate must use this: a caller that reached a pass
+ * through a cache-free make holds a `checkers` value describing some earlier
+ * position, and reading it would accept or refuse the wrong positions. The scan
+ * costs one `attackersTo` on a path taken roughly once per ten thousand plies.
+ * Mirrors gigachess-rs `make_null_move` (board.rs).
+ */
+export function isCheckFresh(pos: Position): boolean {
+  const ksq = board.kingSquare(pos.board, pos.turn);
+  if (ksq === undefined) return false;
+  const them = opposite(pos.turn);
+  return !sq.isEmpty(attacks.attackersTo(pos.board, ksq, them, pos.board.occupied));
+}
+
+/**
+ * A pass is legal iff the side to move is NOT in check (a null move answers no
+ * check). Always judged from the attack tables — see {@link isCheckFresh}.
+ */
+export function isNullMoveLegal(pos: Position): boolean {
+  return !isCheckFresh(pos);
 }
 
 // insufficient material per spec
@@ -243,7 +270,65 @@ function applyBoardEdits(
   }
 }
 
+/**
+ * Plays a null move (pass): the position stays, the side to move flips.
+ *
+ * Semantics mirror an ordinary move's state transition: castling rights are
+ * untouched, the en-passant square clears (any pending double push lapses), the
+ * halfmove clock advances and the move always completes a full move (a pass is
+ * a move, not a half-move: after the pass White is to move with the number
+ * advanced, whoever passed). The incremental Polyglot hash and the cached
+ * `checkers` are maintained, so `zobrist()` still equals a full recompute and
+ * `isCheck` stays branch-free.
+ *
+ * Throws when the side to move is in check: a pass answers no check. The test
+ * is computed from the bitboards rather than read from the cache — see
+ * {@link isCheckFresh}.
+ *
+ * Mirrors gigachess-rs `Board::make_null_move` (board.rs).
+ */
+export function makeNullMove(pos: Position): Position {
+  if (!isNullMoveLegal(pos)) {
+    throw new Error("illegal null move: the side to move is in check");
+  }
+  const us = pos.turn;
+  const newTurn = opposite(us);
+  const newHalf = (pos.halfmoves ?? pos.halfmove ?? 0) + 1;
+  // A pass is a move, not a half-move: the number advances whoever passed
+  // (this is what keeps FEN's "White to move" and number incremented
+  // consistent).
+  const newFull = (pos.fullmoves ?? pos.fullmove ?? 1) + 1;
+  const nextKingSq: [number, number] = pos.kingSq
+    ? [pos.kingSq[0], pos.kingSq[1]]
+    : [board.kingSquare(pos.board, Color.White) ?? -1, board.kingSquare(pos.board, Color.Black) ?? -1];
+  const newPos: Position = {
+    // A pass moves no piece, so the board is carried over untouched (the input
+    // position is never mutated).
+    board: pos.board,
+    turn: newTurn,
+    castling: pos.castling,
+    castlingMask: pos.castlingMask,
+    isChess960: pos.isChess960 ?? false,
+    epSquare: null,
+    halfmoves: newHalf,
+    fullmoves: newFull,
+    halfmove: newHalf,
+    fullmove: newFull,
+    kingSq: nextKingSq,
+    checkers: attacks.kingAttackers(pos.board, newTurn),
+  };
+  if (zobristTablesLoaded()) {
+    const zk = zobristAfterNullMove(pos);
+    (newPos as { zobristLo?: number; zobristHi?: number }).zobristLo = zk.lo;
+    (newPos as { zobristLo?: number; zobristHi?: number }).zobristHi = zk.hi;
+  }
+  return newPos;
+}
+
 export function makeMove(pos: Position, move: Move): Position {
+  // First-class pass: the null sentinel dispatches here, before any from/to
+  // interpretation (a pass has no origin square).
+  if (isNullMove(move)) return makeNullMove(pos);
   let from = move.from;
   let to = move.to;
   let piece = board.pieceAt(pos.board, from);
@@ -868,6 +953,9 @@ export function allDests(pos: Position): Map<number, SquareSet> {
 }
 
 export function isLegal(pos: Position, move: Move): boolean {
+  // A pass is legal iff the side to move is not in check — judged fresh from
+  // the attack tables, never from the cached `checkers` bitboard.
+  if (isNullMove(move)) return isNullMoveLegal(pos);
   // Single castling path (design D2): both the normalized (e1g1) and the
   // baseline/960 (e1h1) input forms resolve through detectCastling.
   const castling = detectCastling(pos, move.from, move.to);
@@ -1383,7 +1471,8 @@ export type VerboseMove = {
   color: ColorName;
   from: string;
   to: string;
-  piece: PieceChar;
+  /** Absent on a null move (pass) — a pass moves no piece. */
+  piece?: PieceChar;
   captured?: PieceChar;
   promotion?: PieceChar;
   flags: string;
@@ -1408,12 +1497,12 @@ export type HistoryEntry = {
   readonly after: Position;
   readonly move: Move;
   readonly san: string;
-  readonly boardUndo?: BoardUndo;
+  readonly boardUndo?: BoardUndo | NullUndo;
   readonly prev_checkers?: SquareSet;
   readonly prev_zobrist?: ZobristKey;
 };
 
-export type { BoardUndo as Undo };
+export type { BoardUndo as Undo, NullUndo };
 export { Board };
 
 /** Expands pawn back-rank destinations into the four promotions. */
@@ -1856,6 +1945,20 @@ export class Chess {
   }
 
   #describe(pos: Position, mv: Move, after: Position, san: string): VerboseMove {
+    // A pass moves no piece: it has no origin, destination or piece, so the
+    // chess.js-shaped record is built from the pass contract instead.
+    if (isNullMove(mv)) {
+      return {
+        color: colorName(pos.turn),
+        from: "",
+        to: "",
+        flags: "",
+        san,
+        lan: makeUci(mv),
+        before: this.#fenOf(pos),
+        after: this.#fenOf(after),
+      };
+    }
     const piece = pieceAt(pos.board, mv.from);
     if (!piece) throw new Error("corrupt move: missing origin piece");
     const target = pieceAt(pos.board, mv.to);

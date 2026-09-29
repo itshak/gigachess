@@ -30,7 +30,58 @@ export function packMove(from: number, to: number, promo: number = PROMO_NONE): 
   return ((from & 0x3f) | ((to & 0x3f) << 6) | ((promo & 0x0f) << 12)) & 0xffff;
 }
 
-/** Unpacks a 16-bit word into its from/to/promo fields. */
+// ---------- null move (pass) — the first-class `0xffff` sentinel ----------
+//
+// The null move is NOT a from/to/promo triple: it is the single u16 sentinel
+// `0xffff`, matching gigachess-rs `Move(0xffff)` (board.rs make_null_move).
+// The sentinel is reserved — no legal move packs to it (the widest legal word
+// is 0x4fff: from=63, to=63, promo=4), so the value is unambiguous in a
+// moves2 stream.
+
+/** The null-move (pass) sentinel word. */
+export const NULL_MOVE_WORD = 0xffff;
+
+/** Canonical SAN rendering of a pass — never suffixed with `+` or `#`. */
+export const NULL_MOVE_SAN = "--";
+
+/** Canonical UCI rendering of a pass. */
+export const NULL_MOVE_UCI = "0000";
+
+/** True when `word` is the null-move sentinel (a pass, not a board move). */
+export function isNull(word: number): boolean {
+  return (word & 0xffff) === NULL_MOVE_WORD;
+}
+
+/**
+ * A fresh null-move value (never share one instance across callers).
+ *
+ * `from`/`to` mirror the sentinel's own field decode (both 63) so the value
+ * round-trips through the wire format unchanged; `isNull` is what identifies
+ * it as a pass, never the squares.
+ */
+export function nullMove(): Move {
+  return {
+    from: 63,
+    to: 63,
+    promotion: null,
+    isPromotion: false,
+    isEnPassant: false,
+    isCastling: false,
+    isNull: true,
+  };
+}
+
+/** True when `move` is the null move (pass). */
+export function isNullMove(move: Move): boolean {
+  return move.isNull === true;
+}
+
+/**
+ * Unpacks a 16-bit word into its from/to/promo fields.
+ *
+ * The null-move sentinel `0xffff` is a pass, not a from/to/promo triple; the
+ * caller must test `isNull(word)` first (see `unpackToMove`, which does).
+ */
 export function unpackMove(word: number): PackedMove {
   const w = word & 0xffff;
   return {
@@ -64,12 +115,20 @@ export function promoCodeToRole(code: number): Role | undefined {
 
 /** Packs a Move into its 16-bit word (promotion flags are honored). */
 export function packOf(move: Move): number {
+  // A pass is the reserved sentinel, not a from/to/promo triple.
+  if (isNullMove(move)) return NULL_MOVE_WORD;
   const promo = move.promotion !== null && move.promotion !== undefined ? roleToPromoCode(move.promotion) : PROMO_NONE;
   return packMove(move.from, move.to, promo);
 }
 
-/** Expands a 16-bit word into an engine Move (no legality interpretation). */
+/**
+ * Expands a 16-bit word into an engine Move (no legality interpretation).
+ *
+ * The null-move sentinel decodes to a first-class pass — it must NOT be masked
+ * through as the bogus normal word `from=63, to=63, promo=15`.
+ */
 export function unpackToMove(word: number): Move {
+  if (isNull(word)) return nullMove();
   const { from, to, promo } = unpackMove(word);
   const role = promoCodeToRole(promo);
   return {

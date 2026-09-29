@@ -355,3 +355,36 @@ export function zobristHex(key: ZobristKey): string {
     (key.lo >>> 0).toString(16).padStart(8, "0")
   );
 }
+
+/**
+ * Incremental $O(1)$ Zobrist update for a null move (pass) — the delta-free
+ * counterpart of {@link zobristAfterMove}. A pass touches no piece, so the only
+ * contributions that change are the ones the transition clears/flips:
+ *
+ *  - the OLD en-passant square leaves (relevance is tested against the mover's
+ *    pawns, which a pass does not move) — a pass always clears the ep square,
+ *  - no NEW en-passant square is ever set by a pass,
+ *  - the side-to-move key flips.
+ *
+ * Mirrors gigachess-rs `Board::make_null_move` (board.rs).
+ */
+export function zobristAfterNullMove(pos: Position): ZobristKey {
+  if (!zobristTablesLoaded()) throw new Error("zobrist tables not loaded — call ensureZobristLoaded() first");
+  // base key: inherited from the old position, or computed once from scratch
+  let lo: number, hi: number;
+  if (pos.zobristLo !== undefined && pos.zobristHi !== undefined) {
+    lo = pos.zobristLo >>> 0;
+    hi = pos.zobristHi >>> 0;
+  } else {
+    const base = calculateZobrist(pos);
+    lo = base.lo;
+    hi = base.hi;
+  }
+  // the pass clears the en-passant square — hash its contribution back out
+  if (pos.epSquare !== null && pos.epSquare !== undefined && epIsHashable(pos, pos.epSquare, pos.turn)) {
+    [lo, hi] = xorInto(lo, hi, IDX_EP + (pos.epSquare & 7));
+  }
+  // side to move flipped
+  [lo, hi] = xorInto(lo, hi, IDX_SIDE);
+  return { lo: lo >>> 0, hi: hi >>> 0 };
+}

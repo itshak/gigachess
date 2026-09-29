@@ -10,9 +10,24 @@ import { Color, Role } from "./types.js";
 import type { Position, Move, Result, SanError, UciError } from "./types.js";
 import { Err, Ok } from "./types.js";
 import { squareFile, squareRank, parseSquare, squareName } from "./util.js";
+import { isNullMove, nullMove, NULL_MOVE_SAN, NULL_MOVE_UCI } from "./packedMove.js";
 
 const ROLE_SAN = ["", "N", "B", "R", "Q", "K"];
 const roleToSanChar = (role: Role): string => ROLE_SAN[role] ?? "";
+
+/**
+ * The null move is a first-class pass, not a placeholder alias: the only SAN
+ * tokens that denote one are `--` (the canonical rendering) and `Z0` (the
+ * moves2/FEN pass token). `null`, `pass` and every other spelling are rejected
+ * by `parseSan`.
+ */
+export const NULL_MOVE_SANS: readonly string[] = [NULL_MOVE_SAN, "Z0"];
+const NULL_MOVE_SAN_SET: ReadonlySet<string> = new Set(NULL_MOVE_SANS);
+
+/** True when `san` is one of the two accepted null-move tokens. */
+export function isNullMoveSan(san: string): boolean {
+  return NULL_MOVE_SAN_SET.has(san);
+}
 
 const SAN_ROLES: Record<string, Role> = { K: Role.King, Q: Role.Queen, R: Role.Rook, B: Role.Bishop, N: Role.Knight };
 const sanCharToRole = (ch: string): Role | undefined => SAN_ROLES[ch];
@@ -25,6 +40,10 @@ function normalizeCastlingSan(s: string): string {
 
 // ---------- makeSan ----------
 export function makeSan(move: Move, pos: Position): string {
+  // A pass renders as exactly `--` and returns here: it is never suffixed with
+  // `+` or `#` (a pass can neither give nor answer check), and it has no
+  // origin square for the castling/disambiguation paths below.
+  if (isNullMove(move)) return NULL_MOVE_SAN;
   // Castling — detected via the shared detectCastling path (design D2) so a
   // canonical castling move given in the representation's encoding renders
   // O-O/O-O-O, never "Kg1"/"Kxh1" (measured defect: makeSan({4,6}, kiwipete)
@@ -180,6 +199,14 @@ export function makeSan(move: Move, pos: Position): string {
 export function parseSan(san: string, pos: Position): Result<Move, SanError> {
   const orig = san;
   let s = normalizeCastlingSan(san.trim());
+  // Null move (pass) — exactly `--` or `Z0`, matched BEFORE any check-suffix
+  // handling so a suffixed spelling (`--+`) is not silently accepted. A pass is
+  // legal iff the side to move is not in check; the test is computed fresh from
+  // the attack tables, never from the cached `checkers` bitboard.
+  if (isNullMoveSan(s)) {
+    if (!chess.isNullMoveLegal(pos)) return Err({ code: "san/illegal" });
+    return Ok(nullMove());
+  }
   // Handle check suffix for later, but keep for validation
   let checkSuffix = "";
   if (s.endsWith("+") || s.endsWith("#")) {
@@ -371,6 +398,10 @@ export function parseSan(san: string, pos: Position): Result<Move, SanError> {
 // ---------- UCI ----------
 export function parseUci(uci: string): Result<Move, UciError> {
   const s = uci.trim();
+  // The null move is the `0000` token (its own 4-char spelling, not a square
+  // pair). Parsing is position-free; the legality of a pass is judged by the
+  // validating entry points (isLegal / parseSan / makeMove).
+  if (s === NULL_MOVE_UCI) return Ok(nullMove());
   if (s.length < 4 || s.length > 5) return Err({ code: "uci/invalidUci" });
   const fromStr = s.slice(0, 2);
   const toStr = s.slice(2, 4);
@@ -395,6 +426,9 @@ export function parseUci(uci: string): Result<Move, UciError> {
 }
 
 export function makeUci(move: Move): string {
+  // A pass renders as `0000` (the 16-bit sentinel's 4-char spelling) and
+  // returns here — it has no origin/destination square.
+  if (isNullMove(move)) return NULL_MOVE_UCI;
   const from = squareName(move.from);
   const to = squareName(move.to);
   let promo = "";

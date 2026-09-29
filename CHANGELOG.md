@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.2] - 2026-09-29
+
+### Added
+- **First-Class Null Move (Pass):** The null move is now a real value rather than a placeholder — the single 16-bit sentinel word `0xffff` (`isNull()`, `nullMove()`, `isNullMove()`, `NULL_MOVE_WORD`), mirrored from the Rust `Board::make_null_move` reference. `makeNullMove()` (functional) and `Board.makeNullMove()`/`unmakeNullMove()` (stateful) apply the canonical transition: ep cleared, halfmove+1, **fullmove+1 whoever passed** (a pass is a full move, not a half-move), turn flipped, Polyglot key XORed with the turn key. `legalMoves()` never yields a pass.
+- **Null Move SAN/UCI Contract:** SAN out is exactly `--` (never suffixed with `+` or `#`, and `makeSan` returns before any check/mate suffix logic); SAN in accepts exactly `--` and `Z0` and rejects `null`, `pass` and every other spelling; UCI is `0000` out and `parseUci("0000")` in.
+- **`isCheckFresh` / `isNullMoveLegal`:** Pass legality is always judged from the attack tables via `attackersTo`, never from the cached `checkers` bitboard — a caller holding a stale cache can no longer pass while in check. `isLegal`, `parseSan`, `makeMove` and `makeNullMove` all refuse a pass while the side to move is in check.
+
+### Fixed
+- **chesstree Pass Regression:** The null branch of the PGN importer did not advance the position, ply or path and did not descend the mainline, so every node after a pass was one ply out of step and `node.fen` stayed at the parent FEN (a following move could even fail to parse and be dropped). A pass is now a real ply: the result FEN is computed, `pos`/`ply`/`path` advance, and the mainline continues under the pass node. The PGN exporter emits `--` instead of dropping the ply, advancing the move number as a full move, so export→import round-trips exactly. `null` is no longer accepted as a pass spelling.
+
+---
+
 ## [0.4.1] - 2026-09-05
 
 ### Fixed

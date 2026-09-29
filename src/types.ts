@@ -87,6 +87,10 @@ export type Move = NormalMove & {
   isEnPassant?: boolean;
   isCastling?: boolean;
   isPromotion?: boolean;
+  // first-class null move (pass) — the `0xffff` moves2 sentinel word. Set by
+  // parseSan("--"/"Z0"), parseUci("0000") and unpackToMove(0xffff); never
+  // produced by legal movegen. See packedMove.ts NULL_MOVE_WORD.
+  isNull?: boolean;
 };
 
 export type Outcome = "white" | "black" | "draw" | "*";

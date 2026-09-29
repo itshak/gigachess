@@ -6,13 +6,13 @@
 // Not part of the third-party baseline; MIT like the rest of gigachess.
 import { parsePgn, type GameTree as CoreGameTree, type PgnMove } from "./pgn.js";
 import { parseFen, makeFen } from "./fen.js";
-import { makeMove, isCheck } from "./chess.js";
-import { parseSan, makeUci } from "./san.js";
+import { makeMove, isCheck, isNullMoveLegal } from "./chess.js";
+import { parseSan, makeUci, isNullMoveSan } from "./san.js";
+import { NULL_MOVE_SAN, NULL_MOVE_UCI, nullMove } from "./packedMove.js";
 import { Color } from "./types.js";
 import type { Move, Position, Setup } from "./types.js";
 
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-const NULL_MOVE_SANS = new Set(["--", "Z0", "null"]);
 const ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
 // ---------- public tree shapes (mirror of the chesstree public API) ----------
@@ -118,7 +118,7 @@ function commentId(fullPath: string, index: number): string {
   return `pgn-comment-comment-${fullPath}-${index}`;
 }
 
-const isNullMoveSan = (san: string): boolean => NULL_MOVE_SANS.has(san);
+const isNullMoveNode = (node: TreeNode): boolean => node.san !== undefined && isNullMoveSan(node.san);
 
 /** Baseline import semantics: a move repeated as a sibling (same SAN — e.g.
  * the same line reached via several variations) merges into one node;
@@ -161,19 +161,28 @@ function replaySection(moves: PgnMove[], ctx: ReplayCtx, out: TreeNode[]): void 
       uci: "",
       children: [],
     };
-    let advance: { move: Move } | null = null;
+    let advance: { pos: Position } | null = null;
     if (isNullMoveSan(m.san)) {
-      // baseline normalizes Z0/null placeholders to san "--", uci "0000"
-      node.san = "--";
-      node.uci = "0000";
+      // A pass is a first-class ply, not a skipped token: it advances the
+      // position (turn flips, ep clears, halfmove and fullmove both bump), so
+      // node.fen must be the RESULT position and ctx must advance exactly as
+      // for any other move — otherwise every later node on this line stays one
+      // ply out of step and carries the parent's FEN. A pass is illegal while
+      // the side to move is in check: skip it, never throw.
+      if (!isNullMoveLegal(ctx.pos)) continue;
+      // the baseline normalizes the Z0 pass token to san "--", uci "0000"
+      node.san = NULL_MOVE_SAN;
+      node.uci = NULL_MOVE_UCI;
+      advance = { pos: makeMove(ctx.pos, nullMove()) };
+      node.fen = fenWithEpPolicy(advance.pos);
     } else {
       const parsed = parseSan(m.san, ctx.pos);
       if (!parsed.ok) continue; // never throw on garbage — skip the move
       const move: Move = parsed.value;
-      advance = { move };
       node.san = m.san;
       node.uci = makeUci(move);
-      node.fen = fenWithEpPolicy(makeMove(ctx.pos, move));
+      advance = { pos: makeMove(ctx.pos, move) };
+      node.fen = fenWithEpPolicy(advance.pos);
     }
     if (m.comments.length > 0) {
       node.comments = m.comments.map((text, i) => ({
@@ -185,14 +194,14 @@ function replaySection(moves: PgnMove[], ctx: ReplayCtx, out: TreeNode[]): void 
     // node, recursively merging their subtrees
     const existing = target.find((c) => c.san !== undefined && c.san === node.san);
     let mergedInto: TreeNode | undefined;
-    if (existing !== undefined && !isNullMoveSan(node.san ?? "")) {
+    if (existing !== undefined && !isNullMoveNode(node)) {
       mergeTree(existing, node);
       mergedInto = existing;
     } else {
       target.push(node);
     }
     if (advance) {
-      ctx.pos = makeMove(ctx.pos, advance.move);
+      ctx.pos = advance.pos;
       ctx.ply += 1;
       ctx.path += id;
     }
@@ -538,13 +547,18 @@ interface NumberingState {
   needNumber: boolean;
 }
 
-function advanceState(state: NumberingState): void {
-  if (state.turn === "b") {
+function advanceState(state: NumberingState, isPass: boolean): void {
+  // A pass is a FULL move: the number advances whoever passed, exactly as the
+  // null-move FEN transition does (fullmove+1 regardless of side). A normal
+  // move only advances the number when Black just moved.
+  if (isPass || state.turn === "b") {
     state.moveNo += 1;
     state.turn = "w";
   } else {
     state.turn = "b";
   }
+  // A pass always completes a move, so the next token must carry its number.
+  if (isPass) state.needNumber = true;
 }
 
 /** Emits the tree from `list[idx]`: the node, then the paren groups for its
@@ -556,7 +570,9 @@ function emitFrom(list: TreeNode[], idx: number, state: NumberingState, tokens: 
   const node = list[idx];
   const san = node.san;
   const isNull = san !== undefined && isNullMoveSan(san);
-  if (san !== undefined && !isNull) {
+  // A pass is emitted as `--` — it is a real ply, so dropping it (the old
+  // behavior) desynchronized the numbering of every following token.
+  if (san !== undefined) {
     if (state.turn === "w") tokens.push(state.moveNo + ".");
     else if (state.needNumber) tokens.push(state.moveNo + "...");
     tokens.push(san);
@@ -567,7 +583,7 @@ function emitFrom(list: TreeNode[], idx: number, state: NumberingState, tokens: 
     }
   }
   for (const c of node.comments ?? []) tokens.push("{" + c.text + "}");
-  if (san !== undefined && !isNull) advanceState(state);
+  if (san !== undefined) advanceState(state, isNull);
   for (let j = idx + 1; j < list.length; j++) {
     const inner: NumberingState = { ...stateBefore, needNumber: true };
     const sub: string[] = [];
@@ -626,13 +642,12 @@ export const pgnExport = {
       const san = node.san;
       if (san === undefined) continue;
       const isNull = isNullMoveSan(san);
-      if (!isNull) {
-        if (state.turn === "w") tokens.push(`${state.moveNo}.`);
-        else if (state.needNumber) tokens.push(`${state.moveNo}...`);
-        tokens.push(san);
-        state.needNumber = false;
-        advanceState(state);
-      }
+      // A pass is emitted as `--` and advances the numbering as a full move.
+      if (state.turn === "w") tokens.push(`${state.moveNo}.`);
+      else if (state.needNumber) tokens.push(`${state.moveNo}...`);
+      tokens.push(san);
+      state.needNumber = false;
+      advanceState(state, isNull);
       for (const c of node.comments ?? []) tokens.push(`{${c.text}}`);
     }
     return `${headers.join("\n")}\n\n${tokens.join(" ")}`;

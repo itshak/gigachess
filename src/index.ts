@@ -43,6 +43,7 @@ export {
   allDests,
   detectCastling,
   isCheck,
+  isCheckFresh,
   isCheckmate,
   isStalemate,
   isInsufficientMaterial,
@@ -50,16 +51,18 @@ export {
   isSeventyFiveMoveDraw,
   isThreefoldRepetition,
   isLegal,
+  isNullMoveLegal,
   perft,
   countLegalMoves,
   legalMovesInto,
   forEachLegalMove,
   MoveCounter,
   makeMove,
+  makeNullMove,
   play,
   INITIAL_FEN,
 } from "./chess.js";
-export type { CastlingPlan } from "./chess.js";
+export type { CastlingPlan, NullUndo } from "./chess.js";
 
 // chesstree integration (tree shapes + analysis API, folded into the root)
 export {

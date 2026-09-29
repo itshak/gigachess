@@ -6,7 +6,7 @@ import * as sq from "./squareSet.js";
 import { Color, Role } from "./types.js";
 import type { Position, Setup, Move, CastlingRights } from "./types.js";
 import { opposite } from "./util.js";
-import { kingAttackers } from "./attacks.js";
+import { kingAttackers, attackersTo } from "./attacks.js";
 import {
   zobristTablesLoaded,
   calculateZobrist,
@@ -38,6 +38,7 @@ import {
   packOf,
   unpackToMove,
   promoCodeToRole,
+  isNull,
 } from "./packedMove.js";
 import { parseFen, makeFen } from "./fen.js";
 import { parseSan, makeSan, parseUci, makeUci } from "./san.js";
@@ -65,6 +66,25 @@ export type Undo = {
   readonly castlingPlan: CastlingPlan | null;
   readonly isEnPassant: boolean;
   readonly promoRole: Role | null;
+  readonly epSquare: number | null;
+  readonly castling: CastlingRights;
+  readonly castlingMask?: number;
+  readonly halfmoves: number;
+  readonly fullmoves: number;
+  readonly kingSq: readonly [number, number];
+  readonly checkers: SquareSet;
+  readonly zobristLo: number;
+  readonly zobristHi: number;
+};
+
+/**
+ * Snapshot for a null move (pass). A pass moves no piece, so it records only
+ * the state its transition touches — ep, the clocks, turn and the caches —
+ * and carries `isNull: true` as the discriminant `unmakeMove` dispatches on.
+ * Mirrors gigachess-rs `make_null_move` (board.rs).
+ */
+export type NullUndo = {
+  readonly isNull: true;
   readonly epSquare: number | null;
   readonly castling: CastlingRights;
   readonly castlingMask?: number;
@@ -437,8 +457,84 @@ export class Board implements BoardLike {
     }
   }
 
-  makeMove(moveWord: number | Move): Undo {
+  /**
+   * Plays a null move (pass): the position stays, the side to move flips.
+   *
+   * Castling rights are untouched, the en-passant square clears, the halfmove
+   * clock advances and the move always completes a full move (the number
+   * advances whoever passed). The Polyglot key and the cached `checkers` are
+   * both maintained.
+   *
+   * Throws when the side to move is in check: a pass answers no check. The test
+   * is computed from the bitboards (never from the cached `checkers`, which a
+   * cache-free make may have left stale). Mirrors gigachess-rs
+   * `Board::make_null_move`.
+   */
+  makeNullMove(): NullUndo {
+    const us = this.turn;
+    const them = opposite(us);
+    // Fresh in-check scan — the cache may describe an earlier position.
+    const ksq = this.kingSq[us === Color.White ? 0 : 1];
+    if (ksq >= 0 && !sq.isEmpty(attackersTo(this, ksq, them, this.occupied))) {
+      throw new Error("illegal null move: the side to move is in check");
+    }
+    const undo: NullUndo = {
+      isNull: true,
+      epSquare: this.epSquare,
+      castling: this.castling,
+      castlingMask: this.castlingMask,
+      halfmoves: this.halfmoves,
+      fullmoves: this.fullmoves,
+      kingSq: [this.kingSq[0], this.kingSq[1]],
+      checkers: this.checkers,
+      zobristLo: this._zobristLo,
+      zobristHi: this._zobristHi,
+    };
+    // Hash out the old en-passant contribution (relevance uses the mover's
+    // pawns, which a pass does not move) before clearing it.
+    if (zobristTablesLoaded() && keyLo && keyHi) {
+      if (this._zobristLo === 0 && this._zobristHi === 0) this.refreshZobrist();
+      if (this.epSquare !== null && epIsHashable(this, this.epSquare, us)) {
+        const kEp = IDX_EP + (this.epSquare & 7);
+        this._zobristLo = (this._zobristLo ^ keyLo[kEp]) >>> 0;
+        this._zobristHi = (this._zobristHi ^ keyHi[kEp]) >>> 0;
+      }
+      // a pass is a full move — the side key always flips
+      this._zobristLo = (this._zobristLo ^ keyLo[IDX_SIDE]) >>> 0;
+      this._zobristHi = (this._zobristHi ^ keyHi[IDX_SIDE]) >>> 0;
+    }
+    this.epSquare = null;
+    this.halfmoves = this.halfmoves + 1;
+    this.fullmoves = this.fullmoves + 1;
+    this.turn = them;
+    this.checkers = kingAttackers(this, them);
+    return undo;
+  }
+
+  /**
+   * Reverts the most recent null move, restoring the exact prior position.
+   *
+   * Each null must be unmade before an older one, with no ordinary moves
+   * interleaved past the matching make — exactly like `unmakeMove`.
+   */
+  unmakeNullMove(undo: NullUndo): void {
+    this.turn = opposite(this.turn);
+    this.fullmoves = undo.fullmoves;
+    this.epSquare = undo.epSquare;
+    this.castling = undo.castling;
+    this.castlingMask = undo.castlingMask;
+    this.halfmoves = undo.halfmoves;
+    this.kingSq[0] = undo.kingSq[0];
+    this.kingSq[1] = undo.kingSq[1];
+    this.checkers = undo.checkers;
+    this._zobristLo = undo.zobristLo;
+    this._zobristHi = undo.zobristHi;
+  }
+
+  makeMove(moveWord: number | Move): Undo | NullUndo {
     const word = typeof moveWord === "number" ? moveWord : packOf(moveWord);
+    // The null sentinel is a first-class pass, not a from/to/promo word.
+    if (isNull(word)) return this.makeNullMove();
     const from = word & 0x3f;
     const to = (word >> 6) & 0x3f;
     const promoCode = (word >> 12) & 0x0f;
@@ -673,35 +769,41 @@ export class Board implements BoardLike {
     };
   }
 
-  unmakeMove(undo: Undo): void {
-    const from = undo.move & 0x3f;
-    const to = (undo.move >> 6) & 0x3f;
+  unmakeMove(undo: Undo | NullUndo): void {
+    // A pass records no piece edits — restore clocks/turn/caches only.
+    if ((undo as NullUndo).isNull === true) {
+      this.unmakeNullMove(undo as NullUndo);
+      return;
+    }
+    const normal = undo as Undo;
+    const from = normal.move & 0x3f;
+    const to = (normal.move >> 6) & 0x3f;
     const us = opposite(this.turn);
 
     this.turn = us;
-    this.halfmoves = undo.halfmoves;
-    this.fullmoves = undo.fullmoves;
-    this.epSquare = undo.epSquare;
-    this.castling = undo.castling;
-    this.castlingMask = undo.castlingMask;
-    this.kingSq[0] = undo.kingSq[0];
-    this.kingSq[1] = undo.kingSq[1];
-    this.checkers = undo.checkers;
-    this._zobristLo = undo.zobristLo;
-    this._zobristHi = undo.zobristHi;
+    this.halfmoves = normal.halfmoves;
+    this.fullmoves = normal.fullmoves;
+    this.epSquare = normal.epSquare;
+    this.castling = normal.castling;
+    this.castlingMask = normal.castlingMask;
+    this.kingSq[0] = normal.kingSq[0];
+    this.kingSq[1] = normal.kingSq[1];
+    this.checkers = normal.checkers;
+    this._zobristLo = normal.zobristLo;
+    this._zobristHi = normal.zobristHi;
 
-    if (undo.castlingPlan !== null) {
-      const plan = undo.castlingPlan;
+    if (normal.castlingPlan !== null) {
+      const plan = normal.castlingPlan;
       this._clearSquare(plan.kingTo);
       this._clearSquare(plan.rookTo);
       this._putPiece(plan.kingFrom, us, Role.King);
       this._putPiece(plan.rookFrom, us, Role.Rook);
     } else {
       this._clearSquare(to);
-      this._putPiece(from, us, undo.movingRole);
-      if (undo.capturedSq >= 0 && undo.capturedRole >= 0) {
+      this._putPiece(from, us, normal.movingRole);
+      if (normal.capturedSq >= 0 && normal.capturedRole >= 0) {
         const them = opposite(us);
-        this._putPiece(undo.capturedSq, them, undo.capturedRole as Role);
+        this._putPiece(normal.capturedSq, them, normal.capturedRole as Role);
       }
     }
   }

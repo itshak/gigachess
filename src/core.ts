@@ -27,13 +27,17 @@ export {
   allDests,
   detectCastling,
   isCheck,
+  isCheckFresh,
   isCheckmate,
   isStalemate,
   isInsufficientMaterial,
   isFiftyMoveDraw,
   isThreefoldRepetition,
+  isLegal,
+  isNullMoveLegal,
   perft,
   makeMove,
+  makeNullMove,
   play,
 } from "./chess.js";
-export type { CastlingPlan } from "./chess.js";
+export type { CastlingPlan, NullUndo } from "./chess.js";
