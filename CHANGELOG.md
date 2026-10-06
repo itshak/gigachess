@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.3] - 2026-10-06
+
+### Added
+- **Ambiguous SAN Reports Its Candidates:** `parseSanCandidates` (module and `board.`) returns every legal move a SAN string could denote, so a caller can name the disambiguated moves instead of only reporting that the input was ambiguous. A resolved SAN comes back as a one-element list, so this can replace `parseSan` wherever the caller needs "one move, or the reason".
+- **`parseSanDetailed`:** Returns `{ result, candidates }` — exactly what `parseSan` returns, plus the collected matches. `candidates` is `null` when the string was refused before any move could match, which separates "not a SAN" from "an ambiguous SAN".
+- **`board.parseSanResult`:** Returns `{ ok: true, moveWord }` or `{ ok: false, code }`, so a UI can distinguish `san/ambiguous` from `san/noLegalMove` and `san/invalidSan` — all three of which `board.parseSan` collapses into one `null`.
+
+### Notes
+- `parseSan` and `board.parseSan` are unchanged in signature and behaviour; the new entry points are additive and existing hot paths are untouched.
+- Promotion move identity was verified already correct and is now pinned by tests: `a7a8q`/`a7a8r`/`a7a8b`/`a7a8n` are four distinct move words, `makeUci` round-trips each, and the bare `a7a8` is refused rather than defaulting to a queen.
+- ADR-018 records why the candidates must not be re-derived by callers.
+
+---
+
 ## [0.4.2] - 2026-09-29
 
 ### Added

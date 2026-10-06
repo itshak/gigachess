@@ -41,7 +41,7 @@ import {
   isNull,
 } from "./packedMove.js";
 import { parseFen, makeFen } from "./fen.js";
-import { parseSan, makeSan, parseUci, makeUci } from "./san.js";
+import { parseSan, parseSanCandidates, makeSan, parseUci, makeUci } from "./san.js";
 import { legalMovesInto, forEachLegalMove, countLegalMoves, isLegal, INITIAL_FEN } from "./chess.js";
 
 export type BoardLike = {
@@ -839,9 +839,51 @@ export class Board implements BoardLike {
     return res.ok ? packOf(res.value) : null;
   }
 
+  /**
+   * `parseSan` with the failure reason kept.
+   *
+   * `parseSan` maps every error — `san/ambiguous`, `san/noLegalMove`,
+   * `san/invalidSan` — onto the same `null`, so a caller cannot tell "no such
+   * move" from "several moves answer to this and you must disambiguate". Those
+   * are different answers for a UI: one is an error, the other needs the
+   * candidates named (BlindBase ADR-042, field report #11).
+   *
+   * The error code is returned rather than a richer object because the codes
+   * are the library's own error vocabulary (`SanError["code"]`), already
+   * documented and already i18n-keyed upstream.
+   */
+  parseSanResult(
+    san: string,
+  ): { ok: true; moveWord: number } | { ok: false; code: string } {
+    const res = parseSan(san, this);
+    return res.ok
+      ? { ok: true, moveWord: packOf(res.value) }
+      : { ok: false, code: res.error.code };
+  }
+
   parseUci(uci: string): number | null {
     const res = parseUci(uci);
     return res.ok && isLegal(this, res.value) ? packOf(res.value) : null;
+  }
+
+  /**
+   * Every packed move word `san` could denote here, or the reason it names none.
+   *
+   * `parseSan` reports `san/ambiguous` and discards the matches, so a caller
+   * can tell the user the input was ambiguous but not which moves it meant.
+   * This returns them, letting a caller present the disambiguated spellings
+   * rather than making the user guess (BlindBase ADR-042, field report #11).
+   *
+   * A resolved move comes back as a one-element array, so this can replace
+   * `parseSan` wherever the caller only needs "one move, or a reason".
+   */
+  parseSanCandidates(
+    san: string,
+  ): { ok: true; moveWords: number[] } | { ok: false; code: string } {
+    const res = parseSanCandidates(san, this);
+    return res.ok
+      ? { ok: true, moveWords: res.value.map(packOf) }
+      : { ok: false, code: res.error.code };
   }
 
   perft(depth: number): number {

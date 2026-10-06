@@ -37,3 +37,27 @@ The system SHALL provide `board.toSan(moveWord: number): string`, `board.toUci(m
 #### Scenario: Generating SAN, UCI, and FEN strictly on-demand
 - **WHEN** a UI component requests display strings via `board.toSan(moveWord)` or `board.toFen()`
 - **THEN** the formatted string is computed directly from the current board bitboards and 16-bit move word without mutating board state
+
+### Requirement: Ambiguous SAN Is Reported With Its Candidates
+The system SHALL expose `board.parseSanResult(san: string)` and `board.parseSanCandidates(san: string)` on `Board`, and the module-level `parseSanDetailed` / `parseSanCandidates`, so that a SAN string matching more than one legal move reports every match rather than only a refusal.
+
+`board.parseSan` SHALL continue to return `number | null` for backward compatibility; the reason-preserving entry points are additive.
+
+#### Scenario: An ambiguous SAN names the moves it could mean
+- **WHEN** `board.parseSanCandidates("Nc3")` is called in a position where two knights reach c3
+- **THEN** it returns both packed move words, each rendering to its own disambiguated SAN (`Nbc3`, `Nec3`)
+- **AND** `board.parseSan("Nc3")` still returns `null` for the same input
+
+#### Scenario: A refusal distinguishes "ambiguous" from "no such move"
+- **WHEN** `board.parseSanResult` is called with an ambiguous SAN and with an illegal SAN
+- **THEN** the first returns the code `san/ambiguous` and the second a different code
+- **AND** neither is reported as the other
+
+#### Scenario: A resolved SAN yields exactly one candidate
+- **WHEN** `board.parseSanCandidates` is called with a SAN that identifies one legal move
+- **THEN** it returns a single-element list equal to what `board.parseSan` returns
+
+#### Scenario: Promotion moves keep their piece through candidate identity
+- **WHEN** `parseSanCandidates` is called for `a8=Q`, `a8=R`, `a8=B` and `a8=N` in a promoting position
+- **THEN** each returns its own distinct move word
+- **AND** the bare destination without a promotion piece names no move rather than defaulting to one

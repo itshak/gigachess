@@ -197,6 +197,69 @@ export function makeSan(move: Move, pos: Position): string {
 
 // ---------- parseSan ----------
 export function parseSan(san: string, pos: Position): Result<Move, SanError> {
+  return parseSanDetailed(san, pos).result;
+}
+
+/**
+ * `parseSan` with the matching moves retained.
+ *
+ * A multi-match parse ends in `san/ambiguous` and `parseSan` throws the matches
+ * away, so a caller can report *that* the input was ambiguous but never *what*
+ * it could have meant. `candidates` carries that list so a UI can name the
+ * disambiguated spellings instead of guessing (BlindBase ADR-042, report #11).
+ *
+ * `result` is exactly what `parseSan` returns for the same input; this exists so
+ * the two cannot drift, not as a second parse path.
+ */
+export function parseSanDetailed(
+  san: string,
+  pos: Position,
+): { result: Result<Move, SanError>; candidates: Move[] | null } {
+  const traced = parseSanTraced(san, pos);
+  const candidates = traced.candidates;
+  if (candidates === null) {
+    // Rejected before any move could match — nothing to disambiguate.
+    return { result: traced.result, candidates: null };
+  }
+  if (candidates.length === 0) {
+    return { result: Err({ code: "san/noLegalMove" }), candidates };
+  }
+  if (candidates.length > 1) {
+    return { result: Err({ code: "san/ambiguous" }), candidates };
+  }
+  return { result: Ok(candidates[0]), candidates };
+}
+
+/**
+ * Every legal move `san` could denote, or the error when it names none.
+ *
+ * The counterpart to `parseSan` for callers that must react to ambiguity rather
+ * than accept it: `length === 1` means resolved, `length > 1` means the caller
+ * should ask which of these it meant.
+ */
+export function parseSanCandidates(san: string, pos: Position): Result<Move[], SanError> {
+  const { result, candidates } = parseSanDetailed(san, pos);
+  if (candidates === null || candidates.length === 0) {
+    return result.ok ? Ok([result.value]) : Err(result.error);
+  }
+  return Ok(candidates);
+}
+
+/**
+ * The parse body, keeping the collected candidates.
+ *
+ * Every early refusal before candidate collection returns `candidates: null`,
+ * which is what distinguishes "this string is not a SAN at all" from "this SAN
+ * is ambiguous" — a distinction `parseSan`'s single error channel previously
+ * lost.
+ */
+function parseSanTraced(
+  san: string,
+  pos: Position,
+): { result: Result<Move, SanError>; candidates: Move[] | null } {
+  // A refusal raised before any move could match: nothing to disambiguate, which
+  // is what separates "not a SAN at all" from "an ambiguous SAN".
+  const fail = (code: string) => ({ result: Err<Move, SanError>({ code }), candidates: null });
   const orig = san;
   let s = normalizeCastlingSan(san.trim());
   // Null move (pass) — exactly `--` or `Z0`, matched BEFORE any check-suffix
@@ -204,8 +267,8 @@ export function parseSan(san: string, pos: Position): Result<Move, SanError> {
   // legal iff the side to move is not in check; the test is computed fresh from
   // the attack tables, never from the cached `checkers` bitboard.
   if (isNullMoveSan(s)) {
-    if (!chess.isNullMoveLegal(pos)) return Err({ code: "san/illegal" });
-    return Ok(nullMove());
+    if (!chess.isNullMoveLegal(pos)) return fail("san/illegal");
+    return { result: Ok(nullMove()), candidates: [nullMove()] };
   }
   // Handle check suffix for later, but keep for validation
   let checkSuffix = "";
@@ -218,7 +281,7 @@ export function parseSan(san: string, pos: Position): Result<Move, SanError> {
   if (s === "O-O" || s === "O-O-O") {
     const isKingSide = s === "O-O";
     const kingSq = board.kingSquare(pos.board, pos.turn);
-    if (kingSq === undefined) return Err({ code: "san/noKing" });
+    if (kingSq === undefined) return fail("san/noKing");
     // Find if castling is legal via dests. The generated dest is the
     // representation's castling square: normalized landing (6/2/62/58) or the
     // right's rook square (baseline/960 form). Both are accepted.
@@ -234,12 +297,12 @@ export function parseSan(san: string, pos: Position): Result<Move, SanError> {
         if (rookIsKingSide === isKingSide && sq.has(d, rs)) { dest = rs; break; }
       }
     }
-    if (dest === undefined) return Err({ code: "san/illegal" });
+    if (dest === undefined) return fail("san/illegal");
     const move: Move = { from: kingSq, to: dest, isCastling: true, isEnPassant: false, isPromotion: false, promotion: null };
     // Optionally validate check suffix matches actual
     // We ignore mismatch for parsing tolerance, but we could validate
     // If checkSuffix present, we could verify after play, but not required to error
-    return Ok(move);
+    return { result: Ok(move), candidates: [move] };
   }
 
   // Promotion handling
@@ -247,18 +310,18 @@ export function parseSan(san: string, pos: Position): Result<Move, SanError> {
   const eqIdx = s.indexOf("=");
   if (eqIdx !== -1) {
     const promoChar = s[eqIdx + 1];
-    if (!promoChar) return Err({ code: "san/invalidPromotion" });
+    if (!promoChar) return fail("san/invalidPromotion");
     const role = promoCharToRole(promoChar);
-    if (role === undefined) return Err({ code: "san/invalidPromotion" });
+    if (role === undefined) return fail("san/invalidPromotion");
     promotion = role;
     s = s.slice(0, eqIdx);
   }
 
   // Destination
-  if (s.length < 2) return Err({ code: "san/invalidSan" });
+  if (s.length < 2) return fail("san/invalidSan");
   const toStr = s.slice(-2);
   const to = parseSquare(toStr);
-  if (to === undefined) return Err({ code: "san/invalidSquare" });
+  if (to === undefined) return fail("san/invalidSquare");
   let rest = s.slice(0, -2);
 
   // Capture
@@ -285,14 +348,14 @@ export function parseSan(san: string, pos: Position): Result<Move, SanError> {
     const ch = rest[0];
     if (ch >= "a" && ch <= "h") disambFile = ch;
     else if (ch >= "1" && ch <= "8") disambRank = ch;
-    else return Err({ code: "san/invalidSan" });
+    else return fail("san/invalidSan");
   } else if (rest.length === 2) {
     if (rest[0] >= "a" && rest[0] <= "h" && rest[1] >= "1" && rest[1] <= "8") {
       disambFile = rest[0];
       disambRank = rest[1];
-    } else return Err({ code: "san/invalidSan" });
+    } else return fail("san/invalidSan");
   } else if (rest.length > 2) {
-    return Err({ code: "san/invalidSan" });
+    return fail("san/invalidSan");
   }
 
   // For pawn, pieceRole is pawn, but rest may be file for capture (like "e" in exd5)
@@ -355,7 +418,7 @@ export function parseSan(san: string, pos: Position): Result<Move, SanError> {
     const reqRank = disambRank.charCodeAt(0) - 49;
     filteredFroms = filteredFroms.filter(f => squareRank(f) === reqRank);
   }
-  if (filteredFroms.length === 0) return Err({ code: "san/noLegalMove" });
+  if (filteredFroms.length === 0) return fail("san/noLegalMove");
 
   // Legality filtering with single shared check context
   const ctx = chess.analyzeCheckContext(pos);
@@ -389,10 +452,9 @@ export function parseSan(san: string, pos: Position): Result<Move, SanError> {
     });
   }
 
-  if (candidates.length === 0) return Err({ code: "san/noLegalMove" });
-  if (candidates.length > 1) return Err({ code: "san/ambiguous" });
-  const chosen = candidates[0];
-  return Ok(chosen);
+  if (candidates.length === 0) return { result: Err({ code: "san/noLegalMove" }), candidates };
+  if (candidates.length > 1) return { result: Err({ code: "san/ambiguous" }), candidates };
+  return { result: Ok(candidates[0]), candidates };
 }
 
 // ---------- UCI ----------
