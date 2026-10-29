@@ -26,6 +26,44 @@ export interface Comment {
 export interface Glyph {
   symbol: string;
   name: string;
+  /** The PGN NAG number (`$14`), when the glyph has one. */
+  id?: number;
+}
+
+/** The standard annotation glyphs, by NAG: move assessments (1–7) and
+ * position assessments (10–19 and the rest). Symbols and names follow the
+ * lichess tree, so a glyph reads the same in either tree. */
+export const NAG_GLYPHS: Readonly<Record<number, Readonly<Glyph>>> = Object.freeze({
+  1: { id: 1, symbol: "!", name: "Good move" },
+  2: { id: 2, symbol: "?", name: "Mistake" },
+  3: { id: 3, symbol: "!!", name: "Brilliant move" },
+  4: { id: 4, symbol: "??", name: "Blunder" },
+  5: { id: 5, symbol: "!?", name: "Interesting move" },
+  6: { id: 6, symbol: "?!", name: "Dubious move" },
+  7: { id: 7, symbol: "□", name: "Only move" },
+  10: { id: 10, symbol: "=", name: "Equal position" },
+  13: { id: 13, symbol: "∞", name: "Unclear position" },
+  14: { id: 14, symbol: "⩲", name: "White is slightly better" },
+  15: { id: 15, symbol: "⩱", name: "Black is slightly better" },
+  16: { id: 16, symbol: "±", name: "White is better" },
+  17: { id: 17, symbol: "∓", name: "Black is better" },
+  18: { id: 18, symbol: "+−", name: "White is winning" },
+  19: { id: 19, symbol: "−+", name: "Black is winning" },
+  22: { id: 22, symbol: "⨀", name: "Zugzwang" },
+  32: { id: 32, symbol: "↑↑", name: "Development" },
+  36: { id: 36, symbol: "↑", name: "Initiative" },
+  40: { id: 40, symbol: "→", name: "Attack" },
+  132: { id: 132, symbol: "⇆", name: "Counterplay" },
+  138: { id: 138, symbol: "⊕", name: "Time trouble" },
+  140: { id: 140, symbol: "∆", name: "With the idea" },
+  146: { id: 146, symbol: "N", name: "Novelty" },
+});
+
+/** The glyph for a NAG. A NAG without a standard glyph keeps its number as
+ * `$n`, so it survives import and export unchanged. */
+export function glyphForNag(nag: number): Glyph {
+  const known = NAG_GLYPHS[nag];
+  return known ? { ...known } : { id: nag, symbol: `$${nag}`, name: `NAG ${nag}` };
 }
 
 export interface Clock {
@@ -135,6 +173,12 @@ function mergeTree(existing: TreeNode, incoming: TreeNode): void {
       if (!ex.some((e) => e.text === c.text)) ex.push(c);
     }
   }
+  if (incoming.startingComments !== undefined && incoming.startingComments.length > 0) {
+    const ex = existing.startingComments ?? (existing.startingComments = []);
+    for (const c of incoming.startingComments) {
+      if (!ex.some((e) => e.text === c.text)) ex.push(c);
+    }
+  }
   if (existing.glyphs === undefined && incoming.glyphs !== undefined) existing.glyphs = incoming.glyphs;
 }
 
@@ -145,12 +189,16 @@ interface ReplayCtx {
   moveNo: number;
 }
 
-function replaySection(moves: PgnMove[], ctx: ReplayCtx, out: TreeNode[]): void {
+/** `root` is set for the game's own section: comments before its first move
+ * belong to the root node (`{intro} 1. e4`), as in the baseline. In a
+ * variation they are the first move's `startingComments`. */
+function replaySection(moves: PgnMove[], ctx: ReplayCtx, out: TreeNode[], root?: TreeNode): void {
   // Mainline nesting: the parser emits a flat mainline list, so each
   // successive move nests under the previous node's children. A PGN variation
   // replaces the move it follows — it starts from the position BEFORE that
   // move and its nodes are siblings of it (children[0] = mainline).
   let target: TreeNode[] = out;
+  let first = true;
   for (const m of moves) {
     const snapshot: ReplayCtx = { ...ctx };
     const id = nextNodeId(target);
@@ -184,12 +232,26 @@ function replaySection(moves: PgnMove[], ctx: ReplayCtx, out: TreeNode[]): void 
       advance = { pos: makeMove(ctx.pos, move) };
       node.fen = fenWithEpPolicy(advance.pos);
     }
-    if (m.comments.length > 0) {
-      node.comments = m.comments.map((text, i) => ({
+    const lead = m.startingComments ?? [];
+    const after = first ? m.comments : [...lead, ...m.comments];
+    if (first && lead.length > 0) {
+      if (root) {
+        root.comments = lead.map((text, i) => ({ id: `pgn-comment-comment-root-${i}`, text }));
+      } else {
+        node.startingComments = lead.map((text, i) => ({
+          id: `pgn-starting-comment-${ctx.path}${id}-${i}`,
+          text,
+        }));
+      }
+    }
+    first = false;
+    if (after.length > 0) {
+      node.comments = after.map((text, i) => ({
         id: commentId(`${ctx.path}${id}`, i),
         text,
       }));
     }
+    if (m.nags.length > 0) node.glyphs = m.nags.map(glyphForNag);
     // baseline pgnImport merges duplicate sibling moves (same SAN) into one
     // node, recursively merging their subtrees
     const existing = target.find((c) => c.san !== undefined && c.san === node.san);
@@ -322,7 +384,7 @@ export function pgnImport(pgn: string): AnalyseData {
   const start: Setup = startRes.ok ? startRes.value : (parseFen(START_FEN) as { ok: true; value: Setup }).value;
   const root: TreeNode = { id: "", ply: 0, fen: rootFen, uci: "", children: [] };
   const ctx: ReplayCtx = { pos: start, ply: 0, path: "", moveNo: 1 };
-  replaySection(parsed.value.moves, ctx, root.children);
+  replaySection(parsed.value.moves, ctx, root.children, root);
   const game = defaultGame(rootFen, headers);
   const white = headers.get("White");
   const black = headers.get("Black");
@@ -516,7 +578,21 @@ export function build(root: TreeNode): TreeWrapper {
 
 // ---------- PGN export ----------
 const STRO_KEYS = new Set(["Event", "Site", "Date", "Round", "White", "Black", "Result"]);
-const GLYPH_TO_NAG: Record<string, number> = { "!": 1, "?": 2, "!!": 3, "??": 4, "!?": 5, "?!": 6 };
+const GLYPH_TO_NAG: Record<string, number> = Object.fromEntries(
+  Object.values(NAG_GLYPHS).map((g) => [g.symbol, g.id as number]),
+);
+// ASCII spellings of the winning glyphs
+GLYPH_TO_NAG["+-"] = 18;
+GLYPH_TO_NAG["-+"] = 19;
+
+/** The NAG for a glyph: its `id`, its standard symbol, or a `$n` symbol. */
+function nagOfGlyph(g: Glyph): number | undefined {
+  if (typeof g.id === "number" && Number.isInteger(g.id) && g.id > 0) return g.id;
+  const known = GLYPH_TO_NAG[g.symbol];
+  if (known !== undefined) return known;
+  const m = /^\$(\d+)$/.exec(g.symbol);
+  return m ? parseInt(m[1], 10) : undefined;
+}
 const Q = '"';
 const headerLine = (k: string, v: string | undefined): string =>
   "[" + k + " " + Q + (v ?? "?") + Q + "]";
@@ -572,13 +648,14 @@ function emitFrom(list: TreeNode[], idx: number, state: NumberingState, tokens: 
   const isNull = san !== undefined && isNullMoveSan(san);
   // A pass is emitted as `--` — it is a real ply, so dropping it (the old
   // behavior) desynchronized the numbering of every following token.
+  for (const c of node.startingComments ?? []) tokens.push("{" + c.text + "}");
   if (san !== undefined) {
     if (state.turn === "w") tokens.push(state.moveNo + ".");
     else if (state.needNumber) tokens.push(state.moveNo + "...");
     tokens.push(san);
     state.needNumber = false;
     for (const g of node.glyphs ?? []) {
-      const nag = GLYPH_TO_NAG[g.symbol];
+      const nag = nagOfGlyph(g);
       if (nag !== undefined) tokens.push("$" + nag);
     }
   }
@@ -609,7 +686,9 @@ function numberingFromFen(fen: string): NumberingState {
 
 function renderMovetext(root: TreeNode, game: Game): string {
   const state = numberingFromFen(root.fen);
-  const moves = renderSection(root.children, state);
+  const intro = (root.comments ?? []).map((c) => "{" + c.text + "}");
+  const body = renderSection(root.children, state);
+  const moves = [...intro, body].filter(Boolean).join(" ");
   const result = game.result ?? "*";
   return moves.length > 0 ? moves + " " + result : result;
 }

@@ -8,6 +8,10 @@ export type PgnMove = {
   san: string;
   nags: number[];
   comments: string[];
+  /** Comments written before this move — only the first move of a section
+   * (the game or a variation) has them: `{intro} 1. e4`, `({lead} 2. f4)`.
+   * Absent when there are none. */
+  startingComments?: string[];
   variations: GameTree[];
 };
 
@@ -275,8 +279,9 @@ function parseMovetext(text: string): Result<{ moves: PgnMove[]; result: string 
     // Create move node
     const moveNode: PgnMove = { san: token, nags: [], comments: [], variations: [] };
     if (pending.length > 0) {
-      // comments that appeared before this move precede any after-move comments
-      moveNode.comments = pending.slice();
+      // comments that appeared before this move stay before it, so
+      // makePgn(parsePgn(pgn)) keeps their place
+      moveNode.startingComments = pending.slice();
       pending = [];
     }
     currentMoves.push(moveNode);
@@ -314,6 +319,9 @@ function makeMovetext(moves: PgnMove[], result: string): string {
     // For mainline, white moves are even idx (0,2,4...), black odd
     // We'll emit numbers for white only, as "1. e4 e5 2. Nf3"
     // This is more standard and still tolerant when re-parsed
+    if (mv.startingComments && mv.startingComments.length > 0) {
+      for (const c of mv.startingComments) s += `{${c}} `;
+    }
     if (idx % 2 === 0) {
       const num = Math.floor(idx / 2) + 1;
       s += `${num}. `;

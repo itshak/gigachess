@@ -56,6 +56,7 @@ function stripNode(node, pathPrefix = "") {
       text: c.text,
       idScheme: c.id.startsWith("pgn-comment-comment-") && c.id.endsWith(`-${i}`),
     })),
+    startingComments: (node.startingComments ?? []).map((c) => ({ text: c.text, id: c.id.replace(full, "<path>") })),
     glyphs: node.glyphs,
     kids: node.children.map((c) => stripNode(c, full)),
   };
@@ -137,6 +138,16 @@ const r6 = compareTree("multi-game",
 const r7 = compareTree("variation-lead-comment",
   '[Result "*"]\n\n1. e4 e5 2. Nf3 (2. f4 {attack} exf4 3. Nf3) 2... Nc6 *');
 compareExport("variation-lead-comment", r7.co, r7.tc);
+
+// 7b. Comments before the game's first move and before a variation's first
+// move: the baseline keeps them on the root and as `startingComments`, and
+// writes them back before the move
+const r7b = compareTree("lead-comments",
+  '[Result "*"]\n\n{intro} 1. e4 e5 2. Nf3 ({lead} 2. f4 exf4) ({one} {two} 2. d4) 2... Nc6 *');
+compareExport("lead-comments", r7b.co, r7b.tc);
+const r7c = compareTree("lead-comment-black",
+  '[Result "*"]\n\n1. e4 e5 ({lead} 1... c5 2. Nf3) 2. Nf3 *');
+compareExport("lead-comment-black", r7c.co, r7c.tc);
 
 // 8. Garbage input: baseline throws; we return empty treeParts, never throw
 {

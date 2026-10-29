@@ -71,6 +71,8 @@ export {
   build,
   pgnExport,
   TreeWrapperImpl,
+  NAG_GLYPHS,
+  glyphForNag,
 } from "./chesstree.js";
 export type {
   TreeWrapper,

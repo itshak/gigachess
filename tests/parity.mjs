@@ -182,6 +182,14 @@ try {
   check("PGN parse", false, e.message);
 }
 
+{
+  // A comment before a section's first move stays before it (ADR-019)
+  const lead = pcParsePgn('{intro} 1. e4 e5 ({lead} 1... c5) *');
+  const first = lead.ok ? lead.value.moves[0] : undefined;
+  check("lead comment parsed as startingComments", JSON.stringify(first?.startingComments) === '["intro"]' && first?.comments.length === 0);
+  check("lead comments written before the move", lead.ok && pcMakePgn(lead.value).split("\n").pop() === "{intro} 1. e4 e5 ({lead} 1. c5) *");
+}
+
 console.log("== 6. En-passant FEN policy (chessops-compatible + strict option) ==");
 // change purechess-gates-green tasks 2.1/2.2: unreachable ep squares are
 // accepted (chessops-compatible) and round-trip byte-identically; the

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] - 2026-10-29
+
+### Added
+- **Glyphs Survive Import:** `pgnImport` turns every NAG into a glyph `{ id, symbol, name }`, covering move assessments (`!`, `?`, `!!`, `??`, `!?`, `?!`, `□`) and position assessments (`=`, `∞`, `⩲`, `⩱`, `±`, `∓`, `+−`, `−+` and the rest). Previously a glyph saved by an editor was lost when the game was reopened. A NAG with no standard glyph is kept as `$n`.
+- **`NAG_GLYPHS` and `glyphForNag`:** The standard glyph table and its lookup, exported from the root and `gigachess/chesstree`. `Glyph` gains an optional `id` (its NAG).
+- **Position Glyphs Exported:** Export writes every glyph as its NAG (from `id`, the symbol, or `$n`), not only the six move glyphs.
+
+### Fixed
+- **Lead Comments Keep Their Place:** A comment before the game's first move is the root's comment, and a comment before a variation's first move is that move's `startingComments`; both are written back before the move, byte-identical to the baseline. They used to come back after the move (`({lead} 2. f4)` → `(2. f4 {lead})`). `parsePgn` records them as `PgnMove.startingComments`, and `makePgn` writes them first.
+
+### Notes
+- ADR-019 records the glyph divergence from the baseline, which drops NAGs.
+- `PgnMove.comments` no longer includes the comments before a section's first move.
+
+---
+
 ## [0.4.3] - 2026-10-06
 
 ### Added
