@@ -16,6 +16,7 @@ import { ensureZobristLoaded, calculateZobrist, zobristHex } from "../dist/zobri
   const oldKey = zobristHex(calculateZobrist(b));
   const undo = b.makeMove(b.parseUci("e7e5"));
   assert.equal(b.zobristHex(), zobristHex(calculateZobrist(b)));
+  assert.deepEqual(repetitionKey(b.pos), repetitionKey(b.toPosition()));
   b.unmakeMove(undo);
   assert.equal(b.zobristHex(), oldKey);
   const pass = b.makeNullMove();

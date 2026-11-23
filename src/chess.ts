@@ -169,7 +169,11 @@ export function repetitionKey(pos: Position): ZobristKey {
   if (!zobristTablesLoaded() || !keyLo || !keyHi) {
     throw new Error("zobrist tables not loaded — call ensureZobristLoaded() first");
   }
-  const key = calculateZobrist(pos);
+  // Match Rust's cached-hash fast path for stateful Boards, while still
+  // supporting immutable parsed Setups without incremental hash fields.
+  const key = pos.zobristLo !== undefined && pos.zobristHi !== undefined
+    ? { lo: pos.zobristLo, hi: pos.zobristHi }
+    : calculateZobrist(pos);
   const ep = pos.epSquare;
   if (ep === null || !epIsHashable(pos, ep, pos.turn) || legalRepetitionEp(pos) !== null) {
     return key;
@@ -2030,7 +2034,7 @@ export class Chess {
       piece: ROLE_CHARS[piece.role],
       flags: flags.join(""),
       san,
-      lan,
+lan,
       before: this.#fenOf(pos),
       after: this.#fenOf(after),
     };
