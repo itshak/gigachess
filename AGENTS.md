@@ -7,12 +7,12 @@
 
 ## Project Overview
 
-**GigaChess** is the fastest TypeScript chess engine and library on Earth.
+**GigaChess** is a high-performance, pure TypeScript chess engine and library.
 It unifies native stateful `Board` performance, `chess.js` ergonomics, `chesstree` study trees, and Stockfish-level bitboard speed under a 100% permissive **MIT license**.
 
 - **License:** MIT
 - **Language:** TypeScript 5.8+ (strict mode, target ES2022)
-- **Runtime:** Node.js v20+ / Browser (ESM)
+- **Runtime:** Node.js >=22.5 / Browser (ESM)
 
 ---
 
@@ -86,3 +86,30 @@ gigachess/
 ├── openspec/                      # OpenSpec specs, ADRs, and change history
 └── dist/                          # Compiled production output
 ```
+
+---
+
+## Mirrored JS/Rust Rules Contract (MANDATORY)
+
+The current maintenance OpenSpec change lives in
+`openspec/changes/dual-engine-hardening-20261123/`. Read its proposal, design,
+research and `specs/mirrored-core-contract/spec.md` before editing chess
+rules, Chess960, FEN, SAN, repetition, hashing, or packed moves. Its peer
+spec is IDENTICAL in `itshak/gigachess-rs` and the golden fixtures are:
+
+- JS `tests/position-keys-v1.tsv`, `tests/moves2-v1.tsv`
+- Rust `tests/data/position-keys-v1.tsv`, `tests/data/moves2-v1.tsv`
+
+Immutable cross-language conventions: a1=0; 16-bit `moves2`
+`from | to<<6 | promo<<12`; promotions 0/1=N/2=B/3=R/4=Q; castling
+encoded as **king source -> original rook square** (including Chess960);
+null sentinel `0xffff` with SAN `--` and UCI `0000`; Polyglot/960 rook-file
+hash vectors and deterministic seed `0x00C0_FFEE_DABA_D00D`.
+Polyglot uses **pseudo-legal** en-passant reachability. FIDE repetition uses
+**legal** en-passant, so use `repetitionKey()` for that different purpose.
+Neither engine may silently redefine these contracts alone.
+
+GigaChess JS must remain pure JS/TS, no required WASM import or startup wait.
+Rust maintains its own optimized native implementation; identical *semantics*
+do not require identical internal structures or perft algorithms.
+All new rules require paired fixtures and independent parity verification.

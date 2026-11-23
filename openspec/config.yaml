@@ -1,50 +1,47 @@
 schema: spec-driven
 
-# Project context — shown to AI when creating artifacts
 context: |
-  PureChess is a native, local-first, accessible chess workstation built with
-  Tauri 2 (Rust backend) + React 19 (TypeScript frontend).
+  GigaChess is a high-performance, pure TypeScript, zero-runtime-dependency
+  chess rules and move-generation library published as the MIT-licensed npm
+  package "gigachess". It provides a stateful Board, chess.js and chessops
+  compatibility adapters, Chess960, PGN, SAN/UCI, variation trees, Polyglot
+  Zobrist hashing, and 16-bit moves2 binary replay.
 
-  Key domains: repertoire workstation, position search, spaced repetition,
-  endgame drills, puzzles, engine analysis.
+  This is NOT the former PureChess desktop app: no Tauri, UI, keyboard or
+  AGPL/GPL assumptions. Node.js >=22.5, ESM and modern browsers are supported.
+  Do not add a WebAssembly runtime dependency; fast synchronous startup and
+  normal interactive chess use are deliberate design goals.
 
-  Accessibility is non-negotiable: keyboard-first, screen reader support,
-  ARIA announcements, no Ctrl+ shortcuts on Windows.
+  Peer repository: https://github.com/itshak/gigachess-rs (native Rust).
+  The two engines MUST preserve identical chess semantics and binary contracts.
+  See the live OpenSpec change dual-engine-hardening-20261123 and its mirrored
+  `specs/mirrored-core-contract/spec.md` in BOTH repositories before changes
+  to board rules, Chess960, castling, moves2, null moves, repetition or hashing.
 
-  License: AGPL-3.0-or-later. GPL-3.0 dependencies: chessground, chessops, shakmaty.
-
-  See AGENTS.md for full project constitution and rules.
-
-# Per-artifact rules
 rules:
   proposal:
-    - Keep proposals focused on a single feature or fix
-    - Reference relevant ADRs from openspec/adr/ when architectural decisions are involved
-    - Note accessibility implications explicitly
+    - Describe the impact on existing published users and semver compatibility
+    - State whether the same rules or binary contract requires a Rust change
+    - License must remain MIT and imported code must be independently reviewed
   specs:
-    - Every user-facing feature MUST include keyboard navigation requirements
-    - Every feature MUST include screen reader announcement requirements
-    - Use Given/When/Then scenarios for testable behavior
-    - Include i18n requirements (en, ru, he) for any user-facing strings
+    - Use Given/When/Then scenarios for chess correctness and public APIs
+    - Preserve mirrored JS/Rust FEN, moves2, Polyglot and repetition semantics
+    - Update identical cross-language fixtures in both repositories as needed
   design:
-    - Reference ADRs for architecture decisions
-    - Note any new npm/cargo dependencies and their licenses
-    - Include accessibility architecture (ARIA, focus management, announcements)
+    - Include cold startup, warm latency, real-game and throughput measurements
+    - Never conflate Polyglot hash semantics with FIDE repetition-equivalence
+    - Do not integrate Rust or WebAssembly into the pure TypeScript package
   tasks:
-    - Each task should be completable in one coding session
-    - Include verification steps (typecheck, tests) in the final task
-    - Flag tasks that require VoiceOver/NVDA testing
-
-# Per-operation guidance
+    - Every rule change requires parity, perft, SAN/FEN and fuzz regression
+    - Performance-only changes require reproducible before/after benchmarks
+    - Coordinate changes that affect shared formats with gigachess-rs
 operations:
   apply:
     guidance:
-      - Always prefix git commit messages with the change ID in brackets, e.g. "[sound-design] Add move sound effects"
-      - Run npm run typecheck after implementation
-      - Run cd src-tauri && cargo check for any Rust changes
-      - Verify keyboard navigation for any UI changes
-      - Never remove existing comments or docstrings unrelated to the change
+      - Prefix commit messages with the OpenSpec change ID
+      - Run npm run typecheck, npm test and relevant benchmark suites locally
+      - Avoid breaking published exports or trusted replay hot paths silently
   archive:
     guidance:
-      - Summarize accessibility impact in the archive notes
-      - Update docs/STATUS.md with completed work
+      - Record benchmark environment and consumer compatibility verification
+      - Archive paired changes only when both language contracts are settled

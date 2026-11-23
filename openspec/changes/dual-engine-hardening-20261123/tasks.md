@@ -16,6 +16,7 @@
 
 ## Documentation and test hardening
 - [x] Create linked JS/Rust OpenSpec proposals and identical common contract
+- [x] Correct stale OpenSpec config (formerly PureChess/AGPL/UI) and AGENTS.md
 - [x] Update README/examples on async hash, 960, checked replay and measured claims
 - [x] Add shared golden FEN, packed moves, Polyglot/repetition key fixtures
 - [ ] Test all 960 start positions and unusual swap/empty-path castling cases
