@@ -30,6 +30,7 @@ import {
   CASTLE_BQ,
   CASTLE_CLEAR_STD,
   CASTLING_RIGHTS_TABLE,
+  fixedRookRights,
   getCastlingMask,
   detectCastling,
 } from "./castling.js";
@@ -170,15 +171,47 @@ export class Board implements BoardLike {
     return b;
   }
 
-  static fromFen(fen: string): Board {
-    return new Board(fen);
+  static fromFen(fen: string, opts?: { chess960?: boolean; strict?: boolean }): Board {
+    if (!opts) return new Board(fen);
+    const parsed = parseFen(fen, opts);
+    if (!parsed.ok) throw new Error(`Invalid FEN: ${fen}`);
+    return new Board(parsed.value);
   }
 
   static fromMoves2(buffer: Uint16Array | Uint8Array, startFen: string = INITIAL_FEN, isChess960: boolean = false): Board {
-    const b = new Board(startFen);
-    b.isChess960 = isChess960;
-    const moves = buffer instanceof Uint16Array ? buffer : new Uint16Array(buffer.buffer, buffer.byteOffset, buffer.byteLength >> 1);
+    const b = Board.fromFen(startFen, isChess960 ? { chess960: true } : undefined);
+    // moves2 is little-endian; a Uint8Array slice may have an odd byte offset.
+    // Retain zero-copy for aligned words and decode only unaligned input.
+    const moves = Board.moveWords(buffer);
     for (let i = 0; i < moves.length; i++) {
+      b.makeMove(moves[i]);
+    }
+    return b;
+  }
+
+  /** Decode a moves2 byte stream, including unaligned Uint8Array views. */
+  private static moveWords(buffer: Uint16Array | Uint8Array): Uint16Array {
+    if (buffer instanceof Uint16Array) return buffer;
+    const length = buffer.byteLength >>> 1;
+    if ((buffer.byteOffset & 1) === 0) {
+      return new Uint16Array(buffer.buffer, buffer.byteOffset, length);
+    }
+    const words = new Uint16Array(length);
+    for (let i = 0; i < length; i++) words[i] = buffer[i * 2] | (buffer[i * 2 + 1] << 8);
+    return words;
+  }
+
+  /** Checked moves2 replay for untrusted files and network input. */
+  static fromMoves2Checked(buffer: Uint16Array | Uint8Array, startFen: string = INITIAL_FEN, isChess960 = false): Board {
+    if (buffer instanceof Uint8Array && !(buffer instanceof Uint16Array) && (buffer.byteLength & 1)) {
+      throw new Error("moves2: truncated 16-bit word");
+    }
+    const b = Board.fromFen(startFen, isChess960 ? { chess960: true } : undefined);
+    const moves = Board.moveWords(buffer);
+    for (let i = 0; i < moves.length; i++) {
+      if (!isLegal(b.pos, unpackToMove(moves[i]))) {
+        throw new Error(`moves2: illegal move at ply ${i + 1}`);
+      }
       b.makeMove(moves[i]);
     }
     return b;
@@ -323,14 +356,16 @@ export class Board implements BoardLike {
 
     const pos = src as Partial<Position>;
     this.turn = pos.turn ?? Color.White;
-    this.castling = pos.castling ?? {
-      white: new Set(),
-      black: new Set(),
-      whiteKing: false,
-      whiteQueen: false,
-      blackKing: false,
-      blackQueen: false,
-    };
+    const rights = pos.castling;
+    this.castling = rights
+      ? (!pos.isChess960 && pos.castlingMask !== undefined
+        ? CASTLING_RIGHTS_TABLE[pos.castlingMask]
+        : Object.freeze({
+          ...rights,
+          white: fixedRookRights(rights.white),
+          black: fixedRookRights(rights.black),
+        }))
+      : CASTLING_RIGHTS_TABLE[0];
     this.castlingMask = pos.castlingMask;
     this.epSquare = pos.epSquare ?? null;
     this.halfmoves = pos.halfmoves ?? pos.halfmove ?? 0;
@@ -444,7 +479,7 @@ export class Board implements BoardLike {
       else this.black.hi |= bit;
       switch (role) {
         case Role.Pawn: this.pawn.hi |= bit; break;
-        case Role.Knight: this.knight.hi |= bit; break;
+case Role.Knight: this.knight.hi |= bit; break;
         case Role.Bishop: this.bishop.hi |= bit; break;
         case Role.Rook: this.rook.hi |= bit; break;
         case Role.Queen: this.queen.hi |= bit; break;
@@ -471,6 +506,9 @@ export class Board implements BoardLike {
    * `Board::make_null_move`.
    */
   makeNullMove(): NullUndo {
+    if (zobristTablesLoaded() && this._zobristLo === 0 && this._zobristHi === 0) {
+      this.refreshZobrist();
+    }
     const us = this.turn;
     const them = opposite(us);
     // Fresh in-check scan — the cache may describe an earlier position.
@@ -532,6 +570,11 @@ export class Board implements BoardLike {
   }
 
   makeMove(moveWord: number | Move): Undo | NullUndo {
+    // Tables can become ready after this Board was constructed; refresh the
+    // pre-move state BEFORE edits, never hash the new state as the old key.
+    if (zobristTablesLoaded() && this._zobristLo === 0 && this._zobristHi === 0) {
+      this.refreshZobrist();
+    }
     const word = typeof moveWord === "number" ? moveWord : packOf(moveWord);
     // The null sentinel is a first-class pass, not a from/to/promo word.
     if (isNull(word)) return this.makeNullMove();
@@ -645,7 +688,13 @@ export class Board implements BoardLike {
         blackQueen: newBlack.has(56),
       };
     }
-    this.castling = newCastling;
+    this.castling = this.isChess960
+      ? Object.freeze({
+          ...newCastling,
+          white: newCastling.white === prevCastling.white ? prevCastling.white : fixedRookRights(newCastling.white),
+          black: newCastling.black === prevCastling.black ? prevCastling.black : fixedRookRights(newCastling.black),
+        })
+      : newCastling;
     this.castlingMask = newMask;
 
     let newEp: number | null = null;
@@ -663,9 +712,6 @@ export class Board implements BoardLike {
     this.checkers = kingAttackers(this, them);
 
     if (zobristTablesLoaded() && keyLo && keyHi && castleKeyLo && castleKeyHi) {
-      if (this._zobristLo === 0 && this._zobristHi === 0) {
-        this.refreshZobrist();
-      }
       let zLo = this._zobristLo;
       let zHi = this._zobristHi;
 

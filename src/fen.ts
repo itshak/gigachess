@@ -312,7 +312,7 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
 
   // ----- halfmove -----
   const half = fieldCount > 4 ? parseFenCount(fen, fs[4], fe[4]) : 0;
-  if (!Number.isInteger(half) || half < 0 || half > 150) return Err({ code: "fen/invalidHalfmove" });
+  if (!Number.isSafeInteger(half) || half < 0) return Err({ code: "fen/invalidHalfmove" });
 
   // ----- fullmove -----
   const full = fieldCount > 5 ? parseFenCount(fen, fs[5], fe[5]) : 1;

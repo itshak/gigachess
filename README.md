@@ -137,11 +137,21 @@ board.turn;                    // 0 = White, 1 = Black
 
 ### 3. Incremental Polyglot Zobrist Hashing
 ```ts
+import { Board, ensureZobristLoaded, repetitionKey } from "gigachess";
+
+// The compact Zobrist data is loaded on demand; no wait is needed for normal
+// movegen, but await readiness before asking for a meaningful position key.
+await ensureZobristLoaded();
 const board = new Board();
 
 // Fast 64-bit Polyglot key updated in O(1) during moves:
 const hash = board.zobrist(); // { lo: number, hi: number }
 console.log(board.zobristHex()); // "463b96181691fc9c"
+
+// FIDE repetition equivalence ignores en-passant when the capture is illegal.
+// Polyglot hashing intentionally retains its pseudo-legal EP rule; don't
+// substitute the repetition key in opening-book or interoperable database keys.
+const fideKey = repetitionKey(board.pos);
 ```
 
 ### 4. Chess960 (Fischer Random)
@@ -149,7 +159,7 @@ console.log(board.zobristHex()); // "463b96181691fc9c"
 import { Board } from "gigachess";
 
 // Load any of the 960 starting positions:
-const board = Board.fromFen("rnqbbknr/pppppppp/8/8/8/8/PPPPPPPP/RNQBBKNR w KQkq - 0 1");
+const board = Board.fromFen("rnqbbknr/pppppppp/8/8/8/8/PPPPPPPP/RNQBBKNR w KQkq - 0 1", { chess960: true });
 console.log(board.toFen());
 ```
 
@@ -159,7 +169,13 @@ import { Board } from "gigachess";
 
 // Replay full games at 4.8M plies/s from compact 16-bit buffers:
 const moves = new Uint16Array([ /* packed 16-bit moves */ ]);
-const board = Board.fromMoves2(moves);
+const board = Board.fromMoves2(moves); // trusted, already-validated data
+
+// Files, network input and imported bytes should use the checked API:
+const safeBoard = Board.fromMoves2Checked(moves);
+// It rejects illegal moves (and truncated byte words) rather than mutating
+// the board into an invalid position. Little-endian Uint8Array views with an
+// odd byte offset are supported, too.
 ```
 
 ---
@@ -176,3 +192,19 @@ const board = Board.fromMoves2(moves);
 ## 📜 License
 
 MIT © [Itshak](https://github.com/itshak) & [GigaChess Contributors](https://github.com/itshak/gigachess/graphs/contributors).
+
+---
+
+## Cross-language correctness and maintenance
+
+The pure-TypeScript engine and [gigachess-rs](https://github.com/itshak/gigachess-rs)
+are separate implementations. JavaScript has **no WebAssembly startup or
+runtime dependency**. Both share the canonical 16-bit moves2, king-to-rook
+castling, null sentinel `0xffff`, Polyglot vectors and Chess960 rook-file hash
+seed. See the [mirrored core contract](openspec/changes/dual-engine-hardening-20261123/specs/mirrored-core-contract/spec.md)
+and the shared `tests/position-keys-v1.tsv` / `tests/moves2-v1.tsv` fixtures.
+
+Benchmark numbers above describe specific workloads on specific hardware; they
+are not a universal ranking across every JavaScript/WASM chess engine. For an
+apples-to-apples pure TypeScript comparison and planned performance experiments,
+see the [maintenance research](openspec/changes/dual-engine-hardening-20261123/research.md).

@@ -6,7 +6,6 @@ import { writeFileSync, mkdirSync, existsSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  Chess as GigaChess,
   parseFen,
   makeFen,
   allDests,

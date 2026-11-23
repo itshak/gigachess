@@ -9,7 +9,7 @@ import * as attacks from "./attacks.js";
 import { Color, Role } from "./types.js";
 import type { Setup, Move, Result, CastlingRights, Position } from "./types.js";
 import { opposite, squareFile, squareRank, parseSquare, squareName } from "./util.js";
-import { zobristTablesLoaded, zobristAfterMove, zobristAfterNullMove, calculateZobrist, zobristHex } from "./zobrist.js";
+import { zobristTablesLoaded, zobristAfterMove, zobristAfterNullMove, calculateZobrist, zobristHex, epIsHashable, keyLo, keyHi, IDX_EP } from "./zobrist.js";
 import type { ZobristKey } from "./zobrist.js";
 import { parseFen, makeFen } from "./fen.js";
 import { parseSan, makeSan, parseUci, makeUci } from "./san.js";
@@ -159,16 +159,50 @@ export function isFivefoldRepetition(history: Position[]): boolean {
   return count >= 5;
 }
 
+/**
+ * FIDE repetition key, matching gigachess-rs `Board::repetition_key()`.
+ * Polyglot Zobrist hashing deliberately remains pseudo-legal EP-based;
+ * this key excludes the EP contribution when there is no LEGAL EP capture.
+ * Requires `ensureZobristLoaded()` to have completed, like other key APIs.
+ */
+export function repetitionKey(pos: Position): ZobristKey {
+  if (!zobristTablesLoaded() || !keyLo || !keyHi) {
+    throw new Error("zobrist tables not loaded — call ensureZobristLoaded() first");
+  }
+  const key = calculateZobrist(pos);
+  const ep = pos.epSquare;
+  if (ep === null || !epIsHashable(pos, ep, pos.turn) || legalRepetitionEp(pos) !== null) {
+    return key;
+  }
+  const idx = IDX_EP + (ep & 7);
+  return { lo: (key.lo ^ keyLo[idx]) >>> 0, hi: (key.hi ^ keyHi[idx]) >>> 0 };
+}
+
 function positionsEqualForRepetition(a: Position, b: Position): boolean {
   if (a.turn !== b.turn) return false;
-  if (a.epSquare !== b.epSquare) return false;
   if (!board.boardEquals(a.board, b.board)) return false;
   // castling sets equality
   if (a.castling.white.size !== b.castling.white.size) return false;
   if (a.castling.black.size !== b.castling.black.size) return false;
   for (const s of a.castling.white) if (!b.castling.white.has(s)) return false;
   for (const s of a.castling.black) if (!b.castling.black.has(s)) return false;
-  return true;
+  // FIDE repetition requires identical LEGAL moves. Polyglot's hash instead
+  // includes a geometrically capturable EP file, and must stay unchanged.
+  return a.epSquare === b.epSquare || legalRepetitionEp(a) === legalRepetitionEp(b);
+}
+
+function legalRepetitionEp(pos: Position): number | null {
+  const to = pos.epSquare;
+  if (to === null) return null;
+  const white = pos.turn === Color.White;
+  // A white pawn captures from ep-7/ep-9; a black pawn from ep+7/ep+9.
+  const candidates = white ? [to - 9, to - 7] : [to + 7, to + 9];
+  for (const from of candidates) {
+    if (from < 0 || from >= 64 || Math.abs((from & 7) - (to & 7)) !== 1) continue;
+    if (sq.has(pos.board.pawn, from) && sq.has(white ? pos.board.white : pos.board.black, from)
+      && isLegal(pos, { from, to })) return to;
+  }
+  return null;
 }
 
 // ---------- castling: one detect/apply path (ADR-013 as amended) ----------
@@ -1750,11 +1784,11 @@ export class Chess {
     return rows;
   }
 
-  /** "light" | "dark" square color ("a1" is light, like the consumer baseline). */
+  /** "light" | "dark" square color (a1 is dark, h1 is light). */
   squareColor(square: string): "light" | "dark" | undefined {
     const sqIdx = parseSquare(square);
     if (sqIdx === undefined) return undefined;
-    return (((sqIdx & 7) + (sqIdx >> 3)) & 1) === 0 ? "light" : "dark";
+    return (((sqIdx & 7) + (sqIdx >> 3)) & 1) === 0 ? "dark" : "light";
   }
 
   /** PGN: Seven Tag Roster defaults, FEN/SetUp for non-default starts, numbered movetext. */

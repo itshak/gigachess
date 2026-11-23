@@ -153,7 +153,10 @@ console.log("== 6. undo / pgn / board / turn / moveNumber ==");
     if (vbad) break;
   }
   check("verbose move objects identical on capture/ep/castle streams", !vbad, vbad);
-  check("squareColor a1=light h1=dark", pc.squareColor("a1") === "light" && pc.squareColor("h1") === "dark");
+  check("squareColor matches chess.js on all 64 squares (a1 dark, h1 light)",
+    Array.from({ length: 8 }, (_, r) => Array.from({ length: 8 }, (_, f) =>
+      String.fromCharCode(97 + f) + (r + 1))).flat().every((square) =>
+        pc.squareColor(square) === js.squareColor(square)));
   check("pgn() contains numbered movetext and result", pc.pgn().includes("1. e4 e5") && pc.pgn().trimEnd().endsWith("*"));
 }
 
