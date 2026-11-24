@@ -29,3 +29,6 @@
 - [x] Keep draft-only release gate and document remaining source/published gaps
 - [ ] Implement and validate a more radical deep-perft legal movegen design
 - [ ] Beat source and published competitor on ALL comparable workloads on multiple hosts
+
+- [x] Separately test perft-only reusable small Undo and reject uneven
+      +5% Kiwipete, -2.4% start and -2.8% promotion results

@@ -56,6 +56,24 @@ all-suite speed claim, and differences are influenced by CPU/JIT load.
 Do not infer bundled improvement from different absolute throughput
 numbers across separate runs.
 
+## Additional perft-only small Undo reuse experiment
+
+Reused a ten-field PerftUndo object per recursion depth, avoiding
+per-move allocations while keeping the public Board untouched.
+Standard perft and 57 more standard/Chess960/EP golden depth checks
+all passed. In a separate 11-round source A/B:
+
+| Position | Previous Mnps | Reused Undo Mnps | Change |
+|---|---:|---:|---:|
+| start | 11.856 | 11.574 | -2.4% |
+| kiwipete | 11.906 | 12.500 | +5.0% |
+| endgame | 8.966 | 8.895 | -0.8% |
+| promotion | 16.167 | 15.721 | -2.8% |
+
+**Rejected**: the already-small perft Undo is V8-friendly, and
+writing into a shared mutable object cost more than allocations saved
+in three out of four positions.
+
 ## Other rejected experiments
 
 - Separate perft-only known-role clears: starting position slightly up,
