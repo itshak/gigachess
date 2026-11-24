@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { Board, parseFen, isThreefoldRepetition, isFivefoldRepetition, repetitionKey, packMove } from "../dist/index.js";
+import { analyzeCheckContext, legalMovesInto, countLegalMoves } from "../dist/chess.js";
 import { Chess as GChess } from "../dist/chessjs.js";
 import { Chess as ChessJs, validateFen } from "chess.js";
 import { ensureZobristLoaded, calculateZobrist, zobristHex } from "../dist/zobrist.js";
@@ -118,3 +119,66 @@ for (const line of readFileSync(new URL("./moves2-v1.tsv", import.meta.url), "ut
   assert.equal(packMove(Number(from), Number(to), Number(promo)).toString(16).padStart(4,"0"),hex,label);
 }
 console.log("PASS shared JS/Rust golden FEN, Polyglot, repetition and moves2 vectors");
+
+// An analysis must be stable across subsequent nested / unrelated analyses.
+// The old global castlingPlan scratch would silently mutate existing context
+// objects; this is especially dangerous for retained Chess960 contexts.
+{
+  const fenA = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
+  const fenB = "r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1";
+  const a = Board.fromFen(fenA);
+  const b = Board.fromFen(fenB);
+  const ctxA = analyzeCheckContext(a.pos);
+  const planA = ctxA.castlingPlans.map((x) => [x.side, x.kingFrom, x.rookFrom, x.kingTo, x.rookTo]);
+  const countA = countLegalMoves(a.pos, ctxA);
+  analyzeCheckContext(b.pos);
+  assert.deepEqual(ctxA.castlingPlans.map((x) => [x.side, x.kingFrom, x.rookFrom, x.kingTo, x.rookTo]), planA);
+  assert.equal(countLegalMoves(a.pos, ctxA), countA);
+  assert.equal(countLegalMoves(a.pos, analyzeCheckContext(a.pos)), countA);
+  const shared = new Uint16Array(256);
+  const expected = legalMovesInto(a.pos, shared);
+  const reused = analyzeCheckContext(b.pos);
+  const aReused = analyzeCheckContext(a.pos, reused);
+  assert.equal(legalMovesInto(a.pos, shared, aReused), expected);
+}
+{
+  // Exercise Chess960 rook-square plans whose coordinates change between
+  // positions; reentrant calls must never rewrite the first returned plan.
+  const a = Board.fromFen("3k4/8/8/8/8/8/8/R1K4R w AH - 0 1", { chess960: true });
+  const b = Board.fromFen("3k4/8/8/8/8/8/8/1RK3R1 w BG - 0 1", { chess960: true });
+  const first = analyzeCheckContext(a.pos);
+  const prior = first.castlingPlans.map((p) => [p.rookFrom,p.kingTo,p.rookTo]);
+  analyzeCheckContext(b.pos);
+  assert.deepEqual(first.castlingPlans.map((p) => [p.rookFrom,p.kingTo,p.rookTo]), prior);
+  assert.equal(first.castlingPlans.length, 2);
+}
+console.log("PASS reentrant caller-owned check/pin contexts across standard and Chess960");
+
+// Perft uses its own temporary no-hash transition; the public Board must
+// retain its exact FEN, legal move set and Polyglot hash after every unwind.
+// This is particularly important when Zobrist was lazily loaded beforehand.
+{
+  await ensureZobristLoaded();
+  const cases = [
+    ["rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", 4, 197281, false],
+    ["r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1", 3, 97862, false],
+    ["k3r3/8/8/3pP3/8/8/8/4K3 w - d6 0 1", 3, 530, false],
+    ["nbrknrbq/pppppppp/8/8/8/8/PPPPPPPP/NBRKNRBQ w KQkq - 0 1", 2, null, true],
+  ];
+  for(const [fen, depth, expected, chess960] of cases) {
+    const b = Board.fromFen(fen, chess960 ? { chess960:true }:undefined);
+    const oldFen = b.toFen(),oldHash=b.zobristHex(),oldMoves=[...b.legalMoves()];
+    const count=b.perft(depth);
+    if(expected!==null) assert.equal(count,expected,fen);
+    assert.equal(b.toFen(),oldFen,fen);
+    assert.equal(b.zobristHex(),oldHash,fen);
+    assert.deepEqual([...b.legalMoves()],oldMoves,fen);
+    assert.equal(b.zobristHex(),zobristHex(calculateZobrist(b)),fen);
+    // After an optimized perft run, NORMAL game moves still hash incrementally.
+    const undo=b.makeMove(oldMoves[0]);
+    assert.equal(b.zobristHex(),zobristHex(calculateZobrist(b)),fen+" first move");
+    b.unmakeMove(undo);
+    assert.equal(b.zobristHex(),oldHash,fen+" undo");
+  }
+}
+console.log("PASS specialized perft skips hash only transiently; board state and hash survive including Chess960");

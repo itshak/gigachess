@@ -773,28 +773,33 @@ type CheckContext = {
 
 export type { CheckContext };
 
-// Reused castling plan scratch (same ownership discipline): avoids allocating
-// two plan objects per analyzed position in the perft/movegen hot loop. The
-// referenced position data is read-only and consumed within the same call.
-const scratchCastlingPlans: CastlingPlan[] = [];
-const scratchCastlingPlanA: CastlingPlan = { side: "king", kingFrom: 0, kingTo: 0, rookFrom: 0, rookTo: 0 };
-const scratchCastlingPlanB: CastlingPlan = { side: "king", kingFrom: 0, kingTo: 0, rookFrom: 0, rookTo: 0 };
-
-export function analyzeCheckContext(pos: Position): CheckContext {
+/**
+ * Per-position, caller-owned reusable analysis context. A global scratch
+ * castling-plan array is unsafe: a nested analysis or retained CheckContext
+ * silently changed rights for an earlier position, especially in Chess960.
+ * A caller may pass its OWN context to reuse allocations (e.g. perft ply),
+ * never a shared global singleton.
+ */
+export function analyzeCheckContext(pos: Position, reuse?: CheckContext): CheckContext {
   const us = pos.turn;
   const them = opposite(us);
   const ksq = board.kingSquare(pos.board, us);
-  if (ksq === undefined) {
-    // degenerate (kingless) position: no pins, no masks
-    return { us, ksq: -1, doubleCheck: false, checkMask: sq.FULL, kingSafe: sq.EMPTY, pinned: sq.EMPTY, castlingPlans: [] };
-  }
-  const ctx: CheckContext = { us, ksq, doubleCheck: false, checkMask: sq.FULL, kingSafe: sq.EMPTY, pinned: sq.EMPTY, castlingPlans: [] };
+  const ctx: CheckContext = reuse ?? {
+    us, ksq: -1, doubleCheck: false, checkMask: sq.FULL,
+    kingSafe: sq.EMPTY, pinned: sq.EMPTY, castlingPlans: [],
+  };
+  ctx.us = us;
+  ctx.ksq = ksq ?? -1;
+  ctx.doubleCheck = false;
+  ctx.checkMask = sq.FULL;
+  ctx.kingSafe = sq.EMPTY;
+  ctx.pinned = sq.EMPTY;
+  ctx.castlingPlans.length = 0;
+  if (ksq === undefined) return ctx;
+
   // Precompute the position's castling plans once (design D2): the hot loops
   // (destsFast king branch, genLegalMoves) look them up instead of re-running
-  // the full detectCastling per king move. Plans are written into the reused
-  // scratch array — no allocation in the hot loop.
-  ctx.castlingPlans = scratchCastlingPlans;
-  ctx.castlingPlans.length = 0;
+  // detectCastling per king move. The plans belong to THIS context only.
   if (!pos.isChess960) {
     const mask = pos.castlingMask ?? getCastlingMask(pos);
     if (us === Color.White) {
@@ -822,11 +827,9 @@ export function analyzeCheckContext(pos: Position): CheckContext {
       for (const rs of rights) {
         const rp = board.pieceAt(pos.board, rs);
         if (rp && rp.color === us && rp.role === Role.Rook) {
-          const slot = ctx.castlingPlans.length === 0 ? scratchCastlingPlanA : scratchCastlingPlanB;
-          const next = castlingPlanFor(us, ksq, rs);
-          slot.side = next.side; slot.kingFrom = next.kingFrom; slot.kingTo = next.kingTo;
-          slot.rookFrom = next.rookFrom; slot.rookTo = next.rookTo;
-          ctx.castlingPlans.push(slot);
+          // Each analysis context owns its plans; the returned object is fresh
+          // and can never overwrite a previously returned context.
+          ctx.castlingPlans.push(castlingPlanFor(us, ksq, rs));
         }
       }
     }
@@ -844,10 +847,13 @@ export function analyzeCheckContext(pos: Position): CheckContext {
   const themOcc = them === Color.White ? pos.board.white : pos.board.black;
   const themBQ = sq.or(sq.and(themOcc, pos.board.bishop), sq.and(themOcc, pos.board.queen));
   const themRQ = sq.or(sq.and(themOcc, pos.board.rook), sq.and(themOcc, pos.board.queen));
-  const noOcc = sq.EMPTY;
+  // Enemy occupancy stops sniper rays beyond an intervening enemy piece.
+  // A farther slider behind another opponent piece cannot pin a friendly
+  // blocker, so filtering these rays avoids redundant BETWEEN work.
+  // Mirror gigachess-rs compute_pinned_split's enemy-occupancy geometry.
   const snipers = sq.or(
-    sq.and(themRQ, attacks.rookAttacks(ksq, noOcc)),
-    sq.and(themBQ, attacks.bishopAttacks(ksq, noOcc)),
+    sq.and(themRQ, attacks.rookAttacks(ksq, themOcc)),
+    sq.and(themBQ, attacks.bishopAttacks(ksq, themOcc)),
   );
   let pinnedLo = 0, pinnedHi = 0;
   let sLo = snipers.lo >>> 0, sHi = snipers.hi >>> 0;
@@ -1086,8 +1092,8 @@ export class MoveCounter {
   }
 }
 
-export function countLegalMoves(pos: Position): number {
-  const ctx = analyzeCheckContext(pos);
+export function countLegalMoves(pos: Position, existingContext?: CheckContext): number {
+  const ctx = existingContext ?? analyzeCheckContext(pos);
   const us = pos.turn;
   const isWhite = us === Color.White;
   const own = isWhite ? pos.board.white : pos.board.black;
@@ -1109,7 +1115,7 @@ export function countLegalMoves(pos: Position): number {
     const lsb = (pLo & -pLo) >>> 0;
     const from = Math.clz32(lsb) ^ 31;
     pLo = (pLo ^ lsb) >>> 0;
-    const legal = destsFast(pos, from, pawnPiece, ctx);
+    const legal= destsFast(pos, from, pawnPiece, ctx);
     const total = sq.popcount(legal);
     const promos = isWhite
       ? sq.popcount({ lo: 0, hi: (legal.hi & 0xff000000) >>> 0 })
@@ -1154,9 +1160,9 @@ export function countLegalMoves(pos: Position): number {
   return count;
 }
 
-export function legalMovesInto(pos: Position, out: Uint16Array | Uint32Array): number {
+export function legalMovesInto(pos: Position, out: Uint16Array | Uint32Array, existingContext?: CheckContext): number {
   let count = 0;
-  const ctx = analyzeCheckContext(pos);
+  const ctx = existingContext ?? analyzeCheckContext(pos);
   const us = pos.turn;
   const isWhite = us === Color.White;
   const own = isWhite ? pos.board.white : pos.board.black;
@@ -2034,7 +2040,7 @@ export class Chess {
       piece: ROLE_CHARS[piece.role],
       flags: flags.join(""),
       san,
-lan,
+      lan,
       before: this.#fenOf(pos),
       after: this.#fenOf(after),
     };

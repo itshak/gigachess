@@ -43,7 +43,8 @@ import {
 } from "./packedMove.js";
 import { parseFen, makeFen } from "./fen.js";
 import { parseSan, parseSanCandidates, makeSan, parseUci, makeUci } from "./san.js";
-import { legalMovesInto, forEachLegalMove, countLegalMoves, isLegal, INITIAL_FEN } from "./chess.js";
+import { legalMovesInto, forEachLegalMove, countLegalMoves, analyzeCheckContext, isLegal, INITIAL_FEN } from "./chess.js";
+import type { CheckContext } from "./chess.js";
 
 export type BoardLike = {
   readonly white: SquareSet;
@@ -479,7 +480,7 @@ export class Board implements BoardLike {
       else this.black.hi |= bit;
       switch (role) {
         case Role.Pawn: this.pawn.hi |= bit; break;
-case Role.Knight: this.knight.hi |= bit; break;
+        case Role.Knight: this.knight.hi |= bit; break;
         case Role.Bishop: this.bishop.hi |= bit; break;
         case Role.Rook: this.rook.hi |= bit; break;
         case Role.Queen: this.queen.hi |= bit; break;
@@ -569,10 +570,19 @@ case Role.Knight: this.knight.hi |= bit; break;
     this._zobristHi = undo.zobristHi;
   }
 
+  /** Public move execution always maintains the Polyglot hash. */
   makeMove(moveWord: number | Move): Undo | NullUndo {
+    return this._makeMoveCore(moveWord, true);
+  }
+
+  /** Internal perft-only fast path; the cached hash is invalid until undo.
+   * The method is PRIVATE so ordinary callers cannot corrupt their board.
+   * Mirrors gigachess-rs make_move_perft without changing public semantics.
+   */
+  private _makeMoveCore(moveWord: number | Move, updateHash: boolean): Undo | NullUndo {
     // Tables can become ready after this Board was constructed; refresh the
     // pre-move state BEFORE edits, never hash the new state as the old key.
-    if (zobristTablesLoaded() && this._zobristLo === 0 && this._zobristHi === 0) {
+    if (updateHash && zobristTablesLoaded() && this._zobristLo === 0 && this._zobristHi === 0) {
       this.refreshZobrist();
     }
     const word = typeof moveWord === "number" ? moveWord : packOf(moveWord);
@@ -600,7 +610,7 @@ case Role.Knight: this.knight.hi |= bit; break;
     const prevHalfmoves = this.halfmoves;
     const prevFullmoves = this.fullmoves;
     const prevKingSq: [number, number] = [this.kingSq[0], this.kingSq[1]];
-    const prevEpHashable = prevEpSquare !== null && zobristTablesLoaded() && epIsHashable(this, prevEpSquare, us);
+    const prevEpHashable = updateHash && prevEpSquare !== null && zobristTablesLoaded() && epIsHashable(this, prevEpSquare, us);
 
     let plan: CastlingPlan | null = null;
     if (movingRole === Role.King) {
@@ -711,7 +721,7 @@ case Role.Knight: this.knight.hi |= bit; break;
     this.turn = them;
     this.checkers = kingAttackers(this, them);
 
-    if (zobristTablesLoaded() && keyLo && keyHi && castleKeyLo && castleKeyHi) {
+    if (updateHash && zobristTablesLoaded() && keyLo && keyHi && castleKeyLo && castleKeyHi) {
       let zLo = this._zobristLo;
       let zHi = this._zobristHi;
 
@@ -811,7 +821,7 @@ case Role.Knight: this.knight.hi |= bit; break;
       kingSq: prevKingSq,
       checkers: prevCheckers,
       zobristLo: prevZobristLo,
-      zobristHi: prevZobristHi,
+      zobristHi:prevZobristHi,
     };
   }
 
@@ -932,18 +942,33 @@ case Role.Knight: this.knight.hi |= bit; break;
       : { ok: false, code: res.error.code };
   }
 
+  /**
+   * Perft with caller-owned per-ply scratch buffers and analysis contexts.
+   * Correctness: the parent ply's moves and castling plans remain untouched
+   * when the recursive child recalculates check/pin/castling information.
+   * This preserves the ordinary fully-maintained make/unmake contract.
+   */
   perft(depth: number): number {
     if (depth <= 0) return 1;
-    if (depth === 1) return countLegalMoves(this);
-    const buf = new Uint16Array(256);
-    const count = legalMovesInto(this, buf);
-    let nodes = 0;
-    for (let i = 0; i < count; i++) {
-      const undo = this.makeMove(buf[i]);
-      nodes += this.perft(depth - 1);
-      this.unmakeMove(undo);
-    }
-    return nodes;
+    const lists = Array.from({ length: depth }, () => new Uint16Array(256));
+    const contexts: (CheckContext | undefined)[] = new Array(depth);
+
+    const visit = (ply: number, remaining: number): number => {
+      const ctx = analyzeCheckContext(this, contexts[ply]);
+      contexts[ply] = ctx;
+      if (remaining === 1) return countLegalMoves(this, ctx);
+
+      const moves = lists[ply];
+      const count = legalMovesInto(this, moves, ctx);
+      let nodes = 0;
+      for (let i = 0; i < count; i++) {
+        const undo = this._makeMoveCore(moves[i], false);
+        nodes += visit(ply + 1, remaining - 1);
+        this.unmakeMove(undo);
+      }
+      return nodes;
+    };
+    return visit(0, depth);
   }
 }
 
