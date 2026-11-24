@@ -18,3 +18,5 @@ stable Board::perft API pending more independent benchmarks.
 alternating timed rounds for Rust release (lto=fat); five to nine
 alternating JS rounds in Node, with and without loaded hash tables.
 All perft nodes, Polyglot, FEN and Chess960 results must remain identical.
+
+The final direct 11-round ordinary-API test shows hash-loaded replay ~3% slower; this is not a proven net production performance win. Keep performance conclusions explicitly workload-dependent.

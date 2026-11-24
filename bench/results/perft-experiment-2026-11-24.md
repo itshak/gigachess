@@ -49,3 +49,59 @@ Zobrist; other changes are small, not production-significant wins. Do NOT
 make claims of a 2x speedup or combine perft-only results with real UI
 replay. Rust already uses faster check/pin, move-count and hash-free perft
 paths; avoid copying its architecture wholesale to JavaScript.
+
+
+## Direct public API regression against pristine main
+
+To avoid conflating different experiment runs on the shared server, a
+separate 11-round alternating single-process benchmark compared the original
+main Board and the full correctness/perft experiment candidate directly.
+All 1,500 sampled FENs generated identical legal move sets, while 30 seeded
+100-ply games (3,000 plies) were replayed using the fully validated public
+Board.parseUci + Board.makeMove methods, eight repeats per timed sample.
+
+| Workload | Original main, hashes off | Candidate, hashes off | Ratio |
+|---|---:|---:|---:|
+| Public validated replay (plies/s) | 354,520 | 353,835 | 0.998x |
+| FEN parse+write (positions/s) | 181,895 | 178,702 | 0.982x |
+| Uncached legal moves (positions/s) | 144,765 | 152,728 | 1.055x |
+
+| Workload | Original main, hashes loaded | Candidate, hashes loaded | Ratio |
+|---|---:|---:|---:|
+| Public validated replay (plies/s) | 322,504 | 312,689 | 0.970x |
+| FEN parse+write (positions/s) | 148,934 | 148,309 | 0.996x |
+| Uncached legal moves (positions/s) | 164,109 | 165,454 | 1.008x |
+
+These are small gains/losses; normal replay **may regress by about 3%**
+with hashes loaded. Without more samples/independent hosts it is not certain
+whether this is significant, but it is absolutely not evidence of a dramatic
+performance improvement. There is no default UI-performance optimization
+claim here; production users should continue prioritizing correctness and
+maintainability. Exact samples are in adjacent gameplay-regression JSONs;
+the new bench-gameplay-regressions.mjs script reproduces them using
+the untouched main dist/board.js as --baseline.
+
+## Post-fix external competitor benchmark
+
+The separate existing fair benchmark was rerun, seven rounds, against
+chessops, chess.js, drumevp pinned source and published npm 1.3.2.
+All 2,600 legal-move positions, 2,400 stateful replay plies,
+20 published perft reference counts and 276 corpus depths passed.
+
+| Operation | Gigachess candidate | Published drumevp | Chessops |
+|---|---:|---:|---:|
+| 276 FEN mixed perft d3 (million nodes/s) | 13.50 | 24.94 | 6.31 |
+| Start perft d5 (million nodes/s) | 7.84 | 17.28 | 3.68 |
+| Kiwipete perft d4 (million nodes/s) | 8.81 | 19.35 | 4.97 |
+| FEN parse/write (positions/s) | 170,238 | 103,450 | N/A |
+| Validated UCI replay (plies/s) | 360,850 | 135,894 | N/A |
+
+The JS library is still considerably faster than chessops on perft,
+still loses specialized perft to drumevp, and still excels at validated
+ordinary move replay and FEN. Baseline and candidate runs differed in
+timing noise and are not directly paired: use the direct public-API
+regression above for A/B effects.
+
+Raw published competitor data:
+competitive-post-fix-2026-11-24.json. These are **standard chess** tests;
+drumevp provides no comparable SAN/PGN/Chess960 interfaces.

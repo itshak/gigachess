@@ -11,3 +11,5 @@
 - [x] Run JavaScript differential and Rust reference perft tests locally
 - [x] Run release-optimized Rust perft nine-round comparison
 - [ ] Repeat on independent hosts and verify results under browser UI load
+- [x] Run direct public gameplay A/B with both Zobrist initialization states
+- [x] Rerun the independent competitor parity-first benchmark after changes
