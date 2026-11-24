@@ -37,6 +37,26 @@
 
 ---
 
+### Experimental optimized pure-JavaScript Board (draft)
+
+The optional gigachess/fast entry delivers an independently minified and
+bundled ESM Board with identical public chess rules and move encoding.
+It uses pure JavaScript/TypeScript, without WASM, Rust or runtime dependencies.
+
+~~~ts
+import { Board, ensureMagicTablesLoaded, ensureZobristLoaded } from "gigachess/fast";
+await Promise.all([ensureMagicTablesLoaded(), ensureZobristLoaded()]);
+const board = new Board();
+~~~
+
+Import the table-loading hooks from the SAME /fast entry: the ordinary
+/core module has separate module-local caches. Specialized perft uses its
+own reversible, clock-independent internal move path; makeMove/unmakeMove
+still fully maintain Zobrist, castling, clocks, and move validation.
+The current performance claim is workload-specific, not a statement that
+GigaChess beats every JS chess engine. See the benchmark report before
+claiming universal speed leadership.
+
 ## 📦 Installation
 
 ```bash

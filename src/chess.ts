@@ -780,6 +780,14 @@ export type { CheckContext };
  * A caller may pass its OWN context to reuse allocations (e.g. perft ply),
  * never a shared global singleton.
  */
+// Precompute empty-board rank/file/diagonal king rays once. If no enemy
+// slider shares a line with the king, there cannot be a pin; skip expensive
+// magic-indexed sniper queries entirely.
+const ROOK_KING_RAYS: SquareSet[] = Array.from({ length: 64 }, (_, i) =>
+  attacks.rookAttacksForTest(i, sq.EMPTY));
+const BISHOP_KING_RAYS: SquareSet[] = Array.from({ length: 64 }, (_, i) =>
+  attacks.bishopAttacksForTest(i, sq.EMPTY));
+
 export function analyzeCheckContext(pos: Position, reuse?: CheckContext): CheckContext {
   const us = pos.turn;
   const them = opposite(us);
@@ -859,8 +867,12 @@ export function analyzeCheckContext(pos: Position, reuse?: CheckContext): CheckC
   // A farther slider behind another opponent piece cannot pin a friendly
   // blocker, so filtering these rays avoids redundant BETWEEN work.
   // Mirror gigachess-rs compute_pinned_split's enemy-occupancy geometry.
-  const rookSniperRays = attacks.rookAttacks(ksq, themOcc);
-  const bishopSniperRays = attacks.bishopAttacks(ksq, themOcc);
+  const rRay = ROOK_KING_RAYS[ksq];
+  const bRay = BISHOP_KING_RAYS[ksq];
+  const hasRookLine = (((themRQ.lo & rRay.lo) | (themRQ.hi & rRay.hi)) >>> 0) !== 0;
+  const hasBishopLine = (((themBQ.lo & bRay.lo) | (themBQ.hi & bRay.hi)) >>> 0) !== 0;
+  const rookSniperRays = hasRookLine ? attacks.rookAttacks(ksq, themOcc) : sq.EMPTY;
+  const bishopSniperRays = hasBishopLine ? attacks.bishopAttacks(ksq, themOcc) : sq.EMPTY;
   const snipers = {
     lo: ((themRQ.lo & rookSniperRays.lo) | (themBQ.lo & bishopSniperRays.lo)) >>> 0,
     hi: ((themRQ.hi & rookSniperRays.hi) | (themBQ.hi & bishopSniperRays.hi)) >>> 0,

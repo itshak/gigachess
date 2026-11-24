@@ -98,6 +98,19 @@ export type NullUndo = {
   readonly zobristHi: number;
 };
 
+type PerftUndo = {
+  word: number;
+  movingRole: Role;
+  capturedRole: Role | -1;
+  capturedSq: number;
+  promoRole: Role | null;
+  castlingPlan: CastlingPlan | null;
+  castling: CastlingRights;
+  castlingMask?: number;
+  epSquare: number | null;
+  checkers: SquareSet;
+};
+
 export class Board implements BoardLike {
   white: MutableSquareSet;
   black: MutableSquareSet;
@@ -821,7 +834,7 @@ export class Board implements BoardLike {
       kingSq: prevKingSq,
       checkers: prevCheckers,
       zobristLo: prevZobristLo,
-      zobristHi:prevZobristHi,
+      zobristHi: prevZobristHi,
     };
   }
 
@@ -948,10 +961,144 @@ export class Board implements BoardLike {
    * when the recursive child recalculates check/pin/castling information.
    * This preserves the ordinary fully-maintained make/unmake contract.
    */
+  /** Specialized perft-only make: no clock/hash updates or Undo snapshot array.
+   * Public makeMove/unmakeMove remain entirely unchanged.
+   * All rule-relevant state (castling, en-passant, checkers, turn, piece boards)
+   * is updated exactly, and restored by _unmakePerft.
+   */
+  private _makePerft(word: number, pieceCodes: Uint8Array): PerftUndo {
+    const from = word & 63, to = (word >>> 6) & 63;
+    const promoRole = promoCodeToRole((word >>> 12) & 15) ?? null;
+    const movingRole = (pieceCodes[from] - 1) as Role;
+    const us = this.turn;
+    const them = opposite(us);
+    const prevCastling = this.castling;
+    const prevMask = this.castlingMask;
+    const prevEp = this.epSquare;
+    const prevCheckers = this.checkers;
+
+    const plan = movingRole === Role.King ? detectCastling(this, from, to) : null;
+    const isEp = movingRole === Role.Pawn && prevEp !== null &&
+      to === prevEp && (from & 7) !== (to & 7);
+    let capturedRole: Role | -1 = -1, capturedSq = -1;
+    if (isEp) {
+      capturedRole = Role.Pawn;
+      capturedSq = us === Color.White ? to - 8 : to + 8;
+    } else if (plan === null) {
+      const cap = pieceCodes[to] === 0 ? undefined : (pieceCodes[to] - 1) as Role;
+      if (cap !== undefined) { capturedRole = cap; capturedSq = to; }
+    }
+
+    // Perft-private exact square cache: eliminates roleAt bitboard probing.
+    // Update in the same order as chess960 overlapping source/dest edits.
+    pieceCodes[from] = 0;
+    if (capturedSq >= 0) pieceCodes[capturedSq] = 0;
+    this._clearSquare(from);
+    if (capturedSq >= 0) this._clearSquare(capturedSq);
+    if (plan !== null) {
+      pieceCodes[plan.rookFrom] = 0;
+      pieceCodes[plan.rookTo] = Role.Rook + 1;
+      pieceCodes[plan.kingTo] = Role.King + 1;
+      this._clearSquare(plan.rookFrom);
+      this._putPiece(plan.rookTo, us, Role.Rook);
+      this._putPiece(plan.kingTo, us, Role.King);
+      this.kingSq[us] = plan.kingTo;
+    } else {
+      pieceCodes[to] = (promoRole ?? movingRole) + 1;
+      this._putPiece(to, us, promoRole ?? movingRole);
+      if (movingRole === Role.King) this.kingSq[us] = to;
+    }
+
+    if (!this.isChess960) {
+      const mask = prevMask ?? getCastlingMask(this);
+      const updated = (mask & CASTLE_CLEAR_STD[from] & CASTLE_CLEAR_STD[to]) >>> 0;
+      this.castlingMask = updated;
+      this.castling = CASTLING_RIGHTS_TABLE[updated];
+    } else {
+      let nextWhite: ReadonlySet<number> = prevCastling.white;
+      let nextBlack: ReadonlySet<number> = prevCastling.black;
+      if (movingRole === Role.King) {
+        if (us === Color.White) {
+          if (nextWhite.size) nextWhite = new Set<number>();
+        } else if (nextBlack.size) nextBlack = new Set<number>();
+      }
+      if (movingRole === Role.Rook) {
+        if (us === Color.White && nextWhite.has(from)) {
+          const next = new Set(nextWhite); next.delete(from); nextWhite = next;
+        } else if (us === Color.Black && nextBlack.has(from)) {
+          const next = new Set(nextBlack); next.delete(from); nextBlack = next;
+        }
+      }
+      if (capturedRole === Role.Rook && capturedSq >= 0) {
+        if (them === Color.White && nextWhite.has(capturedSq)) {
+          const next = new Set(nextWhite); next.delete(capturedSq); nextWhite = next;
+        } else if (them === Color.Black && nextBlack.has(capturedSq)) {
+          const next = new Set(nextBlack); next.delete(capturedSq); nextBlack = next;
+        }
+      }
+      if (nextWhite !== prevCastling.white || nextBlack !== prevCastling.black) {
+        this.castling = Object.freeze({
+          white: fixedRookRights(nextWhite),
+          black: fixedRookRights(nextBlack),
+          whiteKing: nextWhite.has(7), whiteQueen: nextWhite.has(0),
+          blackKing: nextBlack.has(63), blackQueen: nextBlack.has(56),
+        });
+      }
+    }
+
+    this.epSquare = movingRole === Role.Pawn && Math.abs((to >> 3) - (from >> 3)) === 2
+      ? ((from + to) >>> 1) : null;
+    this.turn = them;
+    this.checkers = kingAttackers(this, them);
+    return {
+      word, movingRole, capturedRole, capturedSq, promoRole,
+      castlingPlan: plan, castling: prevCastling, castlingMask: prevMask,
+      epSquare: prevEp, checkers: prevCheckers,
+    };
+  }
+
+  private _unmakePerft(undo: PerftUndo, pieceCodes: Uint8Array): void {
+    const from = undo.word & 63, to = (undo.word >>> 6) & 63;
+    const us = opposite(this.turn);
+    this.turn = us;
+    this.castling = undo.castling;
+    this.castlingMask = undo.castlingMask;
+    this.epSquare = undo.epSquare;
+    this.checkers = undo.checkers;
+    if (undo.castlingPlan !== null) {
+      const plan = undo.castlingPlan;
+      pieceCodes[plan.kingTo] = 0;
+      pieceCodes[plan.rookTo] = 0;
+      pieceCodes[plan.kingFrom] = Role.King + 1;
+      pieceCodes[plan.rookFrom] = Role.Rook + 1;
+      this._clearSquare(plan.kingTo);
+      this._clearSquare(plan.rookTo);
+      this._putPiece(plan.kingFrom, us, Role.King);
+      this._putPiece(plan.rookFrom, us, Role.Rook);
+      this.kingSq[us] = plan.kingFrom;
+    } else {
+      pieceCodes[to] = 0;
+      pieceCodes[from] = undo.movingRole + 1;
+      this._clearSquare(to);
+      this._putPiece(from, us, undo.movingRole);
+      if (undo.capturedSq >= 0) {
+        pieceCodes[undo.capturedSq] = undo.capturedRole + 1;
+        this._putPiece(undo.capturedSq, opposite(us), undo.capturedRole as Role);
+      }
+      if (undo.movingRole === Role.King) this.kingSq[us] = from;
+    }
+  }
+
   perft(depth: number): number {
     if (depth <= 0) return 1;
     const lists = Array.from({ length: depth }, () => new Uint16Array(256));
     const contexts: (CheckContext | undefined)[] = new Array(depth);
+    // Local to this invocation; never observed by public move API.
+    const pieceCodes = new Uint8Array(64);
+    for (let sqIdx = 0; sqIdx < 64; sqIdx++) {
+      const role = this.roleAt(sqIdx);
+      if (role !== undefined) pieceCodes[sqIdx] = role + 1;
+    }
 
     const visit = (ply: number, remaining: number): number => {
       const ctx = analyzeCheckContext(this, contexts[ply]);
@@ -962,9 +1109,9 @@ export class Board implements BoardLike {
       const count = legalMovesInto(this, moves, ctx);
       let nodes = 0;
       for (let i = 0; i < count; i++) {
-        const undo = this._makeMoveCore(moves[i], false);
+        const undo = this._makePerft(moves[i], pieceCodes);
         nodes += visit(ply + 1, remaining - 1);
-        this.unmakeMove(undo);
+        this._unmakePerft(undo, pieceCodes);
       }
       return nodes;
     };
