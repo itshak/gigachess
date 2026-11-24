@@ -1,0 +1,261 @@
+{
+  "node": "v24.13.0",
+  "date": "2026-11-24T05:59:22.797Z",
+  "runs": 9,
+  "results": {
+    "gigachess-native-board": {
+      "importMedianMs": 22.683,
+      "firstMoveMedianMs": 26.625,
+      "processMedianMs": 59.572,
+      "heapMedianMiB": 6.65,
+      "raw": [
+        {
+          "importMs": 23.207008000000002,
+          "firstMoveMs": 27.193694999999998,
+          "heap": 6974912,
+          "processMs": 60.976928
+        },
+        {
+          "importMs": 23.039149000000002,
+          "firstMoveMs": 27.169815999999997,
+          "heap": 6956704,
+          "processMs": 59.93065600000001
+        },
+        {
+          "importMs": 22.598674000000003,
+          "firstMoveMs": 26.622324,
+          "heap": 6954304,
+          "processMs": 58.899247
+        },
+        {
+          "importMs": 24.709024000000003,
+          "firstMoveMs": 28.818626,
+          "heap": 6947112,
+          "processMs": 60.975165000000004
+        },
+        {
+          "importMs": 22.682992,
+          "firstMoveMs": 26.624708,
+          "heap": 6997688,
+          "processMs": 58.65070599999996
+        },
+        {
+          "importMs": 23.251953,
+          "firstMoveMs": 27.237026999999998,
+          "heap": 7397792,
+          "processMs": 59.57247699999999
+        },
+        {
+          "importMs": 22.299457999999998,
+          "firstMoveMs": 26.198528,
+          "heap": 6971048,
+          "processMs": 69.199567
+        },
+        {
+          "importMs": 22.629471,
+          "firstMoveMs": 26.469801,
+          "heap": 6987320,
+          "processMs": 58.22196300000002
+        },
+        {
+          "importMs": 22.498537,
+          "firstMoveMs": 26.381325000000004,
+          "heap": 6937664,
+          "processMs": 59.014084000000025
+        }
+      ]
+    },
+    "gigachess-root-api": {
+      "importMedianMs": 25.529,
+      "firstMoveMedianMs": 29.503,
+      "processMedianMs": 61.909,
+      "heapMedianMiB": 5.18,
+      "raw": [
+        {
+          "importMs": 25.458890000000004,
+          "firstMoveMs": 29.503458000000002,
+          "heap": 5427512,
+          "processMs": 61.095141999999896
+        },
+        {
+          "importMs": 31.765490000000003,
+          "firstMoveMs": 35.807835999999995,
+          "heap": 5937456,
+          "processMs": 67.63141300000007
+        },
+        {
+          "importMs": 26.621011,
+          "firstMoveMs": 31.096109000000002,
+          "heap": 5380560,
+          "processMs": 62.88720599999999
+        },
+        {
+          "importMs": 25.529259000000003,
+          "firstMoveMs": 29.460383,
+          "heap": 5428376,
+          "processMs": 61.90864399999998
+        },
+        {
+          "importMs": 24.781817,
+          "firstMoveMs": 28.620216000000003,
+          "heap": 5399608,
+          "processMs": 59.96461399999998
+        },
+        {
+          "importMs": 24.873210999999998,
+          "firstMoveMs": 28.748447,
+          "heap": 5928296,
+          "processMs": 60.375544000000104
+        },
+        {
+          "importMs": 25.211975999999996,
+          "firstMoveMs": 28.996653,
+          "heap": 5927128,
+          "processMs": 60.42502300000001
+        },
+        {
+          "importMs": 26.863926999999997,
+          "firstMoveMs": 30.667788,
+          "heap": 5412424,
+          "processMs": 62.41186799999991
+        },
+        {
+          "importMs": 27.502542999999996,
+          "firstMoveMs": 31.912362,
+          "heap": 6042624,
+          "processMs": 65.46009299999992
+        }
+      ]
+    },
+    "drumevp-published": {
+      "importMedianMs": 78.745,
+      "firstMoveMedianMs": 81.335,
+      "processMedianMs": 113.994,
+      "heapMedianMiB": 11.76,
+      "raw": [
+        {
+          "importMs": 76.833806,
+          "firstMoveMs": 79.32229699999999,
+          "heap": 12316592,
+          "processMs": 113.61947699999996
+        },
+        {
+          "importMs": 78.593177,
+          "firstMoveMs": 81.225277,
+          "heap": 12331320,
+          "processMs": 113.68670300000008
+        },
+        {
+          "importMs": 78.163334,
+          "firstMoveMs": 80.659728,
+          "heap": 12314896,
+          "processMs": 112.90465500000005
+        },
+        {
+          "importMs": 80.407451,
+          "firstMoveMs": 82.934082,
+          "heap": 12311952,
+          "processMs": 115.3097600000001
+        },
+        {
+          "importMs": 78.93201499999999,
+          "firstMoveMs": 81.44805699999999,
+          "heap": 12332328,
+          "processMs": 113.12869999999998
+        },
+        {
+          "importMs": 78.745451,
+          "firstMoveMs": 81.335069,
+          "heap": 12352688,
+          "processMs": 113.99370399999998
+        },
+        {
+          "importMs": 80.27012099999999,
+          "firstMoveMs": 82.78625199999999,
+          "heap": 12336832,
+          "processMs": 115.01173700000004
+        },
+        {
+          "importMs": 78.733706,
+          "firstMoveMs": 81.242824,
+          "heap": 12355384,
+          "processMs": 115.25993299999982
+        },
+        {
+          "importMs": 79.366073,
+          "firstMoveMs": 82.278648,
+          "heap": 12330976,
+          "processMs": 115.67844800000012
+        }
+      ]
+    },
+    "chess.js": {
+      "importMedianMs": 9.122,
+      "firstMoveMedianMs": 12.511,
+      "processMedianMs": 44.102,
+      "heapMedianMiB": 4.49,
+      "raw": [
+        {
+          "importMs": 9.478953,
+          "firstMoveMs": 12.836544999999997,
+          "heap": 4705800,
+          "processMs": 45.203665
+        },
+        {
+          "importMs": 9.213783,
+          "firstMoveMs": 12.511187999999997,
+          "heap": 4705800,
+          "processMs": 44.52594799999997
+        },
+        {
+          "importMs": 9.132213,
+          "firstMoveMs": 12.538124999999997,
+          "heap": 4707000,
+          "processMs": 44.35312299999987
+        },
+        {
+          "importMs": 9.066253999999997,
+          "firstMoveMs": 12.544844999999999,
+          "heap": 4604848,
+          "processMs": 44.05626600000005
+        },
+        {
+          "importMs": 9.121509999999997,
+          "firstMoveMs": 12.423299999999998,
+          "heap": 4707000,
+          "processMs": 43.92244299999993
+        },
+        {
+          "importMs": 9.019120000000001,
+          "firstMoveMs": 12.451045,
+          "heap": 4705800,
+          "processMs": 43.85096399999975
+        },
+        {
+          "importMs": 9.240509,
+          "firstMoveMs": 12.529578,
+          "heap": 4705800,
+          "processMs": 44.11212699999987
+        },
+        {
+          "importMs": 9.006333000000001,
+          "firstMoveMs": 12.362147,
+          "heap": 4705800,
+          "processMs": 43.70707799999991
+        },
+        {
+          "importMs": 9.049144000000002,
+          "firstMoveMs": 12.38421,
+          "heap": 4708072,
+          "processMs": 44.10215599999992
+        }
+      ]
+    }
+  },
+  "notes": [
+    "Cold Node ESM import includes module parse/evaluation; not a browser startup metric.",
+    "drumevp is a search/NNUE engine, while GigaChess native Board is a focused chess core; bundle/feature differences are explicit.",
+    "The optional npm postinstall model download is not run (npm pack --ignore-scripts).",
+    "Each observation uses a separate Node process; processMs includes Node startup, importMs excludes it."
+  ]
+}

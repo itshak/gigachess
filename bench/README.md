@@ -345,3 +345,69 @@ defaults (`0 1` counters).
   aliasing hazard of the old object table (ADR-012 §4) is gone.
 - Bundle: the core static graph carries **zero** table bytes; see the bundle
   gate below for before/after sizes.
+
+---
+
+## 2026-11-24: correctness-gated competitive benchmarks (optional)
+
+The original bench:real suite and the official chessops/chess.js corpora are
+preserved. This opt-in suite extends them with third-party engines without
+enabling WASM, pulling in model weights or modifying the default CI workflow.
+
+The main comparison tests 2,600 independent standard-chess positions for exact
+legal UCI move-set equality versus chess.js, 2,400 make-and-undo plies, five
+standard published perft positions at depths 1–4, and every one of the
+276 FEN positions in the existing perftsuite.epd and wac_150.epd corpora.
+EPD bm/id notation is normalized to six-field FEN. Exact node counts are
+compared with independent chessops *before* recording speeds.
+
+Timing categories are separate: raw legal move generation, cached move-list
+lookups (not equivalent to regeneration), FEN parse+write, validated UCI game
+replay, mixed-corpus perft, and two deep perft positions. chess.js generation
+also computes SAN; chessops exposes square-destination bitsets that do not
+expand promotions. Those are API-throughput comparisons, not pure movegen
+microbenchmarks. Neither SAN/PGN nor Chess960 is evaluated for drumevp because
+it lacks comparable public interfaces. Invalid FEN and illegal UCI handling is
+recorded explicitly and never hidden by an average score.
+
+Drumevp is tested in three forms: pinned Git TypeScript source; upstream perft
+with Zobrist updates disabled and a diagnostic using the exact same reusable
+movegen context with hash maintenance enabled; and its compiled published npm
+bundle. No competitor code enters Gigachess production. Perft results are
+checked for identical node counts in each variant and the hashed diagnostic
+checks restored Zobrist consistency.
+
+Results use two warmup passes plus 7 timed rounds by default. Candidate
+ordering rotates between rounds, and median/p10/p90/raw samples are stored.
+Cold package startup runs separate Node processes, including first movegen,
+rather than comparing hot perft loops to WASM initialization costs.
+
+### Reproduce (on local machines, never Github CI)
+
+Use Node 24, npm ci, then npm run build. Pin this exact third-party checkout
+and published bundle without executing the third-party postinstall script,
+which otherwise downloads a roughly 110 MB NNUE model:
+
+~~~bash
+mkdir -p ../gigachess-external
+git clone https://github.com/drumevp/chess-engine.git ../gigachess-external/drumevp
+git -C ../gigachess-external/drumevp checkout 0bfd032c197dde4dddfcf0810f036cdf78bb8b45
+npm pack @drumevp/chess-engine@1.3.2 --ignore-scripts --pack-destination ../gigachess-external
+mkdir -p ../gigachess-external/npm-pkg
+tar -xzf ../gigachess-external/drumevp-chess-engine-1.3.2.tgz -C ../gigachess-external/npm-pkg
+
+npm run bench:competitive --   --drumevp ../gigachess-external/drumevp   --published ../gigachess-external/npm-pkg/package/dist/index.js   --runs 7 --json bench/results/my-competitive-run.json
+
+npm run bench:real -- --suite competitive   --drumevp ../gigachess-external/drumevp   --published ../gigachess-external/npm-pkg/package/dist/index.js
+
+npm run bench:competitive:cold --   --published ../gigachess-external/npm-pkg/package/dist/index.js   --runs 9 --json bench/results/my-cold-run.json
+~~~
+
+The competitive suite is explicitly excluded from default and CI bench:real
+runs. Source checkout and published tarball are external testing inputs, not
+dependencies. Review bench/results/competitive-2026-11-24.md and its adjacent
+machine-readable JSON files for the measurements and caveats.
+
+Do not claim overall superiority from perft alone. Also, low GitHub stars are
+not proof that a competitor's move generator is incorrect: correctness requires
+independent move-list, replay and adversarial parser verification.

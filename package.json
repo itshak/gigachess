@@ -119,7 +119,9 @@
     "bench:real:ci": "node --expose-gc bench/bench-real.mjs --ci",
     "build": "tsc -p tsconfig.build.json",
     "test:parity": "npm run build && node tests/parity.mjs",
-    "test:perft": "npm run build && node tests/perft.mjs"
+    "test:perft": "npm run build && node tests/perft.mjs",
+    "bench:competitive": "node --expose-gc --import tsx bench/bench-competitive.mjs",
+    "bench:competitive:cold": "node bench/bench-competitive-cold.mjs"
   },
   "devDependencies": {
     "@itshak/chesstree": "^2.0.0",
@@ -129,6 +131,7 @@
     "esbuild": "^0.25.0",
     "rescript": "^12.3.1",
     "typescript": "^5.7.0",
-    "ultrachess": "^1.4.0"
+    "ultrachess": "^1.4.0",
+    "tsx": "4.22.3"
   }
 }

@@ -14,10 +14,10 @@
 // failures produce exit code 1 so CI can enforce the spec's SHALLs.
 import { assertEnvironment, summarizeGates } from "./suites/lib/common.mjs";
 
-const SUITE_NAMES = ["sliding", "perft", "pgn-stream", "fen-san-uci", "dests-terminal", "bundle", "chessjs", "workstation-real"];
+const SUITE_NAMES = ["sliding", "perft", "pgn-stream", "fen-san-uci", "dests-terminal", "bundle", "chessjs", "workstation-real", "competitive"];
 
 function parseArgs(argv) {
-  const o = { suites: [...SUITE_NAMES], quick: false, json: false, ci: false, help: false };
+  const o = { suites: SUITE_NAMES.filter(n => n !== "competitive"), quick: false, json: false, ci: false, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--quick") o.quick = true;
