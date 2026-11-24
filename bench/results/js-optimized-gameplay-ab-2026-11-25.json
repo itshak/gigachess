@@ -1,0 +1,39 @@
+{
+  "rounds": 11,
+  "modes": {
+    "on": {
+      "fully-validated-game-replay": {
+        "original": 380637,
+        "candidate": 474309,
+        "ratio": 1.2461
+      },
+      "FEN-parse-and-write": {
+        "original": 144425,
+        "candidate": 151706,
+        "ratio": 1.0504
+      },
+      "uncached-legal-move-list": {
+        "original": 170290,
+        "candidate": 213648,
+        "ratio": 1.2546
+      }
+    },
+    "off": {
+      "fully-validated-game-replay": {
+        "original": 431375,
+        "candidate": 541413,
+        "ratio": 1.2551
+      },
+      "FEN-parse-and-write": {
+        "original": 186172,
+        "candidate": 186046,
+        "ratio": 0.9993
+      },
+      "uncached-legal-move-list": {
+        "original": 163871,
+        "candidate": 212886,
+        "ratio": 1.2991
+      }
+    }
+  }
+}

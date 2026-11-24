@@ -835,12 +835,14 @@ export function analyzeCheckContext(pos: Position, reuse?: CheckContext): CheckC
     }
   }
   const checkers = pos.checkers ?? attacks.kingAttackers(pos.board, us);
-  const nCheckers = sq.popcount(checkers);
-  if (nCheckers === 1) {
-    const c = sq.first(checkers)!;
-    ctx.checkMask = sq.or(attacks.between(ksq, c), sq.singleton(c));
-  } else if (nCheckers >= 2) {
-    ctx.doubleCheck = true;
+  // Most positions are not in check. Avoid two popcounts for zero checkers;
+  // distinguish single from double checks with just bit identity tests.
+  if ((checkers.lo | checkers.hi) !== 0) {
+    if (sq.moreThanOne(checkers)) ctx.doubleCheck = true;
+    else {
+      const c = sq.first(checkers)!;
+      ctx.checkMask = sq.or(attacks.between(ksq, c), sq.singleton(c));
+    }
   }
   // Pinned pieces: enemy slider "snipers" x-raying our king with exactly one
   // blocker between; if the blocker is ours, it is pinned to the sniper's ray.
@@ -864,8 +866,10 @@ export function analyzeCheckContext(pos: Position, reuse?: CheckContext): CheckC
     const b = attacks.between(ksq, sniper);
     const bLo = (b.lo & pos.board.occupied.lo) >>> 0;
     const bHi = (b.hi & pos.board.occupied.hi) >>> 0;
-    const nBlockers = sq.popcount({ lo: bLo, hi: bHi });
-    if (nBlockers === 1) {
+    // One blocker iff exactly one halfboard is nonzero and power-of-two.
+    const blockerBits = (bLo | bHi) >>> 0;
+    if (blockerBits !== 0 && (bLo === 0 || bHi === 0)
+        && (blockerBits & (blockerBits - 1)) === 0) {
       const blockerSq = bLo !== 0 ? (Math.clz32((bLo & -bLo) >>> 0) ^ 31) : (32 + (Math.clz32((bHi & -bHi) >>> 0) ^ 31));
       if (!sq.has(themOcc, blockerSq)) {
         if (blockerSq < 32) pinnedLo |= (1 << blockerSq) >>> 0;
@@ -880,8 +884,10 @@ export function analyzeCheckContext(pos: Position, reuse?: CheckContext): CheckC
     const b = attacks.between(ksq, sniper);
     const bLo = (b.lo & pos.board.occupied.lo) >>> 0;
     const bHi = (b.hi & pos.board.occupied.hi) >>> 0;
-    const nBlockers = sq.popcount({ lo: bLo, hi: bHi });
-    if (nBlockers === 1) {
+    // One blocker iff exactly one halfboard is nonzero and power-of-two.
+    const blockerBits = (bLo | bHi) >>> 0;
+    if (blockerBits !== 0 && (bLo === 0 || bHi === 0)
+        && (blockerBits & (blockerBits - 1)) === 0) {
       const blockerSq = bLo !== 0 ? (Math.clz32((bLo & -bLo) >>> 0) ^ 31) : (32 + (Math.clz32((bHi & -bHi) >>> 0) ^ 31));
       if (!sq.has(themOcc, blockerSq)) {
         if (blockerSq < 32) pinnedLo |= (1 << blockerSq) >>> 0;
@@ -891,19 +897,37 @@ export function analyzeCheckContext(pos: Position, reuse?: CheckContext): CheckC
   }
   ctx.pinned = { lo: pinnedLo >>> 0, hi: pinnedHi >>> 0 };
 
-  // King-safe mask: attackedness evaluated with our king removed from the
-  // occupancy, so sliders x-raying the king keep it attacked on the far side.
-  const occWithoutKing = sq.minus(pos.board.occupied, sq.singleton(ksq));
+  // Only reachable king destinations require attack checks. King surrounded
+  // by its own pieces is an especially common leaf: no attack map necessary.
   const usOcc = us === Color.White ? pos.board.white : pos.board.black;
-  let kingLo = 0, kingHi = 0;
-  sq.forEachSquare(attacks.kingAttacks(ksq), (d) => {
-    if (sq.has(usOcc, d)) return;
-    if (sq.isEmpty(attacks.attackersTo(pos.board, d, them, occWithoutKing))) {
-      if (d < 32) kingLo |= (1 << d) >>> 0;
-      else kingHi |= (1 << (d - 32)) >>> 0;
+  const adjacent = attacks.kingAttacks(ksq);
+  const candidate = {
+    lo: (adjacent.lo & ~usOcc.lo) >>> 0,
+    hi: (adjacent.hi & ~usOcc.hi) >>> 0,
+  };
+  if ((candidate.lo | candidate.hi) === 0) {
+    ctx.kingSafe = sq.EMPTY;
+  } else {
+    const occWithoutKing = sq.minus(pos.board.occupied, sq.singleton(ksq));
+    // A single-pass attack map is best for sparse material or king mobility.
+    // For cramped kings with many attackers, direct king-target probes win.
+    if (sq.popcount(themOcc) <= 8 || sq.popcount(candidate) >= 4) {
+      const danger = attacks.attackedSquares(pos.board, them, occWithoutKing);
+      ctx.kingSafe = {
+        lo: (candidate.lo & ~danger.lo) >>> 0,
+        hi: (candidate.hi & ~danger.hi) >>> 0,
+      };
+    } else {
+      let kingLo = 0, kingHi = 0;
+      sq.forEachSquare(candidate, (d) => {
+        if (sq.isEmpty(attacks.attackersTo(pos.board, d, them, occWithoutKing))) {
+          if (d < 32) kingLo |= (1 << d) >>> 0;
+          else kingHi |= (1 << (d - 32)) >>> 0;
+        }
+      });
+      ctx.kingSafe = { lo: kingLo >>> 0, hi: kingHi >>> 0 };
     }
-  });
-  ctx.kingSafe = { lo: kingLo >>> 0, hi: kingHi >>> 0 };
+  }
   return ctx;
 }
 /**
@@ -911,7 +935,44 @@ export function analyzeCheckContext(pos: Position, reuse?: CheckContext): CheckC
  * pure set intersection for all cases except the trap cases listed above.
  */
 export function destsFast(pos: Position, from: number, piece: { color: Color; role: Role }, ctx: CheckContext): SquareSet {
-  const pseudo = genPseudoDests(pos, from, piece);
+  // Piece-specialized hot path: retain exact check/pin constraints while
+  // avoiding generic pseudo generation, own-occupancy subtraction and
+  // temporary SquareSet objects for every non-pawn non-king piece.
+  if (piece.role !== Role.Pawn && piece.role !== Role.King) {
+    if (piece.color !== ctx.us || ctx.doubleCheck) return sq.EMPTY;
+    const own = piece.color === Color.White ? pos.board.white : pos.board.black;
+    let attacksBB: SquareSet;
+    switch (piece.role) {
+      case Role.Knight: attacksBB = attacks.knightAttacks(from); break;
+      case Role.Bishop: attacksBB = attacks.bishopAttacks(from, pos.board.occupied); break;
+      case Role.Rook: attacksBB = attacks.rookAttacks(from, pos.board.occupied); break;
+      case Role.Queen: attacksBB = attacks.queenAttacks(from, pos.board.occupied); break;
+      default: return sq.EMPTY;
+    }
+    let lo = (attacksBB.lo & ~own.lo & ctx.checkMask.lo) >>> 0;
+    let hi = (attacksBB.hi & ~own.hi & ctx.checkMask.hi) >>> 0;
+    if (sq.has(ctx.pinned, from)) {
+      const idx = (ctx.ksq << 6) | from;
+      lo = (lo & attacks.LINE_RAY_LO[idx]) >>> 0;
+      hi = (hi & attacks.LINE_RAY_HI[idx]) >>> 0;
+    }
+    return { lo, hi };
+  }
+  // In most positions there are no usable castling rights. Normal king
+  // destinations are already masked by the per-position kingSafe bitboard;
+  // bypass the king's castling/check/traversal and per-destination callbacks.
+  if (piece.role === Role.King && ctx.castlingPlans.length === 0) {
+    const adjacent = attacks.kingAttacks(from);
+    const own = piece.color === Color.White ? pos.board.white : pos.board.black;
+    return {
+      lo: (adjacent.lo & ctx.kingSafe.lo & ~own.lo) >>> 0,
+      hi: (adjacent.hi & ctx.kingSafe.hi & ~own.hi) >>> 0,
+    };
+  }
+  const pseudo = piece.role === Role.Pawn
+    ? (piece.color !== pos.turn ? sq.EMPTY : (piece.color === Color.White
+      ? whitePawnPseudoDests(pos, from) : blackPawnPseudoDests(pos, from)))
+    : genPseudoDests(pos, from, piece);
   if (sq.isEmpty(pseudo)) return pseudo;
   if (piece.role === Role.King) {
     // Castling dests (detected by the shared detectCastling path — fixes the
@@ -1107,58 +1168,125 @@ export function countLegalMoves(pos: Position, existingContext?: CheckContext): 
   }
   if (ctx.doubleCheck) return count;
 
-  // 2. Pawns (bulk popcount without inner destination loops)
+  // 2. Pawn mobility in parallel by 32-bit halfboard shifts.
+  // When not in check, no pawn pinned, and no EP square, each pawn move is
+  // independently legal. Popcount the four pawn categories directly; this
+  // avoids 8–16 separate per-pawn destination and safety operations.
   const pawnPiece = isWhite ? P_W_P : P_B_P;
   let pLo = (own.lo & pos.board.pawn.lo) >>> 0;
   let pHi = (own.hi & pos.board.pawn.hi) >>> 0;
-  while (pLo !== 0) {
-    const lsb = (pLo & -pLo) >>> 0;
-    const from = Math.clz32(lsb) ^ 31;
-    pLo = (pLo ^ lsb) >>> 0;
-    const legal= destsFast(pos, from, pawnPiece, ctx);
-    const total = sq.popcount(legal);
-    const promos = isWhite
-      ? sq.popcount({ lo: 0, hi: (legal.hi & 0xff000000) >>> 0 })
-      : sq.popcount({ lo: (legal.lo & 0x000000ff) >>> 0, hi: 0 });
-    count += total + promos * 3;
-  }
-  while (pHi !== 0) {
-    const lsb = (pHi & -pHi) >>> 0;
-    const from = 32 + (Math.clz32(lsb) ^ 31);
-    pHi = (pHi ^ lsb) >>> 0;
-    const legal = destsFast(pos, from, pawnPiece, ctx);
-    const total = sq.popcount(legal);
-    const promos = isWhite
-      ? sq.popcount({ lo: 0, hi: (legal.hi & 0xff000000) >>> 0 })
-      : sq.popcount({ lo: (legal.lo & 0x000000ff) >>> 0, hi: 0 });
-    count += total + promos * 3;
+  if (pos.epSquare === null && ctx.checkMask === sq.FULL
+      && (((ctx.pinned.lo & pLo) | (ctx.pinned.hi & pHi)) === 0)) {
+    const occ = pos.board.occupied;
+    const them = isWhite ? pos.board.black : pos.board.white;
+    const emptyLo = ~occ.lo, emptyHi = ~occ.hi;
+    let oneLo: number, oneHi: number, twoLo: number, twoHi: number;
+    let leftLo: number, leftHi: number, rightLo: number, rightHi: number;
+    const westLo = (pLo & 0xfefefefe) >>> 0;
+    const westHi = (pHi & 0xfefefefe) >>> 0;
+    const eastLo = (pLo & 0x7f7f7f7f) >>> 0;
+    const eastHi = (pHi & 0x7f7f7f7f) >>> 0;
+    if (isWhite) {
+      oneLo = ((pLo << 8) & emptyLo) >>> 0;
+      oneHi = (((pHi << 8) | (pLo >>> 24)) & emptyHi) >>> 0;
+      twoLo = (((oneLo & 0x00ff0000) << 8) & emptyLo) >>> 0;
+      twoHi = 0;
+      leftLo = ((westLo << 7) & them.lo) >>> 0;
+      leftHi = (((westHi << 7) | (westLo >>> 25)) & them.hi) >>> 0;
+      rightLo = ((eastLo << 9) & them.lo) >>> 0;
+      rightHi = (((eastHi << 9) | (eastLo >>> 23)) & them.hi) >>> 0;
+      count += 3 * (
+        sq.popcountParts(oneHi & 0xff000000, 0) +
+        sq.popcountParts(leftHi & 0xff000000, 0) +
+        sq.popcountParts(rightHi & 0xff000000, 0)
+      );
+    } else {
+      oneLo = (((pLo >>> 8) | (pHi << 24)) & emptyLo) >>> 0;
+      oneHi = ((pHi >>> 8) & emptyHi) >>> 0;
+      twoLo = 0;
+      twoHi = (((oneHi & 0x0000ff00) >>> 8) & emptyHi) >>> 0;
+      leftLo = (((westLo >>> 9) | (westHi << 23)) & them.lo) >>> 0;
+      leftHi = ((westHi >>> 9) & them.hi) >>> 0;
+      rightLo = (((eastLo >>> 7) | (eastHi << 25)) & them.lo) >>> 0;
+      rightHi = ((eastHi >>> 7) & them.hi) >>> 0;
+      count += 3 * (
+        sq.popcountParts(oneLo & 0x000000ff, 0) +
+        sq.popcountParts(leftLo & 0x000000ff, 0) +
+        sq.popcountParts(rightLo & 0x000000ff, 0)
+      );
+    }
+    count += sq.popcountParts(oneLo, oneHi);
+    count += sq.popcountParts(twoLo, twoHi);
+    count += sq.popcountParts(leftLo, leftHi);
+    count += sq.popcountParts(rightLo, rightHi);
+  } else {
+    // Fallback handles checks, pins and en-passant discovered-check traps.
+    while (pLo !== 0) {
+      const lsb = (pLo & -pLo) >>> 0;
+      const from = Math.clz32(lsb) ^ 31;
+      pLo = (pLo ^ lsb) >>> 0;
+      const legal = destsFast(pos, from, pawnPiece, ctx);
+      const total = sq.popcountParts(legal.lo, legal.hi);
+      const promos = isWhite
+        ? sq.popcountParts(legal.hi & 0xff000000, 0)
+        : sq.popcountParts(legal.lo & 0x000000ff, 0);
+      count += total + promos * 3;
+    }
+    while (pHi !== 0) {
+      const lsb = (pHi & -pHi) >>> 0;
+      const from = 32 + (Math.clz32(lsb) ^ 31);
+      pHi = (pHi ^ lsb) >>> 0;
+      const legal = destsFast(pos, from, pawnPiece, ctx);
+      const total = sq.popcountParts(legal.lo, legal.hi);
+      const promos = isWhite
+        ? sq.popcountParts(legal.hi & 0xff000000, 0)
+        : sq.popcountParts(legal.lo & 0x000000ff, 0);
+      count += total + promos * 3;
+    }
   }
 
-  // 3. Knights, Bishops, Rooks, Queens (bulk popcount on legal dests)
-  const countPieces = (roleBB: SquareSet, piece: { color: Color; role: Role }) => {
+  // 3. Knights/Bishops/Rooks/Queens: direct mask counting, no
+  // per-piece legal-destination SquareSet allocation.
+  const countPieces = (roleBB: SquareSet, role: Role) => {
     let rLo = (own.lo & roleBB.lo) >>> 0;
     let rHi = (own.hi & roleBB.hi) >>> 0;
-    while (rLo !== 0) {
-      const lsb = (rLo & -rLo) >>> 0;
-      const from = Math.clz32(lsb) ^ 31;
-      rLo = (rLo ^ lsb) >>> 0;
-      count += sq.popcount(destsFast(pos, from, piece, ctx));
-    }
-    while (rHi !== 0) {
-      const lsb = (rHi & -rHi) >>> 0;
-      const from = 32 + (Math.clz32(lsb) ^ 31);
-      rHi = (rHi ^ lsb) >>> 0;
-      count += sq.popcount(destsFast(pos, from, piece, ctx));
+    let offset = 0;
+    for (let half = 0; half < 2; half++) {
+      while (rLo !== 0) {
+        const lsb = (rLo & -rLo) >>> 0;
+        const from = offset + (31 - Math.clz32(lsb));
+        rLo = (rLo ^ lsb) >>> 0;
+        let attacksBB: SquareSet;
+        switch (role) {
+          case Role.Knight: attacksBB = attacks.knightAttacks(from); break;
+          case Role.Bishop: attacksBB = attacks.bishopAttacks(from, pos.board.occupied); break;
+          case Role.Rook: attacksBB = attacks.rookAttacks(from, pos.board.occupied); break;
+          case Role.Queen: attacksBB = attacks.queenAttacks(from, pos.board.occupied); break;
+          default: continue;
+        }
+        let lo = (attacksBB.lo & ~own.lo & ctx.checkMask.lo) >>> 0;
+        let hi = (attacksBB.hi & ~own.hi & ctx.checkMask.hi) >>> 0;
+        if (sq.has(ctx.pinned, from)) {
+          const idx = (ctx.ksq << 6) | from;
+          lo &= attacks.LINE_RAY_LO[idx];
+          hi &= attacks.LINE_RAY_HI[idx];
+        }
+        count += sq.popcountParts(lo, hi);
+      }
+      rLo = rHi;
+      rHi = 0;
+      offset = 32;
     }
   };
 
-  countPieces(pos.board.knight, isWhite ? P_W_N : P_B_N);
-  countPieces(pos.board.bishop, isWhite ? P_W_B : P_B_B);
-  countPieces(pos.board.rook, isWhite ? P_W_R : P_B_R);
-  countPieces(pos.board.queen, isWhite ? P_W_Q : P_B_Q);
+  countPieces(pos.board.knight, Role.Knight);
+  countPieces(pos.board.bishop, Role.Bishop);
+  countPieces(pos.board.rook, Role.Rook);
+  countPieces(pos.board.queen, Role.Queen);
 
   return count;
 }
+
 
 export function legalMovesInto(pos: Position, out: Uint16Array | Uint32Array, existingContext?: CheckContext): number {
   let count = 0;
@@ -1194,10 +1322,56 @@ export function legalMovesInto(pos: Position, out: Uint16Array | Uint32Array, ex
   let pLo = (own.lo & pos.board.pawn.lo) >>> 0;
   let pHi = (own.hi & pos.board.pawn.hi) >>> 0;
   const promoRank = isWhite ? 7 : 0;
+  const fastPawns = pos.epSquare === null && ctx.checkMask === sq.FULL
+    && (((ctx.pinned.lo & pLo) | (ctx.pinned.hi & pHi)) === 0);
+  const occ = pos.board.occupied;
+  const enemy = isWhite ? pos.board.black : pos.board.white;
 
   const emitPawnDests = (from: number) => {
-    const legal = destsFast(pos, from, pawnPiece, ctx);
-    let dLo = legal.lo >>> 0, dHi = legal.hi >>> 0;
+    let dLo = 0, dHi = 0;
+    if (fastPawns) {
+      // Exactly the standard pawn pseudo-destination set: when there is no
+      // check, pawn pin or en-passant trap, this is already the legal set.
+      if (isWhite) {
+        const one = from + 8;
+        if (!sq.has(occ, one)) {
+          if (one < 32) dLo |= 1 << one;
+          else dHi |= 1 << (one - 32);
+          if (from >= 8 && from <= 15 && !sq.has(occ, from + 16)) dLo |= 1 << (from + 16);
+        }
+        if ((from & 7) !== 0 && sq.has(enemy, from + 7)) {
+          const to = from + 7;
+          if (to < 32) dLo |= 1 << to;
+          else dHi |= 1 << (to - 32);
+        }
+        if ((from & 7) !== 7 && sq.has(enemy, from + 9)) {
+          const to = from + 9;
+          if (to < 32) dLo |= 1 << to;
+          else dHi |= 1 << (to - 32);
+        }
+      } else {
+        const one = from - 8;
+        if (!sq.has(occ, one)) {
+          if (one < 32) dLo |= 1 << one;
+          else dHi |= 1 << (one - 32);
+          if (from >= 48 && from <= 55 && !sq.has(occ, from - 16)) dHi |= 1 << (from - 48);
+        }
+        if ((from & 7) !== 0 && sq.has(enemy, from - 9)) {
+          const to = from - 9;
+          if (to < 32) dLo |= 1 << to;
+          else dHi |= 1 << (to - 32);
+        }
+        if ((from & 7) !== 7 && sq.has(enemy, from - 7)) {
+          const to = from - 7;
+          if (to < 32) dLo |= 1 << to;
+          else dHi |= 1 << (to - 32);
+        }
+      }
+      dLo >>>= 0; dHi >>>= 0;
+    } else {
+      const legal = destsFast(pos, from, pawnPiece, ctx);
+      dLo = legal.lo >>> 0; dHi = legal.hi >>> 0;
+    }
     while (dLo !== 0) {
       const lsb = (dLo & -dLo) >>> 0;
       const to = Math.clz32(lsb) ^ 31;

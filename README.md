@@ -5,7 +5,8 @@
 <h1 align="center">GigaChess</h1>
 
 <p align="center">
-  <strong>The fastest chess library and engine in TypeScript.</strong><br>
+  <strong>A high-performance chess library and engine in pure TypeScript.</strong>
+  <br>Pure JS/TS, no Rust or WebAssembly in the runtime. Perft and game-replay benchmarks are tracked separately.<br>
   Built for high-performance web applications, interactive chessboards, and analysis engines.
 </p>
 

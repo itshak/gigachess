@@ -14,6 +14,12 @@ if(process.argv.includes("--hash-on")) {
   const baselineHash=await import(pathToFileURL(join(dirname(resolve(reference)), "zobrist.js")).href);
   await baselineHash.ensureZobristLoaded();
 }
+// Ensure identical high-performance lookup setup on both builds.
+const oldMagic=await import(pathToFileURL(join(dirname(resolve(reference)), "attacks.js")).href);
+const newMagic=await import("../dist/attacks.js");
+await Promise.all([oldMagic.ensureMagicTablesLoaded(),newMagic.ensureMagicTablesLoaded()]);
+if(!oldMagic.magicTablesLoaded()||!newMagic.magicTablesLoaded())throw Error("magic load failed");
+console.log("loaded fancy magic for both engines");
 console.log("zobrist-loaded:",process.argv.includes("--hash-on"));
 const cases=[
  ["start","rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",5,4865609],

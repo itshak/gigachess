@@ -7,52 +7,34 @@ import type { SquareSet } from "./squareSet.js";
 import { Color } from "./types.js";
 import { squareFile, squareRank } from "./util.js";
 
-// ---------- low-level 32-bit helpers for 64-bit multiply without 64-bit type ----------
-function mul32To64(a: number, b: number): { lo: number; hi: number } {
+// Fast 64-bit magic indexing for the high-half-only shifts used by the
+// shipped black-magic lookup tables (shift >= 52). 16-bit cross-products
+// preserve *exact* unsigned 32-bit high multiplication, without allocating
+// three intermediate 64-bit objects per sliding attack.
+// Technique independently verified against BigInt and the previous code.
+// Algorithmic reference: MIT-licensed @drumevp/chess-engine, calculateMagicIndex.
+function mulHighUnsigned32(a: number, b: number): number {
   const aLow = a & 0xffff;
   const aHigh = a >>> 16;
   const bLow = b & 0xffff;
   const bHigh = b >>> 16;
-  const p0 = aLow * bLow;
-  const p1 = aLow * bHigh;
-  const p2 = aHigh * bLow;
-  const p3 = aHigh * bHigh;
-  const mid = p1 + p2;
-  const midLow = mid & 0xffff;
-  const midHigh = mid >>> 16;
-  // lo = p0 + (midLow <<16), with carry to hi
-  const loAdd = (midLow << 16) >>> 0;
-  const lo = (p0 + loAdd) >>> 0;
-  const carry = lo < (p0 >>> 0) ? 1 : 0;
-  const hi = (p3 + midHigh + carry) >>> 0;
-  return { lo: lo >>> 0, hi: hi >>> 0 };
-}
-
-function wrappingMul64(aLo: number, aHi: number, bLo: number, bHi: number): { lo: number; hi: number } {
-  // low 64 bits of 64x64 -> 64
-  // a = aHi*2^32 + aLo, b = bHi*2^32 + bLo
-  // product = aLo*bLo + (aHi*bLo + aLo*bHi)*2^32 + aHi*bHi*2^64 (overflow beyond 64 discards)
-  const pLL = mul32To64(aLo >>> 0, bLo >>> 0);
-  const pHL = mul32To64(aHi >>> 0, bLo >>> 0);
-  const pLH = mul32To64(aLo >>> 0, bHi >>> 0);
-  // pLL.lo is final lo, pLL.hi + pHL.lo + pLH.lo is final hi (plus carry from lo addition? already inside pLL)
-  // Need to add cross terms to hi with carry handling
-  let hi = (pLL.hi + pHL.lo + pLH.lo) >>> 0;
-  // carry from adding pHL.lo + pLH.lo overflow is wrapped via >>>0, fine for 32-bit wrapping
-  // Note: pHL.hi and pLH.hi are beyond 64 bits (shift 64) so discarded
-  return { lo: pLL.lo >>> 0, hi: hi >>> 0 };
+  const low = Math.imul(aLow, bLow);
+  let mid = ((low >>> 16) + Math.imul(aHigh, bLow)) >>> 0;
+  let hi = mid >>> 16;
+  mid = ((mid & 0xffff) + Math.imul(aLow, bHigh)) >>> 0;
+  hi = (hi + (mid >>> 16) + Math.imul(aHigh, bHigh)) >>> 0;
+  return hi;
 }
 
 function mul64Shift(occLo: number, occHi: number, magLo: number, magHi: number, shift: number): number {
-  const prod = wrappingMul64(occLo >>> 0, occHi >>> 0, magLo >>> 0, magHi >>> 0);
-  if (shift < 32) {
-    // product >> shift, low 32 bits
-    const res = (prod.lo >>> shift) | (prod.hi << (32 - shift));
-    return res >>> 0;
-  } else {
-    const res = prod.hi >>> (shift - 32);
-    return res >>> 0;
-  }
+  // All generated magic shifts are >= 52; lower 32 product bits are unused.
+  // high32(a*b) = high32(aLo*bLo) + low32(aLo*bHi) + low32(aHi*bLo).
+  const hi = (
+    mulHighUnsigned32(occLo >>> 0, magLo >>> 0) +
+    Math.imul(occLo >>> 0, magHi >>> 0) +
+    Math.imul(occHi >>> 0, magLo >>> 0)
+  ) >>> 0;
+  return hi >>> (shift - 32);
 }
 
 // ---------- Leaper tables ----------
@@ -441,6 +423,86 @@ export function isAttacked(board: import("./board.js").BoardLike, square: number
   const kAtt = kingAttacks(square);
   if ((((aLo & board.king.lo & kAtt.lo) | (aHi & board.king.hi & kAtt.hi)) >>> 0) !== 0) return true;
   return false;
+}
+
+/**
+ * Union of enemy attacks with a supplied occupancy. Most callers need to
+ * ask only about the eight king destinations. Unlike eight independent
+ * attackersTo lookups, one pass through actual enemy pieces reuses each
+ * sliding attack once. Includes pinned enemy attacks per FIDE king safety.
+ * This function only reads board state; all accumulators are local.
+ */
+export function attackedSquares(
+  board: import("./board.js").BoardLike,
+  attacker: Color,
+  occ: SquareSet = board.occupied,
+): SquareSet {
+  const side = attacker === Color.White ? board.white : board.black;
+  let lo = 0, hi = 0;
+  const pawnLo = (side.lo & board.pawn.lo) >>> 0;
+  const pawnHi = (side.hi & board.pawn.hi) >>> 0;
+  if (attacker === Color.White) {
+    const westLo = pawnLo & 0xfefefefe;
+    const westHi = pawnHi & 0xfefefefe;
+    const eastLo = pawnLo & 0x7f7f7f7f;
+    const eastHi = pawnHi & 0x7f7f7f7f;
+    lo = ((westLo << 7) | (eastLo << 9)) >>> 0;
+    hi = ((westHi << 7) | (eastHi << 9) | (westLo >>> 25) | (eastLo >>> 23)) >>> 0;
+  } else {
+    const westLo = pawnLo & 0xfefefefe;
+    const westHi = pawnHi & 0xfefefefe;
+    const eastLo = pawnLo & 0x7f7f7f7f;
+    const eastHi = pawnHi & 0x7f7f7f7f;
+    lo = ((westLo >>> 9) | (eastLo >>> 7) | (westHi << 23) | (eastHi << 25)) >>> 0;
+    hi = ((westHi >>> 9) | (eastHi >>> 7)) >>> 0;
+  }
+  let knightsLo = (side.lo & board.knight.lo) >>> 0;
+  let knightsHi = (side.hi & board.knight.hi) >>> 0;
+  while (knightsLo !== 0) {
+    const bit = (knightsLo & -knightsLo) >>> 0;
+    const dest = knightTable[31 - Math.clz32(bit)];
+    lo |= dest.lo; hi |= dest.hi;
+    knightsLo = (knightsLo ^ bit) >>> 0;
+  }
+  while (knightsHi !== 0) {
+    const bit = (knightsHi & -knightsHi) >>> 0;
+    const dest = knightTable[63 - Math.clz32(bit)];
+    lo |= dest.lo; hi |= dest.hi;
+    knightsHi = (knightsHi ^ bit) >>> 0;
+  }
+  const bishopsLo = (side.lo & (board.bishop.lo | board.queen.lo)) >>> 0;
+  const bishopsHi = (side.hi & (board.bishop.hi | board.queen.hi)) >>> 0;
+  let bits = bishopsLo, offset = 0;
+  for (let half = 0; half < 2; half++) {
+    while (bits !== 0) {
+      const bit = (bits & -bits) >>> 0;
+      const attack = bishopAttacks(offset + 31 - Math.clz32(bit), occ);
+      lo |= attack.lo; hi |= attack.hi;
+      bits = (bits ^ bit) >>> 0;
+    }
+    bits = bishopsHi; offset = 32;
+  }
+  const rooksLo = (side.lo & (board.rook.lo | board.queen.lo)) >>> 0;
+  const rooksHi = (side.hi & (board.rook.hi | board.queen.hi)) >>> 0;
+  bits = rooksLo; offset = 0;
+  for (let half = 0; half < 2; half++) {
+    while (bits !== 0) {
+      const bit = (bits & -bits) >>> 0;
+      const attack = rookAttacks(offset + 31 - Math.clz32(bit), occ);
+      lo |= attack.lo; hi |= attack.hi;
+      bits = (bits ^ bit) >>> 0;
+    }
+    bits = rooksHi; offset = 32;
+  }
+  const kingLo = (side.lo & board.king.lo) >>> 0;
+  const kingHi = (side.hi & board.king.hi) >>> 0;
+  if (kingLo !== 0 || kingHi !== 0) {
+    const ks = kingLo !== 0
+      ? 31 - Math.clz32((kingLo & -kingLo) >>> 0)
+      : 63 - Math.clz32((kingHi & -kingHi) >>> 0);
+    lo |= kingTable[ks].lo; hi |= kingTable[ks].hi;
+  }
+  return { lo: lo >>> 0, hi: hi >>> 0 };
 }
 
 export function kingAttackers(board: import("./board.js").BoardLike, kingColor: Color): SquareSet {

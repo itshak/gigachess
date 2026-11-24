@@ -16,6 +16,10 @@ if(argv.includes("--hash-on")){
   const b=await import("../dist/zobrist.js");
   await Promise.all([a.ensureZobristLoaded(),b.ensureZobristLoaded()]);
 }
+const oldMagic=await import(pathToFileURL(join(dirname(resolve(baselinePath)), "attacks.js")).href);
+const newMagic=await import("../dist/attacks.js");
+await Promise.all([oldMagic.ensureMagicTablesLoaded(),newMagic.ensureMagicTablesLoaded()]);
+if(!oldMagic.magicTablesLoaded()||!newMagic.magicTablesLoaded())throw Error("magic not loaded in both");
 const hashOn=argv.includes("--hash-on");
 let state=0x13579bdf;const rand=n=>(state=(Math.imul(state,1664525)+1013904223)>>>0)%n;
 const start="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
