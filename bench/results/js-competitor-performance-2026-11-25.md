@@ -22,18 +22,17 @@ on broad comparable workloads.
 ## Direct competitor results
 | Workload | GigaChess candidate | drumevp source | drumevp npm |
 |---|---:|---:|---:|
-| Legal move generation, positions/s | 258,489 | 218,384 | 74,133 |
-| FEN parse+write, positions/s | 162,406 | 126,630 | 134,074 |
-| Validated UCI replay, plies/s | 573,899 | 162,758 | 170,326 |
-| Mixed perft, millions nodes/s | 20.644 | 22.444 | 24.056 |
-| Start d5, millions nodes/s | 10.963 | 15.620 | 16.684 |
-| Kiwipete d4, millions nodes/s | 12.443 | 18.267 | 19.463 |
+| Legal move generation, positions/s | 256,580 | 213,214 | 72,854 |
+| FEN parse+write, positions/s | 162,064 | 123,596 | 129,851 |
+| Validated UCI replay, plies/s | 588,240 | 162,246 | 167,075 |
+| Mixed perft, millions nodes/s | 20.933 | 21.537 | 24.328 |
+| Start d5, millions nodes/s | 11.035 | 15.053 | 16.535 |
+| Kiwipete d4, millions nodes/s | 12.229 | 17.874 | 19.561 |
 
-Drumevp source full-hash mixed perft: 18.851 million nodes/s.
-Chessops mixed perft: 6.266 million nodes/s.
-Pure JS Giga wins FEN, validated replay and legal move generation in
-this test; it still loses specialized published perft, especially deep
-start/Kiwipete.
+drumevp source full-hash mixed perft: 18.554 million nodes/s.
+chessops mixed perft: 6.270 million nodes/s.
+GigaChess leads normal FEN, replay, and legal move generation on this host,
+but published drumevp still leads specialized perft.
 
 ## A/B against previous correctness-hardened JS branch
 Both builds loaded matching fancy magic and Polyglot tables; 11 alternating
@@ -41,22 +40,22 @@ runs with exact perft reference count assertions.
 
 | Position | Prior Mnps | Candidate Mnps | Change |
 |---|---:|---:|---:|
-| start | 7.781 | 10.808 | +38.9% |
-| kiwipete | 8.701 | 12.117 | +39.3% |
-| endgame | 5.710 | 8.267 | +44.8% |
-| promotion | 10.425 | 15.608 | +49.7% |
+| start | 7.724 | 11.169 | +44.6% |
+| kiwipete | 8.712 | 12.127 | +39.2% |
+| endgame | 5.609 | 8.782 | +56.6% |
+| promotion | 10.324 | 15.480 | +49.9% |
 
 Both builds loaded matching magic; validated public game API tested over
 30 games / 3000 plies, 1500 FENs. 11 alternating rounds:
 
 | Zobrist | Workload | Prior units/s | Candidate units/s | Change |
 |---|---|---:|---:|---:|
-| Loaded | fully-validated-game-replay | 380,637 | 474,309 | +24.6% |
-| Loaded | FEN-parse-and-write | 144,425 | 151,706 | +5.0% |
-| Loaded | uncached-legal-move-list | 170,290 | 213,648 | +25.5% |
-| Unloaded | fully-validated-game-replay | 431,375 | 541,413 | +25.5% |
-| Unloaded | FEN-parse-and-write | 186,172 | 186,046 | -0.1% |
-| Unloaded | uncached-legal-move-list | 163,871 | 212,886 | +29.9% |
+| Loaded | fully-validated-game-replay | 386,468 | 499,519 | +29.2% |
+| Loaded | FEN-parse-and-write | 143,397 | 143,625 | +0.2% |
+| Loaded | uncached-legal-move-list | 161,725 | 203,203 | +25.6% |
+| Unloaded | fully-validated-game-replay | 382,675 | 555,952 | +45.3% |
+| Unloaded | FEN-parse-and-write | 185,861 | 189,429 | +1.9% |
+| Unloaded | uncached-legal-move-list | 163,510 | 204,078 | +24.8% |
 
 ## Incorporated
 - High32-only 64-bit magic indexing using exact unsigned 16-bit multiply and
@@ -65,7 +64,8 @@ Both builds loaded matching magic; validated public game API tested over
 - Context-local material-aware enemy attack union for mobile/sparse kings,
   direct king attack-target test for dense positions.
 - Role-specialized nonpawn move masks, no-castling king fast path,
-  non-popcount check/pin classification.
+  non-popcount check/pin classification and allocation-reduced
+   direct 32-bit slider/sniper pin masks.
 - Bulk direct pawn leaf counting only in no-check, no pinned pawn, no EP.
   All other positions use the original fully legal move filtering.
   Promotion contributions counted individually, not deduplicated by target.

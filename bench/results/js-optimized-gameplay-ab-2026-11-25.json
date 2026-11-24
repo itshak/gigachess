@@ -3,36 +3,36 @@
   "modes": {
     "on": {
       "fully-validated-game-replay": {
-        "original": 380637,
-        "candidate": 474309,
-        "ratio": 1.2461
+        "original": 386468,
+        "candidate": 499519,
+        "ratio": 1.2925
       },
       "FEN-parse-and-write": {
-        "original": 144425,
-        "candidate": 151706,
-        "ratio": 1.0504
+        "original": 143397,
+        "candidate": 143625,
+        "ratio": 1.0016
       },
       "uncached-legal-move-list": {
-        "original": 170290,
-        "candidate": 213648,
-        "ratio": 1.2546
+        "original": 161725,
+        "candidate": 203203,
+        "ratio": 1.2565
       }
     },
     "off": {
       "fully-validated-game-replay": {
-        "original": 431375,
-        "candidate": 541413,
-        "ratio": 1.2551
+        "original": 382675,
+        "candidate": 555952,
+        "ratio": 1.4528
       },
       "FEN-parse-and-write": {
-        "original": 186172,
-        "candidate": 186046,
-        "ratio": 0.9993
+        "original": 185861,
+        "candidate": 189429,
+        "ratio": 1.0192
       },
       "uncached-legal-move-list": {
-        "original": 163871,
-        "candidate": 212886,
-        "ratio": 1.2991
+        "original": 163510,
+        "candidate": 204078,
+        "ratio": 1.2481
       }
     }
   }

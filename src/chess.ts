@@ -847,16 +847,24 @@ export function analyzeCheckContext(pos: Position, reuse?: CheckContext): CheckC
   // Pinned pieces: enemy slider "snipers" x-raying our king with exactly one
   // blocker between; if the blocker is ours, it is pinned to the sniper's ray.
   const themOcc = them === Color.White ? pos.board.white : pos.board.black;
-  const themBQ = sq.or(sq.and(themOcc, pos.board.bishop), sq.and(themOcc, pos.board.queen));
-  const themRQ = sq.or(sq.and(themOcc, pos.board.rook), sq.and(themOcc, pos.board.queen));
+  const themBQ = {
+    lo: (themOcc.lo & (pos.board.bishop.lo | pos.board.queen.lo)) >>> 0,
+    hi: (themOcc.hi & (pos.board.bishop.hi | pos.board.queen.hi)) >>> 0,
+  };
+  const themRQ = {
+    lo: (themOcc.lo & (pos.board.rook.lo | pos.board.queen.lo)) >>> 0,
+    hi: (themOcc.hi & (pos.board.rook.hi | pos.board.queen.hi)) >>> 0,
+  };
   // Enemy occupancy stops sniper rays beyond an intervening enemy piece.
   // A farther slider behind another opponent piece cannot pin a friendly
   // blocker, so filtering these rays avoids redundant BETWEEN work.
   // Mirror gigachess-rs compute_pinned_split's enemy-occupancy geometry.
-  const snipers = sq.or(
-    sq.and(themRQ, attacks.rookAttacks(ksq, themOcc)),
-    sq.and(themBQ, attacks.bishopAttacks(ksq, themOcc)),
-  );
+  const rookSniperRays = attacks.rookAttacks(ksq, themOcc);
+  const bishopSniperRays = attacks.bishopAttacks(ksq, themOcc);
+  const snipers = {
+    lo: ((themRQ.lo & rookSniperRays.lo) | (themBQ.lo & bishopSniperRays.lo)) >>> 0,
+    hi: ((themRQ.hi & rookSniperRays.hi) | (themBQ.hi & bishopSniperRays.hi)) >>> 0,
+  };
   let pinnedLo = 0, pinnedHi = 0;
   let sLo = snipers.lo >>> 0, sHi = snipers.hi >>> 0;
   while (sLo !== 0) {
