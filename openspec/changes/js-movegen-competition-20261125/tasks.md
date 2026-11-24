@@ -20,3 +20,12 @@
 - [ ] Demonstrate consistent published-drumevp perft wins on mixed, start d5 and Kiwipete d4
 - [ ] Demonstrate benefits on Apple Silicon and browser JS engines before any fastest claim
 - [ ] Only then decide whether a new package version is justified
+
+## Phase 3 additional testing (2026-11-25)
+- [x] Profile and hoist leaf-count helper; preserve isolated raw metrics
+- [x] Test bundled vs bundled, not only source against source
+- [x] Run repeated published-competitor comparison, same FEN corpus
+- [x] Reject non-reproducible hoisting gain and revert source changes
+- [x] Keep draft-only release gate and document remaining source/published gaps
+- [ ] Implement and validate a more radical deep-perft legal movegen design
+- [ ] Beat source and published competitor on ALL comparable workloads on multiple hosts
