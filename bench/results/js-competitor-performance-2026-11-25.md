@@ -83,6 +83,9 @@ Both builds loaded matching magic; validated public game API tested over
 - Fully eager enemy-attack map: regresses dense starting material.
 - Skip no-slider attack generation: +7% endgame, -2.3% Kiwipete; defer.
 
+- Quiet-bitboard mutation fast path: uneven results (+4.3% Kiwipete,
+  -3.1% start, +5.3% promotion, ~0% validated replay). Rejected on risk.
+
 ## Licenses and limits
 - @drumevp/chess-engine MIT declared by npm package metadata; this
   repository's algorithmic adaptation is attributed in THIRD_PARTY_NOTICES.md.
