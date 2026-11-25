@@ -1215,11 +1215,15 @@ export function countLegalMoves(pos: Position, existingContext?: CheckContext): 
       leftHi = (((westHi << 7) | (westLo >>> 25)) & them.hi) >>> 0;
       rightLo = ((eastLo << 9) & them.lo) >>> 0;
       rightHi = (((eastHi << 9) | (eastLo >>> 23)) & them.hi) >>> 0;
-      count += 3 * (
-        sq.popcountParts(oneHi & 0xff000000, 0) +
-        sq.popcountParts(leftHi & 0xff000000, 0) +
-        sq.popcountParts(rightHi & 0xff000000, 0)
-      );
+      // Only white pawns on rank 7 can promote in one move. Avoid three
+      // expensive popcounts in almost every ordinary leaf position.
+      if ((pHi & 0x00ff0000) !== 0) {
+        count += 3 * (
+          sq.popcountParts(oneHi & 0xff000000, 0) +
+          sq.popcountParts(leftHi & 0xff000000, 0) +
+          sq.popcountParts(rightHi & 0xff000000, 0)
+        );
+      }
     } else {
       oneLo = (((pLo >>> 8) | (pHi << 24)) & emptyLo) >>> 0;
       oneHi = ((pHi >>> 8) & emptyHi) >>> 0;
@@ -1229,11 +1233,13 @@ export function countLegalMoves(pos: Position, existingContext?: CheckContext): 
       leftHi = ((westHi >>> 9) & them.hi) >>> 0;
       rightLo = (((eastLo >>> 7) | (eastHi << 25)) & them.lo) >>> 0;
       rightHi = ((eastHi >>> 7) & them.hi) >>> 0;
-      count += 3 * (
-        sq.popcountParts(oneLo & 0x000000ff, 0) +
-        sq.popcountParts(leftLo & 0x000000ff, 0) +
-        sq.popcountParts(rightLo & 0x000000ff, 0)
-      );
+      if ((pLo & 0x0000ff00) !== 0) {
+        count += 3 * (
+          sq.popcountParts(oneLo & 0x000000ff, 0) +
+          sq.popcountParts(leftLo & 0x000000ff, 0) +
+          sq.popcountParts(rightLo & 0x000000ff, 0)
+        );
+      }
     }
     count += sq.popcountParts(oneLo, oneHi);
     count += sq.popcountParts(twoLo, twoHi);
@@ -1248,8 +1254,8 @@ export function countLegalMoves(pos: Position, existingContext?: CheckContext): 
       const legal = destsFast(pos, from, pawnPiece, ctx);
       const total = sq.popcountParts(legal.lo, legal.hi);
       const promos = isWhite
-        ? sq.popcountParts(legal.hi & 0xff000000, 0)
-        : sq.popcountParts(legal.lo & 0x000000ff, 0);
+        ? ((from >= 48 && from < 56) ? sq.popcountParts(legal.hi & 0xff000000, 0) : 0)
+        : ((from >= 8 && from < 16) ? sq.popcountParts(legal.lo & 0x000000ff, 0) : 0);
       count += total + promos * 3;
     }
     while (pHi !== 0) {
@@ -1259,8 +1265,8 @@ export function countLegalMoves(pos: Position, existingContext?: CheckContext): 
       const legal = destsFast(pos, from, pawnPiece, ctx);
       const total = sq.popcountParts(legal.lo, legal.hi);
       const promos = isWhite
-        ? sq.popcountParts(legal.hi & 0xff000000, 0)
-        : sq.popcountParts(legal.lo & 0x000000ff, 0);
+        ? ((from >= 48 && from < 56) ? sq.popcountParts(legal.hi & 0xff000000, 0) : 0)
+        : ((from >= 8 && from < 16) ? sq.popcountParts(legal.lo & 0x000000ff, 0) : 0);
       count += total + promos * 3;
     }
   }

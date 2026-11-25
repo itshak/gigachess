@@ -46,3 +46,17 @@
 - [x] Document all findings and immutable raw timings, no npm release
 - [ ] Consistently beat current published drumevp on deep start and Kiwipete perft
 - [ ] Validate performance on newer CPUs and browser engines
+
+## Phase 5: promotion-rank guards and competitive benchmarking (2026-11-25)
+- [x] Optimize leaf promotion counts only when a pawn is on the
+      penultimate rank; preserve exact captures and underpromotions
+- [x] Verify ordinary and fast-board standard/Chess960 correctness,
+      full chess.js 1,000-game differential test and 380 move-order fixtures
+- [x] Compare actual minified fast bundles over 11 alternating A/B rounds
+- [x] Run nine-round source/no-hash versus published-drumevp comparisons;
+      demonstrate narrow mixed-corpus but not deep-perft superiority
+- [x] Reject inlining non-pawn legalMovesInto, conditional halfboard
+      popcounts and perft piece-code leaf reuse because of regressions
+- [x] Document raw samples and preserve draft/npm release gate
+- [ ] Consistently outperform MIT drumevp's published build on
+      start d5 and Kiwipete d4 without gameplay/correctness regression

@@ -58,11 +58,48 @@ node --expose-gc bench/bench-real.mjs           # Full 20-run median verificatio
 - GigaChess maintains **100% exact parity** with `chess.js` on SAN/FEN/game state rules and `chessops` on legal movegen.
 - **NEVER** break the public API contracts or change movegen without running the complete test suite (`npm test`).
 
-### 3. MIT License Clean-Room Integrity
-- GigaChess is 100% clean-room MIT.
-- **NEVER** copy code from GPL-only or restrictive third-party chess libraries.
+### 3. License hygiene (MIT-compatible)
+- GigaChess is released under MIT. **NEVER** copy GPL-only or restrictive
+  third-party chess-library code or add GPL source to the runtime.
+- MIT-compatible third-party implementation can be incorporated when it
+  demonstrably improves performance **and** preserves chess-rule parity.
+  Preserve original copyright/permission notices in any borrowed files,
+  append source repository, pinned commit, scope and original license to
+  THIRD_PARTY_NOTICES.md, and verify there are no added runtime dependencies.
+- Bench competitors (including GPL chessops) may be used as independently
+  installed oracles without copying their runtime implementation.
 
 ---
+
+## JS performance release gate (2026-11-25)
+
+Read these in order when improving movegen/perft:
+- openspec/changes/js-movegen-competition-20261125/{proposal.md,design.md,tasks.md}
+- bench/results/js-perft-phase4-unified-2026-11-25.md
+- bench/results/js-perft-phase5-promotion-2026-11-25.md
+- bench/results/js-phase3-experiments-2026-11-25.md
+- THIRD_PARTY_NOTICES.md
+
+The optional gigachess/fast entry uses esbuild to produce a separately
+minified ESM bundle and lazy magic/Zobrist blobs. Import its table-loading
+hooks from the same /fast entry; the ordinary build's module-local caches
+are separate. Board.perft uses internal no-hash reversible moves; public
+makeMove/unmakeMove must remain fully maintained and FIDE-correct.
+
+Test on the AI server, **not GitHub CI** except an explicitly requested
+release. Require npm test, frozen perft standard/Chess960/EP fixtures,
+exact packed move-order fixtures, and independent chess.js replay/undo
+parity before any performance claim. Compare nine or more alternating
+rounds of equal-work source and **published** competitor npm package,
+plus a paired old/new bundle A/B on start d5, Kiwipete d4,
+promotion d4, endgame d5 and mixed corpus. A cached drumevp
+move-list result is not comparable to freshly generated GigaChess moves.
+
+The current draft does not consistently beat published MIT
+@drumevp/chess-engine on deep starting-position and Kiwipete perft.
+Do NOT merge, tag or publish a new npm version or claim unqualified
+"fastest chess library in JS/TS" until this is independently established
+on multiple CPUs and JS engines without other API regressions.
 
 ## Repository Map
 
