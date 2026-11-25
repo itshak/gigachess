@@ -1,12 +1,15 @@
+import { createRequire } from "node:module";
+// Use the package's explicit CommonJS export for Node 22.5 compatibility.
+const require = createRequire(import.meta.url);
+const { Chess: OpsChess } = require("chessops/chess");
+const { parseFen } = require("chessops/fen");
+const { perft } = require("chessops/debug");
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {Board,ensureMagicTablesLoaded,ensureZobristLoaded} from '../dist/index.js';
 import {compactPerft} from '../dist/perftCompact.js';
 import {Board as FastBoard,ensureMagicTablesLoaded as fastMagic,ensureZobristLoaded as fastHash} from '../dist/fast/index.js';
 import {Chess} from 'chess.js';
-import {Chess as OpsChess} from 'chessops/chess';
-import {parseFen} from 'chessops/fen';
-import {perft} from 'chessops/debug';
 await Promise.all([ensureMagicTablesLoaded(),ensureZobristLoaded(),fastMagic(),fastHash()]);
 const fens=readFileSync(new URL('../bench/data/perftsuite.epd',import.meta.url),'utf8').trim().split(/\r?\n/).map(l=>l.split(';')[0].trim());
 fens.push(...readFileSync(new URL('../bench/data/wac_150.epd',import.meta.url),'utf8').trim().split(/\r?\n/).map(l=>l.split(';')[0].trim().replace(/\s+bm\s+.*$/,'')+' 0 1'));
