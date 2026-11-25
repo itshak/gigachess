@@ -1,0 +1,37 @@
+--- a/src/standardMovegen.ts
++++ b/src/standardMovegen.ts
+@@ -153,7 +153,14 @@
+         maskLo &= bt.lo | cl;
+         maskHi &= bt.hi | ch;
+     }
++    // Map empty push destinations back to their pawn origins once.
++    // This avoids testing board occupancy twice for each starting pawn.
++    const oneLo = us ? ~(occ.lo << 8) : ~((occ.lo >>> 8) | (occ.hi << 24));
++    const oneHi = us ? ~((occ.hi << 8) | (occ.lo >>> 24)) : ~(occ.hi >>> 8);
++    const twoLo = us ? 0 : (oneLo & ~(occ.lo >>> 16) & 0x0000ff00);
++    const twoHi = us ? (oneHi & ~(occ.hi << 16) & 0x00ff0000) : 0;
+     for (let h = 0; h < 2; h++) {
++        const oneMask = h === 0 ? oneLo : oneHi, twoMask = h === 0 ? twoLo : twoHi;
+         let bits = (h === 0 ? b.pawn.lo & ownLo : b.pawn.hi & ownHi);
+         while (bits) {
+             const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
+@@ -161,15 +168,13 @@
+             const pidx=(us<<6)|from;
+             let dl = PLO[pidx] & enemyLo, dh = PHI[pidx] & enemyHi;
+             const one = from + step;
+-            if (((bitLo[one] & occ.lo) | (bitHi[one] & occ.hi)) === 0) {
++            if (bit & oneMask) {
+                 dl |= bitLo[one];
+                 dh |= bitHi[one];
+-                if ((from >> 3) === (us ? 6 : 1)) {
++                if (bit & twoMask) {
+                     const two = one + step;
+-                    if (((bitLo[two] & occ.lo) | (bitHi[two] & occ.hi)) === 0) {
+-                        dl |= bitLo[two];
+-                        dh |= bitHi[two];
+-                    }
++                    dl |= bitLo[two];
++                    dh |= bitHi[two];
+                 }
+             }
+             dl &= maskLo;

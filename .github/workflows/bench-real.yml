@@ -18,24 +18,22 @@ jobs:
       - run: node bench/matrix/prepare-corpus.mjs 20000 1000
       - uses: actions/upload-artifact@v4
         with:
-          name: phase19-corpus
+          name: phase20-corpus
           path: |
             ci-benchmark/corpus.json
             ci-benchmark/corpus.sha256
   diagnose:
     needs: corpus
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 180
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       max-parallel: 8
       matrix:
-        variant: [rays, lean]
-        runner: [ubuntu-24.04, ubuntu-24.04-arm, windows-2025, windows-11-arm]
-        node: ['24.19.0']
         include:
-          - {variant: rays, runner: ubuntu-24.04, node: '22.5.0'}
-          - {variant: lean, runner: ubuntu-24.04, node: '22.5.0'}
+          - {runner: ubuntu-24.04, node: '24.19.0'}
+          - {runner: ubuntu-24.04, node: '22.5.0'}
+          - {runner: windows-11-arm, node: '24.19.0'}
     defaults:
       run:
         shell: bash
@@ -49,44 +47,18 @@ jobs:
           node-version: ${{ matrix.node }}
       - uses: actions/download-artifact@v4
         with:
-          name: phase19-corpus
+          name: phase20-corpus
           path: ci-benchmark
-      - name: Build isolated candidate and pinned references
-        run: |
-          git apply --check "bench/phase18/patches/${{ matrix.variant }}.patch"
-          git apply "bench/phase18/patches/${{ matrix.variant }}.patch"
-          bash bench/matrix/setup.sh
-      - name: Full correctness and reproducible tables
-        run: |
-          set -euo pipefail
-          sha256sum node_modules/chessops/package.json node_modules/@itshak/chesstree/node_modules/chessops/package.json > benchmark-results/oracle-before.sha
-          npm test 2>&1 | tee benchmark-results/correctness.log
-          sha256sum -c benchmark-results/oracle-before.sha
-          node bench/make-split32-tables.mjs
-          git diff --exit-code -- src/rookSplit32Blob.ts src/bishopSplit32Blob.ts
-          node tests/standard-movegen-differential.mjs 2>&1 | tee benchmark-results/movegen-parity.log
-      - name: Reproduce original four-engine direct comparison
+      - name: Build identical Phase 15 engines and pinned competitors
+        run: bash bench/matrix/setup.sh
+      - name: Verify exact normalized real-game legal moves
         run: |
           set -o pipefail
-          node --expose-gc --import ./ci-benchmark/tools/node_modules/tsx/dist/loader.mjs bench/bench-competitive-movegen-direct.mjs --baseline ci-benchmark/baseline/dist/fast/index.js --drumevp ci-benchmark/drumevp --published ci-benchmark/package/dist/index.js --warmups 12 --runs 25 | tee benchmark-results/direct-movegen.json
-      - name: Separate process complete GC accounting
-        run: node bench/phase19/run.mjs
-      - name: Paired full real-game workloads
-        run: |
-          set -euo pipefail
-          mkdir -p ci-benchmark/corpus ci-benchmark/candidate
-          cp ci-benchmark/corpus.json ci-benchmark/corpus/
-          cp bench/phase18/paired-long.mjs ci-benchmark/paired.mjs
-          cp -R dist ci-benchmark/candidate/dist
-          cd ci-benchmark
-          export BENCH_POSITIONS=20000 BENCH_GAMES=300 BENCH_RUNS=15 BENCH_WARMUPS=8 BENCH_BATCHES=4 BENCH_OUT=../benchmark-results/paired
-          node --expose-gc paired.mjs baseline candidate 2>&1 | tee ../benchmark-results/paired.log
-      - name: Real-game all-library comparison
-        run: |
-          set -o pipefail
-          node --expose-gc bench/matrix/cli.mjs --no-deep --runs 9 --warmups 5 --games 300 2>&1 | tee benchmark-results/matrix.log
+          node bench/phase20/verify.mjs | tee benchmark-results/word-parity.json
+      - name: Equal retention and allocation lifetime controls
+        run: node bench/phase20/run.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: phase19-${{ matrix.variant }}-${{ matrix.runner }}-${{ matrix.node }}
+          name: phase20-${{ matrix.runner }}-${{ matrix.node }}
           path: benchmark-results/
