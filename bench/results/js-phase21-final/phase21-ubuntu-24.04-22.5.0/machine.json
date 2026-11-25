@@ -1,0 +1,28 @@
+{
+  "node": "v22.5.0",
+  "v8": "12.4.254.21-node.16",
+  "platform": "linux",
+  "arch": "x64",
+  "cpu": [
+    {
+      "model": "Intel(R) Xeon(R) 6975P-C",
+      "speed": 0
+    },
+    {
+      "model": "Intel(R) Xeon(R) 6975P-C",
+      "speed": 0
+    },
+    {
+      "model": "Intel(R) Xeon(R) 6975P-C",
+      "speed": 0
+    },
+    {
+      "model": "Intel(R) Xeon(R) 6975P-C",
+      "speed": 0
+    }
+  ],
+  "memory": 16464302080,
+  "release": "7.0.0-1014-aws",
+  "runner": "GitHub Actions 1000022492",
+  "sha": "769db80af3ef359d0c7040024d38459ff7a3ca64"
+}

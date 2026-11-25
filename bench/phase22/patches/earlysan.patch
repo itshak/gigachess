@@ -1,0 +1,139 @@
+--- a/src/board.ts
++++ b/src/board.ts
+@@ -124,14 +124,6 @@
+ // Each instance receives independent mutable bitboards and king coordinates.
+ let initialTemplate: Board | undefined;
+ let buildingInitialTemplate = false;
+-function initialBoardTemplate(): Board {
+-  if (initialTemplate === undefined) {
+-    buildingInitialTemplate = true;
+-    try { initialTemplate = new Board(INITIAL_FEN); }
+-    finally { buildingInitialTemplate = false; }
+-  }
+-  return initialTemplate;
+-}
+ export class Board implements BoardLike {
+   white: MutableSquareSet;
+   black: MutableSquareSet;
+@@ -158,12 +150,22 @@
+   _zobristHi: number;
+ 
+   constructor(input?: string | Position | Board | BoardLike) {
++    // Prepare the single canonical template on first ordinary Board use,
++    // even for an arbitrary input FEN. In addition to cheap start-position
++    // creation, keeping this reusable instance stabilizes V8's weak
++    // optimized-code dependencies across full collections.
++    // Avoid eager module evaluation (the board/FEN modules are cyclic).
++    if (new.target === Board && initialTemplate === undefined && !buildingInitialTemplate) {
++      buildingInitialTemplate = true;
++      try { initialTemplate = new Board(INITIAL_FEN); }
++      finally { buildingInitialTemplate = false; }
++    }
+     // String construction owns the newly parsed board. Unlike loadFen on an
+     // existing Board, there are no prior public bitboard references to retain.
+     // Subclass initialization keeps the original virtual loadFen behavior.
+     if (new.target === Board && (input === undefined || typeof input === "string")) {
+       const fen = input ?? INITIAL_FEN;
+-      const template = fen === INITIAL_FEN && !buildingInitialTemplate ? initialBoardTemplate() : undefined;
++      const template = fen === INITIAL_FEN ? initialTemplate : undefined;
+       let pos: Position, b: BoardLike;
+       if (template) {
+         pos = template;
+--- a/src/san.ts
++++ b/src/san.ts
+@@ -67,7 +67,7 @@
+     return base;
+   }
+ 
+-  const piece = board.pieceAt(pos.board, move.from);
++  const piece = movingPiece;
+   if (!piece) return "";
+ 
+   const toName = squareName(move.to);
+@@ -104,8 +104,8 @@
+ 
+   // Disambiguation for non-pawn (and pawn capture already handled)
+   if (piece.role !== Role.Pawn) {
+-    // Find other pieces of same role/color that can legally move to same destination
+-    const candidates: number[] = [];
++    // Legal alternatives determine the shortest SAN disambiguation.
++    // Track only the facts needed for formatting; no candidate array.
+     const own = pos.turn === Color.White ? pos.board.white : pos.board.black;
+     let attackers: SquareSet;
+     switch (piece.role) {
+@@ -119,39 +119,19 @@
+     const otherAttackers = sq.minus(attackers, sq.singleton(move.from));
+     if (!sq.isEmpty(otherAttackers)) {
+       const ctx = chess.analyzeCheckContext(pos);
++      const movingFile = squareFile(move.from), movingRank = squareRank(move.from);
++      let ambiguous = false, sameFile = false, sameRank = false;
+       for (const sqIdx of sq.iter(otherAttackers)) {
+         const cand = board.pieceAt(pos.board, sqIdx);
+-        if (!cand) continue;
+-        const d = chess.destsFast(pos, sqIdx, cand, ctx);
+-        if (sq.has(d, move.to)) candidates.push(sqIdx);
++        if (!cand || !sq.has(chess.destsFast(pos, sqIdx, cand, ctx), move.to)) continue;
++        ambiguous = true;
++        sameFile ||= squareFile(sqIdx) === movingFile;
++        sameRank ||= squareRank(sqIdx) === movingRank;
++        if (sameFile && sameRank) break;
+       }
+-    }
+-    // Include moving piece itself, total candidates +1 = all that can reach dest
+-    // If there is any other candidate, need disambiguation
+-    if (candidates.length > 0) {
+-      // Determine minimal disambiguation
+-      const movingFile = squareFile(move.from);
+-      const movingRank = squareRank(move.from);
+-      let needFile = false;
+-      let needRank = false;
+-      // Check if file alone distinguishes
+-      let fileUnique = true;
+-      for (const c of candidates) {
+-        if (squareFile(c) === movingFile) { fileUnique = false; break; }
+-      }
+-      if (fileUnique) {
+-        san += String.fromCharCode(97 + movingFile);
+-      } else {
+-        // file not unique, check rank
+-        let rankUnique = true;
+-        for (const c of candidates) {
+-          if (squareRank(c) === movingRank) { rankUnique = false; break; }
+-        }
+-        if (rankUnique) {
+-          san += String.fromCharCode(49 + movingRank);
+-        } else {
+-          san += String.fromCharCode(97 + movingFile) + String.fromCharCode(49 + movingRank);
+-        }
++      if (ambiguous) {
++        if (!sameFile || sameRank) san += String.fromCharCode(97 + movingFile);
++        if (sameFile) san += String.fromCharCode(49 + movingRank);
+       }
+     }
+   }
+--- a/tests/initial-template-ownership.mjs
++++ b/tests/initial-template-ownership.mjs
+@@ -2,9 +2,13 @@
+ import * as M from '../dist/index.js';
+ import * as F from '../dist/fast/index.js';
+ const initial='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
++const arbitrary='r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1';
+ for(const E of [M,F]){
+  for(const loaded of [false,true]){
+   if(loaded){await E.ensureMagicTablesLoaded();await E.ensureZobristLoaded();}
++  const other=new E.Board(arbitrary);
++  assert.equal(other.toFen(),arbitrary);
++  assert.equal(other.legalMoves().length,48);
+   const a=new E.Board(),b=new E.Board(initial),c=E.Board.startpos();
+   for(const p of [a,b,c])assert.equal(p.toFen(),initial);
+   for(const key of ['white','black','pawn','knight','bishop','rook','queen','king','occupied','promoted','kingSq','checkers']){
+@@ -16,6 +20,9 @@
+   E.Board.empty().clear();
+   assert.equal(b.toFen(),initial);assert.equal(c.toFen(),initial);
+   assert.equal(new E.Board().toFen(),initial);
++  assert.equal(other.toFen(),arbitrary);
++  assert.throws(()=>new E.Board('invalid FEN'));
++  assert.equal(new E.Board(arbitrary).toFen(),arbitrary);
+   assert.equal(new E.Board().zobristHex(),hash);
+   b.loadFen(initial);assert.equal(b.white,refs);
+   class Sub extends E.Board {loadFen(f){super.loadFen(f);this.called=true;}}

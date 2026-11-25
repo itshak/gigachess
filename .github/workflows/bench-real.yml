@@ -18,24 +18,24 @@ jobs:
       - run: node bench/matrix/prepare-corpus.mjs 20000 1000
       - uses: actions/upload-artifact@v4
         with:
-          name: phase21-corpus
+          name: phase22-corpus
           path: |
             ci-benchmark/corpus.json
             ci-benchmark/corpus.sha256
   diagnose:
     needs: corpus
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 180
+    timeout-minutes: 210
     strategy:
       fail-fast: false
       max-parallel: 8
       matrix:
+        variant: [early, earlysan]
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, windows-2025, windows-11-arm]
+        node: ['24.19.0']
         include:
-          - {runner: ubuntu-24.04, node: '24.19.0'}
-          - {runner: ubuntu-24.04, node: '22.5.0'}
-          - {runner: windows-11-arm, node: '24.19.0'}
-          - {runner: windows-2025, node: '24.19.0'}
-          - {runner: ubuntu-24.04-arm, node: '24.19.0'}
+          - {variant: early, runner: ubuntu-24.04, node: '22.5.0'}
+          - {variant: earlysan, runner: ubuntu-24.04, node: '22.5.0'}
     defaults:
       run:
         shell: bash
@@ -49,10 +49,13 @@ jobs:
           node-version: ${{ matrix.node }}
       - uses: actions/download-artifact@v4
         with:
-          name: phase21-corpus
+          name: phase22-corpus
           path: ci-benchmark
-      - name: Build initial template candidate and pinned references
-        run: bash bench/matrix/setup.sh
+      - name: Build isolated refinement and pinned references
+        run: |
+          git apply --check "bench/phase22/patches/${{ matrix.variant }}.patch"
+          git apply "bench/phase22/patches/${{ matrix.variant }}.patch"
+          bash bench/matrix/setup.sh
       - name: Full correctness and reproducible tables
         run: |
           set -euo pipefail
@@ -73,6 +76,10 @@ jobs:
           node --expose-gc --import ./ci-benchmark/tools/node_modules/tsx/dist/loader.mjs bench/bench-competitive-movegen-direct.mjs --baseline ci-benchmark/baseline/dist/fast/index.js --drumevp ci-benchmark/drumevp --published ci-benchmark/package/dist/index.js --warmups 12 --runs 25 | tee benchmark-results/direct-movegen.json
       - name: Isolated trace and initial-free controls
         run: node bench/phase21/run.mjs
+      - name: Exact ordered SAN and UCI with longer paired samples
+        run: |
+          set -o pipefail
+          SAN_POSITIONS=12000 node --expose-gc bench/phase22/san-compare.mjs ci-benchmark/corpus.json benchmark-results/san-compare.json ci-benchmark/baseline/dist/fast/index.js dist/fast/index.js | tee benchmark-results/san-compare.log
       - name: Paired real-game workloads
         run: |
           set -euo pipefail
@@ -90,5 +97,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: phase21-${{ matrix.runner }}-${{ matrix.node }}
+          name: phase22-${{ matrix.variant }}-${{ matrix.runner }}-${{ matrix.node }}
           path: benchmark-results/

@@ -38,7 +38,7 @@ const dUci=m=>sq(D.moveDecodeFrom(m))+sq(D.moveDecodeTo(m))+(D.moveDecodePromoti
 export async function engines(){
  await Promise.all([Giga.ensureMagicTablesLoaded(),Base.ensureMagicTablesLoaded(),Giga.ensureZobristLoaded(),Base.ensureZobristLoaded(),Release.ensureMagicTablesLoaded(),Release.ensureZobristLoaded()]);
  return [
-  gAdapter('gigachess-phase21',Giga),gAdapter('gigachess-phase15',Base),gAdapter('gigachess-npm-0.5.0',Release),
+  gAdapter('gigachess-phase22',Giga),gAdapter('gigachess-phase15',Base),gAdapter('gigachess-npm-0.5.0',Release),
   {name:'drumevp-published',group:'pure-js',create:f=>new D.ChessEngine(f),list:p=>p.generateLegalMoves(),uci:(_,m)=>dUci(m),fen:p=>p.exportFen(),play:(p,u)=>p.makeUciMove(u),perft:(p,d)=>p.perft(d)},
   {name:'drumevp-source',group:'pure-js',create:f=>Source.parse(f),list:p=>Source.generate(p),uci:(_,m)=>dUci(m),perft:(p,d)=>Source.perft(p,d)},
   {name:'chessops',group:'pure-js',create:opsCreate,list:opsMoves,san:p=>opsMoves(p).map(m=>makeSan(p,m)),uci:(_,m)=>makeUci(m),fen:p=>makeFen(p.toSetup()),play:(p,u)=>{const m=parseUci(u);if(!m||!p.isLegal(m))throw Error(u);p.play(m)},perft:(p,d)=>Number(opsPerft(p.clone(),d))},
