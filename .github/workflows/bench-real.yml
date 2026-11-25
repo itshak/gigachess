@@ -83,7 +83,7 @@ jobs:
       - name: Real-game all-library comparison
         run: |
           set -o pipefail
-          node --expose-gc bench/matrix/cli.mjs --no-deep --runs 9 --warmups 5 --games 300 2>&1 | tee benchmark-results/matrix.log
+          node --experimental-detect-module --expose-gc bench/matrix/cli.mjs --no-deep --runs 9 --warmups 5 --games 300 2>&1 | tee benchmark-results/matrix.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
