@@ -56,6 +56,7 @@ jobs:
       - name: Full correctness and reproducible tables
         run: |
           set -euo pipefail
+          node --input-type=module -e 'import {Chess} from "chessops/chess"; import {parseFen} from "chessops/fen"; if(typeof Chess!=="function"||typeof parseFen!=="function")throw Error("oracle export mismatch"); console.log("Pinned chessops ESM oracle OK")'
           npm run typecheck
           npm test 2>&1 | tee benchmark-results/correctness.log
           node bench/make-split32-tables.mjs
@@ -83,7 +84,7 @@ jobs:
       - name: Real-game all-library comparison
         run: |
           set -o pipefail
-          node --experimental-detect-module --expose-gc bench/matrix/cli.mjs --no-deep --runs 9 --warmups 5 --games 300 2>&1 | tee benchmark-results/matrix.log
+          node --expose-gc bench/matrix/cli.mjs --no-deep --runs 9 --warmups 5 --games 300 2>&1 | tee benchmark-results/matrix.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
