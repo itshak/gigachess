@@ -18,14 +18,14 @@ jobs:
       - run: node bench/matrix/prepare-corpus.mjs 20000 1000
       - uses: actions/upload-artifact@v4
         with:
-          name: phase15-corpus
+          name: phase16-corpus
           path: |
             ci-benchmark/corpus.json
             ci-benchmark/corpus.sha256
-  validate:
+  diagnose:
     needs: corpus
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 180
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       max-parallel: 5
@@ -49,47 +49,20 @@ jobs:
           node-version: ${{ matrix.node }}
       - uses: actions/download-artifact@v4
         with:
-          name: phase15-corpus
+          name: phase16-corpus
           path: ci-benchmark
-      - name: Build exact candidate and pinned competitors
+      - name: Build unchanged validated engine and pinned competitors
         run: bash bench/matrix/setup.sh
-      - name: Full correctness and reproducible tables
-        run: |
-          set -euo pipefail
-          node --input-type=module -e 'import {Chess} from "chessops/chess"; import {parseFen} from "chessops/fen"; if(typeof Chess!=="function"||typeof parseFen!=="function")throw Error("oracle export mismatch"); console.log("Pinned chessops ESM oracle OK")'
-          npm run typecheck
-          sha256sum node_modules/chessops/package.json node_modules/@itshak/chesstree/node_modules/chessops/package.json > benchmark-results/oracle-before.sha
-          npm test 2>&1 | tee benchmark-results/correctness.log
-          sha256sum -c benchmark-results/oracle-before.sha
-          node --input-type=module -e 'import {Chess} from "chessops/chess"; if(typeof Chess!=="function")throw Error("oracle export mismatch after suite")'
-          node bench/make-split32-tables.mjs
-          git diff --exit-code -- src/rookSplit32Blob.ts src/bishopSplit32Blob.ts
-      - name: Direct comparison (mixed-engine)
+      - name: Reproduce original four-engine direct comparison
         run: |
           set -o pipefail
           node --expose-gc --import ./ci-benchmark/tools/node_modules/tsx/dist/loader.mjs bench/bench-competitive-movegen-direct.mjs --baseline ci-benchmark/baseline/dist/fast/index.js --drumevp ci-benchmark/drumevp --published ci-benchmark/package/dist/index.js --warmups 12 --runs 25 | tee benchmark-results/direct-movegen.json
-      - name: Isolated native generation and complete lifecycle
-        run: |
-          set -euo pipefail
-          node bench/phase15/isolated.mjs
-          ISOLATED_MODE=lifecycle node bench/phase15/isolated.mjs
-      - name: Paired Phase 8 regression and expanded legality
-        run: |
-          set -euo pipefail
-          mkdir -p ci-benchmark/corpus ci-benchmark/candidate
-          cp ci-benchmark/corpus.json ci-benchmark/corpus/
-          cp bench/phase15/{paired,legality}.mjs ci-benchmark/
-          cp -R dist ci-benchmark/candidate/dist
-          cd ci-benchmark
-          node legality.mjs 2>&1 | tee ../benchmark-results/legality.log
-          export BENCH_POSITIONS=20000 BENCH_GAMES=300 BENCH_RUNS=15 BENCH_WARMUPS=8 BENCH_OUT=../benchmark-results/paired
-          node --expose-gc paired.mjs baseline candidate 2>&1 | tee ../benchmark-results/paired.log
-      - name: Real-game all-library comparison
+      - name: Counterbalanced independent-process GC and call-site controls
         run: |
           set -o pipefail
-          node --expose-gc bench/matrix/cli.mjs --no-deep --runs 9 --warmups 5 --games 300 2>&1 | tee benchmark-results/matrix.log
+          node bench/phase16/run.mjs 2>&1 | tee benchmark-results/callsite.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: phase15-${{ matrix.runner }}-${{ matrix.node }}
+          name: phase16-${{ matrix.runner }}-${{ matrix.node }}
           path: benchmark-results/
