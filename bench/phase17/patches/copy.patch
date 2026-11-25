@@ -1,0 +1,13 @@
+--- a/src/board.ts
++++ b/src/board.ts
+@@ -932,7 +932,9 @@
+     ownedMoveScratchBusy = true;
+     try {
+       const count = legalMovesInto(this, ownedMoveScratch);
+-      return ownedMoveScratch.slice(0, count);
++      const result = new Uint16Array(count);
++      for (let i = 0; i < count; i++) result[i] = ownedMoveScratch[i];
++      return result;
+     } finally {
+       ownedMoveScratchBusy = false;
+     }

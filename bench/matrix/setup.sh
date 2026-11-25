@@ -5,7 +5,7 @@ node bench/matrix/machine.mjs
 node --input-type=module -e 'import fs from "node:fs";import crypto from "node:crypto";const h=crypto.createHash("sha256").update(fs.readFileSync("ci-benchmark/corpus.json")).digest("hex");if(h!==fs.readFileSync("ci-benchmark/corpus.sha256","utf8").trim())throw Error("corpus hash mismatch");console.log("corpus SHA-256",h)'
 npm ci
 npm run build
-git worktree add --detach ci-benchmark/baseline 4fef578b5282eb64ab8d6193b429761333731149
+git worktree add --detach ci-benchmark/baseline cc375b0683aaefbf4cbdbcc9e639f70bf1fc51dd
 (cd ci-benchmark/baseline && npm ci && npm run build)
 git init ci-benchmark/drumevp
 git -C ci-benchmark/drumevp remote add origin https://github.com/drumevp/chess-engine.git

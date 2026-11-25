@@ -1,0 +1,64 @@
+--- a/src/attacks.ts
++++ b/src/attacks.ts
+@@ -229,6 +229,24 @@
+   const rl=(rm[b+7]+(Math.imul(lo&rm[b],rm[b+2])>>>rm[b+4]))*2;
+   const rh=(rm[b+6]+(Math.imul(hi&rm[b+1],rm[b+3])>>>rm[b+5]))*2;
+   return {lo:(bt[bi]|(rt[rl]&rt[rh]))>>>0,hi:(bt[bi+1]|(rt[rl+1]&rt[rh+1]))>>>0};
++}
++
++// Internal standard-movegen helper: the caller owns the result pair.
++export function loadedSliderInto(role:number,s:number,lo:number,hi:number,out:{lo:number;hi:number}):void {
++  const bv=bishopViews!,rv=rookViews!,b=s*8;
++  let l=0,h=0;
++  if(role!==1){
++    const m=bv.meta,t=bv.attacks;
++    const i=((((Math.imul(lo&m[b],m[b+2])>>>m[b+4])<<m[b+6])|(Math.imul(hi&m[b+1],m[b+3])>>>m[b+5]))+m[b+7])*2;
++    l=t[i];h=t[i+1];
++  }
++  if(role!==2){
++    const m=rv.meta,t=rv.attacks;
++    const i=(m[b+7]+(Math.imul(lo&m[b],m[b+2])>>>m[b+4]))*2;
++    const j=(m[b+6]+(Math.imul(hi&m[b+1],m[b+3])>>>m[b+5]))*2;
++    l|=t[i]&t[j];h|=t[i+1]&t[j+1];
++  }
++  out.lo=l>>>0;out.hi=h>>>0;
+ }
+ 
+ // Independent naive ray walk for correctness verification.
+--- a/src/standardMovegen.ts
++++ b/src/standardMovegen.ts
+@@ -144,6 +144,7 @@
+             kh |= bitHi[offset];
+         }
+     }
++    const at = {lo:0,hi:0};
+     let count = emit(out, 0, ks, kl, kh);
+     let maskLo = ~ownLo, maskHi = ~ownHi;
+     if ((cl | ch) !== 0) {
+@@ -213,7 +214,7 @@
+             while (bits) {
+                 const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
+                 bits &= bits - 1;
+-                const at = a.bishopAttacks(from, occ);
++                a.loadedSliderInto(2,from,occ.lo,occ.hi,at);
+                 let dl = at.lo & maskLo, dh = at.hi & maskHi;
+                 if (bit & (h === 0 ? pinLo : pinHi)) {
+                     const i = ks * 64 + from;
+@@ -231,7 +232,7 @@
+             while (bits) {
+                 const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
+                 bits &= bits - 1;
+-                const at = a.rookAttacks(from, occ);
++                a.loadedSliderInto(1,from,occ.lo,occ.hi,at);
+                 let dl = at.lo & maskLo, dh = at.hi & maskHi;
+                 if (bit & (h === 0 ? pinLo : pinHi)) {
+                     const i = ks * 64 + from;
+@@ -249,7 +250,7 @@
+             while (bits) {
+                 const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
+                 bits &= bits - 1;
+-                const at = a.queenAttacks(from, occ);
++                a.loadedSliderInto(0,from,occ.lo,occ.hi,at);
+                 let dl = at.lo & maskLo, dh = at.hi & maskHi;
+                 if (bit & (h === 0 ? pinLo : pinHi)) {
+                     const i = ks * 64 + from;

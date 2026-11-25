@@ -18,24 +18,21 @@ jobs:
       - run: node bench/matrix/prepare-corpus.mjs 20000 1000
       - uses: actions/upload-artifact@v4
         with:
-          name: phase16-corpus
+          name: phase17-corpus
           path: |
             ci-benchmark/corpus.json
             ci-benchmark/corpus.sha256
   diagnose:
     needs: corpus
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
+    timeout-minutes: 100
     strategy:
       fail-fast: false
-      max-parallel: 5
+      max-parallel: 8
       matrix:
-        include:
-          - {runner: ubuntu-24.04, node: '24.19.0'}
-          - {runner: ubuntu-24.04-arm, node: '24.19.0'}
-          - {runner: windows-2025, node: '24.19.0'}
-          - {runner: windows-11-arm, node: '24.19.0'}
-          - {runner: ubuntu-24.04, node: '22.5.0'}
+        variant: [copy, geometry, slider, combined]
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, windows-2025, windows-11-arm]
+        node: ['24.19.0']
     defaults:
       run:
         shell: bash
@@ -49,10 +46,17 @@ jobs:
           node-version: ${{ matrix.node }}
       - uses: actions/download-artifact@v4
         with:
-          name: phase16-corpus
+          name: phase17-corpus
           path: ci-benchmark
-      - name: Build unchanged validated engine and pinned competitors
-        run: bash bench/matrix/setup.sh
+      - name: Build isolated candidate and pinned references
+        run: |
+          git apply --check "bench/phase17/patches/${{ matrix.variant }}.patch"
+          git apply "bench/phase17/patches/${{ matrix.variant }}.patch"
+          bash bench/matrix/setup.sh
+      - name: Correctness before timing
+        run: |
+          set -euo pipefail
+          (node tests/move-list-ownership.mjs && node tests/pawn-list-order.mjs && node tests/split32-exhaustive.mjs --cold && node tests/split32-exhaustive.mjs && node tests/perft-specialized-parity.mjs && node tests/standard-movegen-differential.mjs) 2>&1 | tee benchmark-results/correctness.log
       - name: Reproduce original four-engine direct comparison
         run: |
           set -o pipefail
@@ -61,6 +65,16 @@ jobs:
         run: |
           set -o pipefail
           node bench/phase16/run.mjs 2>&1 | tee benchmark-results/callsite.log
+      - name: Paired full real-game workloads
+        run: |
+          set -euo pipefail
+          mkdir -p ci-benchmark/corpus ci-benchmark/candidate
+          cp ci-benchmark/corpus.json ci-benchmark/corpus/
+          cp bench/phase15/paired.mjs ci-benchmark/
+          cp -R dist ci-benchmark/candidate/dist
+          cd ci-benchmark
+          export BENCH_POSITIONS=20000 BENCH_GAMES=300 BENCH_RUNS=15 BENCH_WARMUPS=8 BENCH_OUT=../benchmark-results/paired
+          node --expose-gc paired.mjs baseline candidate 2>&1 | tee ../benchmark-results/paired.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:

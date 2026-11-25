@@ -1,0 +1,28 @@
+{
+  "node": "v22.5.0",
+  "v8": "12.4.254.21-node.16",
+  "platform": "linux",
+  "arch": "x64",
+  "cpu": [
+    {
+      "model": "AMD EPYC 9V74 80-Core Processor",
+      "speed": 0
+    },
+    {
+      "model": "AMD EPYC 9V74 80-Core Processor",
+      "speed": 0
+    },
+    {
+      "model": "AMD EPYC 9V74 80-Core Processor",
+      "speed": 0
+    },
+    {
+      "model": "AMD EPYC 9V74 80-Core Processor",
+      "speed": 0
+    }
+  ],
+  "memory": 16760344576,
+  "release": "7.0.0-1017-azure",
+  "runner": "GitHub Actions 1000021983",
+  "sha": "63fb5cd0e1bfd138f91e8d54bf818413edc1380e"
+}
