@@ -1,0 +1,4 @@
+parity 4000 positions [ 'baseline', 'sibling' ]
+perft-mixed {"baseline":[1,1],"sibling":[1.055,1.055]}
+perft-start-d5 {"baseline":[1,1],"sibling":[1.042,1.043]}
+perft-kiwi-d4 {"baseline":[1,1],"sibling":[0.927,0.972]}

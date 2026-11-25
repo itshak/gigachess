@@ -1,0 +1,74 @@
+--- a/src/perftCompact.ts
++++ b/src/perftCompact.ts
+@@ -255,8 +255,7 @@
+ }
+ function play(s: State, t: State, m: number) {
+     const bb = t.bb;
+-    bb.set(s.bb);
+-    t.king.set(s.king);
++    if(s!==t){bb.set(s.bb);t.king.set(s.king);}
+     const us = s.turn, own = us * 12, enemy = 12 - own, ownOcc = W + us * 2, enemyOcc = W + (1 - us) * 2;
+     const from = m & 63, to = (m >> 6) & 63, role = (m >> 16) & 7, promo = (m >> 12) & 15;
+     const fl = bitLo[from], fh = bitHi[from], tl = bitLo[to], th = bitHi[to];
+@@ -301,6 +300,32 @@
+             t.ep = (from + to) >> 1;
+     }
+ }
++function unplay(s:State,m:number,rights:number,ep:number,capRole:number):void {
++  const bb=s.bb,us=1-s.turn,own=us*12,enemy=12-own,oo=W+us*2,eo=W+(1-us)*2;
++  const from=m&63,to=(m>>6)&63,role=(m>>16)&7,promo=(m>>12)&15;
++  const fl=bitLo[from],fh=bitHi[from],tl=bitLo[to],th=bitHi[to];
++  const idx=own+role*2,final=own+(promo||role)*2;
++  bb[final]&=~tl;bb[final+1]&=~th;bb[idx]|=fl;bb[idx+1]|=fh;
++  bb[oo]=(bb[oo]&~tl)|fl;bb[oo+1]=(bb[oo+1]&~th)|fh;
++  if(role===5)s.king[us]=from;
++  if(m&CASTLE){
++    const rf=to>from?from+3:from-4,rt=to>from?from+1:from-1;
++    const l=bitLo[rf]|bitLo[rt],h=bitHi[rf]|bitHi[rt];
++    bb[own+R]^=l;bb[own+R+1]^=h;bb[oo]^=l;bb[oo+1]^=h;
++  }else if(capRole>=0){
++    const cap=m&EP?to+(us?8:-8):to,cl=bitLo[cap],ch=bitHi[cap];
++    const k=enemy+capRole*2;bb[k]|=cl;bb[k+1]|=ch;bb[eo]|=cl;bb[eo+1]|=ch;
++  }
++  bb[ALL]=bb[W]|bb[BLACK];bb[ALL+1]=bb[W+1]|bb[BLACK+1];
++  s.rights=rights;s.ep=ep;s.turn=us;
++}
++function capturedRole(s:State,m:number):number{
++  if(m&CASTLE)return -1;
++  const us=s.turn,to=(m>>6)&63,cap=m&EP?to+(us?8:-8):to,cl=bitLo[cap],ch=bitHi[cap],enemy=(1-us)*12,eo=W+(1-us)*2,bb=s.bb;
++  if(!((bb[eo]&cl)|(bb[eo+1]&ch)))return -1;
++  for(let r=0;r<6;r++)if((bb[enemy+r*2]&cl)|(bb[enemy+r*2+1]&ch))return r;
++  return -1;
++}
+ export function compactPerft(pos: Position, depth: number): number | undefined {
+     if (pos.isChess960 || !a.magicTablesLoaded() || !Number.isInteger(depth) || depth < 2 ||
+         (pos.turn !== Color.White && pos.turn !== Color.Black))
+@@ -354,18 +379,16 @@
+     }
+     if (attacked(bb, root.king[1 - root.turn], root.turn * 12, { lo: bb[ALL], hi: bb[ALL + 1] }))
+         return undefined;
+-    const states = [root, ...Array.from({ length: depth - 1 }, state)], lists = Array.from({ length: depth - 1 }, () => new Uint32Array(256));
+-    function visit(ply: number): number {
+-        const s = states[ply];
+-        if (ply === depth - 1)
+-            return generate(s, null);
+-        const out = lists[ply], n = generate(s, out), child = states[ply + 1];
+-        let total = 0;
+-        for (let i = 0; i < n; i++) {
+-            play(s, child, out[i]);
+-            total += visit(ply + 1);
+-        }
+-        return total;
++    const lists=Array.from({length:depth-1},()=>new Uint32Array(256));
++    function visit(ply:number):number {
++      if(ply===depth-1)return generate(root,null);
++      const out=lists[ply],n=generate(root,out),rights=root.rights,ep=root.ep;
++      let total=0;
++      for(let i=0;i<n;i++){
++        const m=out[i],cap=capturedRole(root,m);
++        play(root,root,m);total+=visit(ply+1);unplay(root,m,rights,ep,cap);
++      }
++      return total;
+     }
+     return visit(0);
+ }

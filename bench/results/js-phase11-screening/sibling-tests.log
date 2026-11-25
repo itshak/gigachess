@@ -1,0 +1,9 @@
+{ exhaustiveRelevantOccupancies: 107648 }
+PASS perft internal state restoration and frozen standard/Chess960 fixtures 114
+{
+  fens: 571,
+  randomPositions: 295,
+  active: 571,
+  fallback: 0,
+  checked: 1142
+}

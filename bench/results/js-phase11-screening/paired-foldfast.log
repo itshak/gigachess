@@ -1,0 +1,5 @@
+parity 4000 positions [ 'baseline', 'foldfast' ]
+movegen-fresh {"baseline":[1,1],"foldfast":[0.844,1.151]}
+perft-mixed {"baseline":[1,1],"foldfast":[1.033,1.033]}
+perft-start-d5 {"baseline":[1,1],"foldfast":[0.899,0.892]}
+perft-kiwi-d4 {"baseline":[1,1],"foldfast":[1.05,1.05]}

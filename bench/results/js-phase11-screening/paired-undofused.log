@@ -1,0 +1,4 @@
+parity 4000 positions [ 'baseline', 'undofused' ]
+perft-mixed {"baseline":[1,1],"undofused":[1.042,1.056]}
+perft-start-d5 {"baseline":[1,1],"undofused":[0.996,0.998]}
+perft-kiwi-d4 {"baseline":[1,1],"undofused":[1.204,1.203]}
