@@ -1,0 +1,300 @@
+--- a/src/standardMovegen.ts
++++ b/src/standardMovegen.ts
+@@ -8,6 +8,12 @@
+ const bitHi = Int32Array.from({ length: 64 }, (_, s) => s >= 32 ? 1 << (s - 32) : 0);
+ const rr = Array.from({ length: 64 }, (_, s) => a.rookAttacks(s, { lo: 0, hi: 0 }));
+ const br = Array.from({ length: 64 }, (_, s) => a.bishopAttacks(s, { lo: 0, hi: 0 }));
++const KLO=new Int32Array(64),KHI=new Int32Array(64),NLO=new Int32Array(64),NHI=new Int32Array(64),PLO=new Int32Array(128),PHI=new Int32Array(128);
++for(let i=0;i<64;i++){
++ const k=a.kingAttacks(i),n=a.knightAttacks(i);
++ KLO[i]=k.lo;KHI[i]=k.hi;NLO[i]=n.lo;NHI[i]=n.hi;
++ for(let c=0;c<2;c++){const p=a.pawnAttacks(c as Color,i);PLO[(c<<6)|i]=p.lo;PHI[(c<<6)|i]=p.hi;}
++}
+ type AttackMasks = {
+     pLo: number;
+     pHi: number;
+@@ -24,8 +30,8 @@
+     lo: number;
+     hi: number;
+ }, removedLo = 0, removedHi = 0) {
+-    const p = a.pawnAttacks(us, target), n = a.knightAttacks(target), k = a.kingAttacks(target);
+-    if (((p.lo & m.pLo & ~removedLo) | (p.hi & m.pHi & ~removedHi) | (n.lo & m.nLo) | (n.hi & m.nHi) | (k.lo & m.kLo) | (k.hi & m.kHi)) !== 0)
++    const p=(us<<6)|target;
++    if (((PLO[p] & m.pLo & ~removedLo) | (PHI[p] & m.pHi & ~removedHi) | (NLO[target] & m.nLo) | (NHI[target] & m.nHi) | (KLO[target] & m.kLo) | (KHI[target] & m.kHi)) !== 0)
+         return true;
+     const b = br[target];
+     if (((b.lo & m.bLo) | (b.hi & m.bHi)) !== 0) {
+@@ -64,6 +70,131 @@
+     }
+     return count;
+ }
++type Out = Uint16Array | Uint32Array;
++type B = Position["board"];
++type Occ = B["occupied"];
++function pawnMoves(out:Out,count:number,b:B,us:Color,ownLo:number,ownHi:number,enemyLo:number,enemyHi:number,occ:Occ,ks:number,ep:number,step:number,cap:number,m:AttackMasks,maskLo:number,maskHi:number,pinLo:number,pinHi:number):number {
++    for (let h = 0; h < 2; h++) {
++        let bits = (h === 0 ? b.pawn.lo & ownLo : b.pawn.hi & ownHi);
++        while (bits) {
++            const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
++            bits &= bits - 1;
++            const pidx=(us<<6)|from;
++            let dl = PLO[pidx] & enemyLo, dh = PHI[pidx] & enemyHi;
++            const one = from + step;
++            if (((bitLo[one] & occ.lo) | (bitHi[one] & occ.hi)) === 0) {
++                dl |= bitLo[one];
++                dh |= bitHi[one];
++                if ((from >> 3) === (us ? 6 : 1)) {
++                    const two = one + step;
++                    if (((bitLo[two] & occ.lo) | (bitHi[two] & occ.hi)) === 0) {
++                        dl |= bitLo[two];
++                        dh |= bitHi[two];
++                    }
++                }
++            }
++            dl &= maskLo;
++            dh &= maskHi;
++            if (bit & (h === 0 ? pinLo : pinHi)) {
++                const i = ks * 64 + from;
++                dl &= a.LINE_RAY_LO[i];
++                dh &= a.LINE_RAY_HI[i];
++            }
++            if (ep >= 0 && ((PLO[pidx] & bitLo[ep]) | (PHI[pidx] & bitHi[ep])) !== 0) {
++                const eo = { lo: (occ.lo & ~(bitLo[from] | bitLo[cap])) | bitLo[ep], hi: (occ.hi & ~(bitHi[from] | bitHi[cap])) | bitHi[ep] };
++                if (!threatened(m, us, ks, eo, bitLo[cap], bitHi[cap])) {
++                    dl |= bitLo[ep];
++                    dh |= bitHi[ep];
++                }
++            }
++            count = (from >> 3) === (us ? 1 : 6) ? emitPromotion(out, count, from, dl, dh) : emit(out, count, from, dl, dh);
++        }
++    }
++    return count;
++}
++function knightMoves(out:Out,count:number,b:B,ownLo:number,ownHi:number,occ:Occ,ks:number,maskLo:number,maskHi:number,pinLo:number,pinHi:number):number {
++    {
++        const roleBB = b.knight;
++        for (let h = 0; h < 2; h++) {
++            let bits = h === 0 ? roleBB.lo & ownLo : roleBB.hi & ownHi;
++            while (bits) {
++                const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
++                bits &= bits - 1;
++                let dl = NLO[from] & maskLo, dh = NHI[from] & maskHi;
++                if (bit & (h === 0 ? pinLo : pinHi)) {
++                    const i = ks * 64 + from;
++                    dl &= a.LINE_RAY_LO[i];
++                    dh &= a.LINE_RAY_HI[i];
++                }
++                count = emit(out, count, from, dl, dh);
++            }
++        }
++    }
++    return count;
++}
++function bishopMoves(out:Out,count:number,b:B,ownLo:number,ownHi:number,occ:Occ,ks:number,maskLo:number,maskHi:number,pinLo:number,pinHi:number):number {
++    {
++        const roleBB = b.bishop;
++        for (let h = 0; h < 2; h++) {
++            let bits = h === 0 ? roleBB.lo & ownLo : roleBB.hi & ownHi;
++            while (bits) {
++                const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
++                bits &= bits - 1;
++                const at = a.bishopAttacks(from, occ);
++                let dl = at.lo & maskLo, dh = at.hi & maskHi;
++                if (bit & (h === 0 ? pinLo : pinHi)) {
++                    const i = ks * 64 + from;
++                    dl &= a.LINE_RAY_LO[i];
++                    dh &= a.LINE_RAY_HI[i];
++                }
++                count = emit(out, count, from, dl, dh);
++            }
++        }
++    }
++    return count;
++}
++function rookMoves(out:Out,count:number,b:B,ownLo:number,ownHi:number,occ:Occ,ks:number,maskLo:number,maskHi:number,pinLo:number,pinHi:number):number {
++    {
++        const roleBB = b.rook;
++        for (let h = 0; h < 2; h++) {
++            let bits = h === 0 ? roleBB.lo & ownLo : roleBB.hi & ownHi;
++            while (bits) {
++                const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
++                bits &= bits - 1;
++                const at = a.rookAttacks(from, occ);
++                let dl = at.lo & maskLo, dh = at.hi & maskHi;
++                if (bit & (h === 0 ? pinLo : pinHi)) {
++                    const i = ks * 64 + from;
++                    dl &= a.LINE_RAY_LO[i];
++                    dh &= a.LINE_RAY_HI[i];
++                }
++                count = emit(out, count, from, dl, dh);
++            }
++        }
++    }
++    return count;
++}
++function queenMoves(out:Out,count:number,b:B,ownLo:number,ownHi:number,occ:Occ,ks:number,maskLo:number,maskHi:number,pinLo:number,pinHi:number):number {
++    {
++        const roleBB = b.queen;
++        for (let h = 0; h < 2; h++) {
++            let bits = h === 0 ? roleBB.lo & ownLo : roleBB.hi & ownHi;
++            while (bits) {
++                const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
++                bits &= bits - 1;
++                const at = a.queenAttacks(from, occ);
++                let dl = at.lo & maskLo, dh = at.hi & maskHi;
++                if (bit & (h === 0 ? pinLo : pinHi)) {
++                    const i = ks * 64 + from;
++                    dl &= a.LINE_RAY_LO[i];
++                    dh &= a.LINE_RAY_HI[i];
++                }
++                count = emit(out, count, from, dl, dh);
++            }
++        }
++    }
++    return count;
++}
+ export function standardMovesInto(pos: Position, out: Uint16Array | Uint32Array): number | undefined {
+     if (pos.isChess960 || !a.magicTablesLoaded() || (pos.turn !== Color.White && pos.turn !== Color.Black))
+         return undefined;
+@@ -85,9 +216,8 @@
+         rLo: enemyLo & (b.rook.lo | b.queen.lo), rHi: enemyHi & (b.rook.hi | b.queen.hi) };
+     if ((m.kLo | m.kHi) === 0 || (m.kLo !== 0 && m.kHi !== 0) || ((m.kLo | m.kHi) & ((m.kLo | m.kHi) - 1)) !== 0)
+         return undefined;
+-    const ka = a.kingAttacks(ks);
+-    const pa = a.pawnAttacks(us, ks), na = a.knightAttacks(ks);
+-    let cl = (pa.lo & m.pLo) | (na.lo & m.nLo) | (ka.lo & m.kLo), ch = (pa.hi & m.pHi) | (na.hi & m.nHi) | (ka.hi & m.kHi);
++    const pidx=(us<<6)|ks;
++    let cl = (PLO[pidx] & m.pLo) | (NLO[ks] & m.nLo) | (KLO[ks] & m.kLo), ch = (PHI[pidx] & m.pHi) | (NHI[ks] & m.nHi) | (KHI[ks] & m.kHi);
+     // Direct slider checks and pins from the same empty-board ray candidates.
+     const sl = (rr[ks].lo & m.rLo) | (br[ks].lo & m.bLo), sh = (rr[ks].hi & m.rHi) | (br[ks].hi & m.bHi);
+     let pinLo = 0, pinHi = 0;
+@@ -114,7 +244,7 @@
+     if (pos.checkers && ((cl >>> 0) !== (pos.checkers.lo >>> 0) || (ch >>> 0) !== (pos.checkers.hi >>> 0)))
+         return undefined;
+     const ko = { lo: occ.lo & ~bitLo[ks], hi: occ.hi & ~bitHi[ks] };
+-    let kl = ka.lo & ~ownLo, kh = ka.hi & ~ownHi;
++    let kl = KLO[ks] & ~ownLo, kh = KHI[ks] & ~ownHi;
+     for (let h = 0; h < 2; h++) {
+         let bits = h === 0 ? kl : kh;
+         while (bits) {
+@@ -148,113 +278,10 @@
+         maskLo &= bt.lo | cl;
+         maskHi &= bt.hi | ch;
+     }
+-    for (let h = 0; h < 2; h++) {
+-        let bits = (h === 0 ? b.pawn.lo & ownLo : b.pawn.hi & ownHi);
+-        while (bits) {
+-            const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
+-            bits &= bits - 1;
+-            const pa = a.pawnAttacks(us, from);
+-            let dl = pa.lo & enemyLo, dh = pa.hi & enemyHi;
+-            const one = from + step;
+-            if (((bitLo[one] & occ.lo) | (bitHi[one] & occ.hi)) === 0) {
+-                dl |= bitLo[one];
+-                dh |= bitHi[one];
+-                if ((from >> 3) === (us ? 6 : 1)) {
+-                    const two = one + step;
+-                    if (((bitLo[two] & occ.lo) | (bitHi[two] & occ.hi)) === 0) {
+-                        dl |= bitLo[two];
+-                        dh |= bitHi[two];
+-                    }
+-                }
+-            }
+-            dl &= maskLo;
+-            dh &= maskHi;
+-            if (bit & (h === 0 ? pinLo : pinHi)) {
+-                const i = ks * 64 + from;
+-                dl &= a.LINE_RAY_LO[i];
+-                dh &= a.LINE_RAY_HI[i];
+-            }
+-            if (ep >= 0 && ((pa.lo & bitLo[ep]) | (pa.hi & bitHi[ep])) !== 0) {
+-                const eo = { lo: (occ.lo & ~(bitLo[from] | bitLo[cap])) | bitLo[ep], hi: (occ.hi & ~(bitHi[from] | bitHi[cap])) | bitHi[ep] };
+-                if (!threatened(m, us, ks, eo, bitLo[cap], bitHi[cap])) {
+-                    dl |= bitLo[ep];
+-                    dh |= bitHi[ep];
+-                }
+-            }
+-            count = (from >> 3) === (us ? 1 : 6) ? emitPromotion(out, count, from, dl, dh) : emit(out, count, from, dl, dh);
+-        }
+-    }
+-    {
+-        const roleBB = b.knight;
+-        for (let h = 0; h < 2; h++) {
+-            let bits = h === 0 ? roleBB.lo & ownLo : roleBB.hi & ownHi;
+-            while (bits) {
+-                const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
+-                bits &= bits - 1;
+-                const at = a.knightAttacks(from);
+-                let dl = at.lo & maskLo, dh = at.hi & maskHi;
+-                if (bit & (h === 0 ? pinLo : pinHi)) {
+-                    const i = ks * 64 + from;
+-                    dl &= a.LINE_RAY_LO[i];
+-                    dh &= a.LINE_RAY_HI[i];
+-                }
+-                count = emit(out, count, from, dl, dh);
+-            }
+-        }
+-    }
+-    {
+-        const roleBB = b.bishop;
+-        for (let h = 0; h < 2; h++) {
+-            let bits = h === 0 ? roleBB.lo & ownLo : roleBB.hi & ownHi;
+-            while (bits) {
+-                const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
+-                bits &= bits - 1;
+-                const at = a.bishopAttacks(from, occ);
+-                let dl = at.lo & maskLo, dh = at.hi & maskHi;
+-                if (bit & (h === 0 ? pinLo : pinHi)) {
+-                    const i = ks * 64 + from;
+-                    dl &= a.LINE_RAY_LO[i];
+-                    dh &= a.LINE_RAY_HI[i];
+-                }
+-                count = emit(out, count, from, dl, dh);
+-            }
+-        }
+-    }
+-    {
+-        const roleBB = b.rook;
+-        for (let h = 0; h < 2; h++) {
+-            let bits = h === 0 ? roleBB.lo & ownLo : roleBB.hi & ownHi;
+-            while (bits) {
+-                const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
+-                bits &= bits - 1;
+-                const at = a.rookAttacks(from, occ);
+-                let dl = at.lo & maskLo, dh = at.hi & maskHi;
+-                if (bit & (h === 0 ? pinLo : pinHi)) {
+-                    const i = ks * 64 + from;
+-                    dl &= a.LINE_RAY_LO[i];
+-                    dh &= a.LINE_RAY_HI[i];
+-                }
+-                count = emit(out, count, from, dl, dh);
+-            }
+-        }
+-    }
+-    {
+-        const roleBB = b.queen;
+-        for (let h = 0; h < 2; h++) {
+-            let bits = h === 0 ? roleBB.lo & ownLo : roleBB.hi & ownHi;
+-            while (bits) {
+-                const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
+-                bits &= bits - 1;
+-                const at = a.queenAttacks(from, occ);
+-                let dl = at.lo & maskLo, dh = at.hi & maskHi;
+-                if (bit & (h === 0 ? pinLo : pinHi)) {
+-                    const i = ks * 64 + from;
+-                    dl &= a.LINE_RAY_LO[i];
+-                    dh &= a.LINE_RAY_HI[i];
+-                }
+-                count = emit(out, count, from, dl, dh);
+-            }
+-        }
+-    }
+-    return count;
+-}
++    count = pawnMoves(out,count,b,us,ownLo,ownHi,enemyLo,enemyHi,occ,ks,ep,step,cap,m,maskLo,maskHi,pinLo,pinHi);
++    count = knightMoves(out,count,b,ownLo,ownHi,occ,ks,maskLo,maskHi,pinLo,pinHi);
++    count = bishopMoves(out,count,b,ownLo,ownHi,occ,ks,maskLo,maskHi,pinLo,pinHi);
++    count = rookMoves(out,count,b,ownLo,ownHi,occ,ks,maskLo,maskHi,pinLo,pinHi);
++    count = queenMoves(out,count,b,ownLo,ownHi,occ,ks,maskLo,maskHi,pinLo,pinHi);
++    return count;
++}

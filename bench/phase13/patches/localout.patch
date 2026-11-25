@@ -1,0 +1,25 @@
+--- a/src/board.ts
++++ b/src/board.ts
+@@ -891,19 +891,9 @@
+       const count = legalMovesInto(this, outBuffer);
+       return outBuffer.subarray(0, count);
+     }
+-    // Reentrant calls (e.g. through custom property accessors) must not
+-    // overwrite an in-flight list. Caller-owned buffer contract unchanged.
+-    if (ownedMoveScratchBusy) {
+-      const local = new Uint16Array(256);
+-      return local.subarray(0, legalMovesInto(this, local));
+-    }
+-    ownedMoveScratchBusy = true;
+-    try {
+-      const count = legalMovesInto(this, ownedMoveScratch);
+-      return ownedMoveScratch.slice(0, count);
+-    } finally {
+-      ownedMoveScratchBusy = false;
+-    }
++    const local=new Uint16Array(256);
++    const count=legalMovesInto(this,local);
++    return local.subarray(0,count);
+   }
+ 
+   forEachLegalMove(fn: (moveWord: number) => void): void {
