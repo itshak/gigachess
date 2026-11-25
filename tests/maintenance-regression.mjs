@@ -105,7 +105,7 @@ for (const n of [150,151,200]) {
 console.log("PASS halfmove FEN acceptance agrees with chess.js");
 
 // This TSV is byte-identical in both repos, not merely an algorithm sketch.
-for (const line of readFileSync(new URL("./position-keys-v1.tsv", import.meta.url), "utf8").split("\n")) {
+for (const line of readFileSync(new URL("./position-keys-v1.tsv", import.meta.url), "utf8").split(/\r?\n/)) {
   if (!line || line.startsWith("#")) continue;
   const [label, variant, fen, polyglot, repetition] = line.split("\t");
   const parsed = parseFen(fen, { chess960: variant === "960" });
@@ -113,7 +113,7 @@ for (const line of readFileSync(new URL("./position-keys-v1.tsv", import.meta.ur
   assert.equal(zobristHex(calculateZobrist(parsed.value)), polyglot, label + " Polyglot");
   assert.equal(zobristHex(repetitionKey(parsed.value)), repetition, label + " repetition");
 }
-for (const line of readFileSync(new URL("./moves2-v1.tsv", import.meta.url), "utf8").split("\n")) {
+for (const line of readFileSync(new URL("./moves2-v1.tsv", import.meta.url), "utf8").split(/\r?\n/)) {
   if (!line || line.startsWith("#")) continue;
   const [label, from, to, promo, hex] = line.split("\t");
   assert.equal(packMove(Number(from), Number(to), Number(promo)).toString(16).padStart(4,"0"),hex,label);
