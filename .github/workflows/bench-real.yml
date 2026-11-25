@@ -31,7 +31,7 @@ jobs:
       fail-fast: false
       max-parallel: 12
       matrix:
-        variant: [fen, hash, attack, write, movegen, combined, replay, leaf, copy, leafcopy]
+        variant: [fen, hash, attack, write, movegen, combined, replay, leaf, copy, leafcopy, replaytarget, uci, replayuci, leafnopin, ctor, parsewords, fenowned, fenall, leafmasks, fenreplay, fenreplaytarget]
         runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2025]
         runtime: [node24]
         include:
@@ -42,6 +42,11 @@ jobs:
           - {variant: movegen, runner: macos-15, runtime: bun}
           - {variant: leafcopy, runner: macos-15, runtime: bun}
           - {variant: combined, runner: macos-15, runtime: bun}
+          - {variant: fenall, runner: macos-15, runtime: bun}
+          - {variant: fenreplay, runner: macos-15, runtime: bun}
+          - {variant: fenreplaytarget, runner: macos-15, runtime: bun}
+          - {variant: fenreplay, runner: ubuntu-24.04, runtime: node22}
+          - {variant: fenall, runner: ubuntu-24.04, runtime: node22}
     defaults:
       run:
         shell: bash
@@ -66,8 +71,8 @@ jobs:
           set -euo pipefail
           mkdir -p benchmark-results
           node bench/matrix/machine.mjs
-          git worktree add --detach ci-phase9/baseline 8a1a44a
-          git worktree add --detach ci-phase9/candidate 8a1a44a
+          git worktree add --detach ci-phase9/baseline 4fef578b5282eb64ab8d6193b429761333731149
+          git worktree add --detach ci-phase9/candidate 4fef578b5282eb64ab8d6193b429761333731149
           git -C ci-phase9/candidate apply --check "../../bench/phase9/patches/${{ matrix.variant }}.patch"
           git -C ci-phase9/candidate apply "../../bench/phase9/patches/${{ matrix.variant }}.patch"
           (cd ci-phase9/baseline && npm ci && npm run build)
@@ -85,7 +90,7 @@ jobs:
           node --input-type=module -e 'import fs from "node:fs";import crypto from "node:crypto";const h=crypto.createHash("sha256").update(fs.readFileSync("corpus/corpus.json")).digest("hex");if(h!==fs.readFileSync("corpus/corpus.sha256","utf8").trim())throw Error("corpus checksum");'
           export BENCH_POSITIONS=20000 BENCH_GAMES=300 BENCH_RUNS=15 BENCH_WARMUPS=8 BENCH_OUT=../benchmark-results/paired
           case "${{ matrix.variant }}" in
-            leaf|copy|leafcopy|combined) ;;
+            leaf|copy|leafcopy|leafnopin|leafmasks|combined|fenreplay|fenreplaytarget) ;;
             *) export BENCH_LANES=fen-parse,fen-write,fen-roundtrip,movegen-fresh,validated-replay,perft-mixed ;;
           esac
           if [ "${{ matrix.runtime }}" = bun ]; then

@@ -1,0 +1,2 @@
+parity 4000 positions [ 'baseline', 'uci' ]
+validated-replay {"baseline":[1,1],"uci":[0.943,0.944]}

@@ -14,6 +14,7 @@ for(let k=0;k<fens.length;k++){
   if(b.toFen()!==fen||Array.from(b.legalMoves()).join(',')!==moves||b.zobristHex()!==z)throw Error('parity '+names[j]+' '+fens[k]);
  }
 }
+const parsers=await Promise.all(names.map(n=>import(pathToFileURL(resolve(n,'dist/fen.js')).href)));
 const invalid=[
  '','8/8/8/8/8/8/8/8 w - - 0 1','4k3/8/8/8/8/8/8/3KK3 w - - 0 1',
  '8/8/8/8/8/8/4k3/4K3 w - - 0 1','P3k3/8/8/8/8/8/8/4K3 w - - 0 1',
@@ -22,7 +23,7 @@ const invalid=[
  '4k3/8/8/8/8/8/8/4K3 w - - -1 1','4k3/8/8/8/8/8/8/4K3 w - - 0 0',
  '4k3/8/8/8/8/8/8/4K3 w - - 0 1 extra'];
 for(const f of invalid) {
- const outcomes=engines.map(e=>{const x=e.parseFen(f);return x.ok?'ok':x.error.code});
+ const outcomes=parsers.map(e=>{const x=e.parseFen(f);return x.ok?'ok':x.error.code});
  if(outcomes.some(x=>x!==outcomes[0]))throw Error('invalid FEN parity '+f+' '+outcomes);
 }
 let checkedPlies=0;
@@ -36,6 +37,10 @@ for(const game of games){
   for(const b of bs)if(b.toFen()!==f||b.zobristHex()!==z)throw Error('replay state parity '+u);
   checkedPlies++;
  }
+}
+for(let k=0;k<Math.min(fens.length,276);k++){
+ const counts=boards.map(bs=>bs[k].perft(3));
+ if(counts.some(n=>n!==counts[0]))throw Error('perft parity '+fens[k]);
 }
 console.log('parity',fens.length,'positions',checkedPlies,'replayed plies',invalid.length,'invalid FEN cases',names);
 const no=()=>{},lanes=[

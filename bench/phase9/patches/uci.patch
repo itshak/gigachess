@@ -1,0 +1,18 @@
+--- a/src/board.ts
++++ b/src/board.ts
+@@ -954,6 +954,15 @@
+   }
+ 
+   parseUci(uci: string): number | null {
++    if (uci.length === 4 && uci !== "0000") {
++      const ff = uci.charCodeAt(0) - 97, fr = uci.charCodeAt(1) - 49;
++      const tf = uci.charCodeAt(2) - 97, tr = uci.charCodeAt(3) - 49;
++      if ((ff | fr | tf | tr) >= 0 && ff < 8 && fr < 8 && tf < 8 && tr < 8) {
++        const from = (fr << 3) | ff, to = (tr << 3) | tf;
++        const move: Move = { from, to, promotion:null, isPromotion:false, isEnPassant:false, isCastling:false };
++        return isLegal(this, move) ? from | (to << 6) : null;
++      }
++    }
+     const res = parseUci(uci);
+     return res.ok && isLegal(this, res.value) ? packOf(res.value) : null;
+   }

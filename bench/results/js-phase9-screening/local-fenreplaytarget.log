@@ -1,0 +1,7 @@
+parity 10000 positions [ 'baseline', 'fenreplaytarget' ]
+fen-parse {"baseline":[1,1],"fenreplaytarget":[0.764,0.764]}
+fen-write {"baseline":[1,1],"fenreplaytarget":[1.221,1.222]}
+fen-roundtrip {"baseline":[1,1],"fenreplaytarget":[1.281,1.28]}
+movegen-fresh {"baseline":[1,1],"fenreplaytarget":[0.945,0.945]}
+validated-replay {"baseline":[1,1],"fenreplaytarget":[1.302,1.302]}
+perft-mixed {"baseline":[1,1],"fenreplaytarget":[1.083,1.083]}

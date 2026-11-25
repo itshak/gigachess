@@ -1,0 +1,117 @@
+--- a/src/board.ts
++++ b/src/board.ts
+@@ -954,6 +954,15 @@
+   }
+ 
+   parseUci(uci: string): number | null {
++    if (uci.length === 4 && uci !== "0000") {
++      const ff = uci.charCodeAt(0) - 97, fr = uci.charCodeAt(1) - 49;
++      const tf = uci.charCodeAt(2) - 97, tr = uci.charCodeAt(3) - 49;
++      if ((ff | fr | tf | tr) >= 0 && ff < 8 && fr < 8 && tf < 8 && tr < 8) {
++        const from = (fr << 3) | ff, to = (tr << 3) | tf;
++        const move: Move = { from, to, promotion:null, isPromotion:false, isEnPassant:false, isCastling:false };
++        return isLegal(this, move) ? from | (to << 6) : null;
++      }
++    }
+     const res = parseUci(uci);
+     return res.ok && isLegal(this, res.value) ? packOf(res.value) : null;
+   }
+--- a/src/chess.ts
++++ b/src/chess.ts
+@@ -789,7 +789,7 @@
+ const BISHOP_KING_RAYS: SquareSet[] = Array.from({ length: 64 }, (_, i) =>
+   attacks.bishopAttacksForTest(i, sq.EMPTY));
+ 
+-export function analyzeCheckContext(pos: Position, reuse?: CheckContext, perftOnly = false): CheckContext {
++export function analyzeCheckContext(pos: Position, reuse?: CheckContext, perftOnly = false, nonKingOnly = false): CheckContext {
+   const us = pos.turn;
+   const them = opposite(us);
+   const ksq = board.kingSquare(pos.board, us);
+@@ -809,7 +809,7 @@
+   // Precompute the position's castling plans once (design D2): the hot loops
+   // (destsFast king branch, genLegalMoves) look them up instead of re-running
+   // detectCastling per king move. The plans belong to THIS context only.
+-  if (!pos.isChess960) {
++  if (!nonKingOnly && !pos.isChess960) {
+     const mask = pos.castlingMask ?? getCastlingMask(pos);
+     if (us === Color.White) {
+       if ((mask & CASTLE_WK) !== 0 && ksq === 4) {
+@@ -854,7 +854,7 @@
+         }
+       }
+     }
+-  } else {
++  } else if (!nonKingOnly) {
+     const rights = us === Color.White ? pos.castling.white : pos.castling.black;
+     if (rights.size > 0) {
+       for (const rs of rights) {
+@@ -935,6 +935,8 @@
+     }
+   }
+   ctx.pinned = { lo: pinnedLo >>> 0, hi: pinnedHi >>> 0 };
++
++  if (nonKingOnly) return ctx;
+ 
+   // Only reachable king destinations require attack checks. King surrounded
+   // by its own pieces is an especially common leaf: no attack map necessary.
+@@ -1086,10 +1088,49 @@
+   return result;
+ }
+ 
++/** For one non-king origin, only that origin's pin can affect its legal
++ * destinations. Use exactly the same check mask as full-context analysis. */
++function singlePieceContext(pos: Position, from: number): CheckContext {
++  const us = pos.turn, them = opposite(us), b = pos.board;
++  const ksq = board.kingSquare(b, us);
++  if (ksq === undefined || ksq > 63 || from < 0 || from > 63 || !Number.isInteger(from))
++    return analyzeCheckContext(pos, undefined, false, true);
++  const ctx: CheckContext = { us, ksq, doubleCheck: false, checkMask: sq.FULL,
++    kingSafe: sq.EMPTY, pinned: sq.EMPTY, castlingPlans: [] };
++  const checkers = pos.checkers ?? attacks.kingAttackers(b, us);
++  if ((checkers.lo | checkers.hi) !== 0) {
++    if (sq.moreThanOne(checkers)) { ctx.doubleCheck = true; return ctx; }
++    const c = sq.first(checkers)!;
++    ctx.checkMask = sq.or(attacks.between(ksq, c), sq.singleton(c));
++  }
++  // A nonaligned origin cannot be the sole blocker on a king-slider line.
++  const i = (ksq << 6) | from;
++  const lineLo = attacks.LINE_RAY_LO[i], lineHi = attacks.LINE_RAY_HI[i];
++  if ((lineLo | lineHi) === 0) return ctx;
++  const diagonal = (ksq & 7) !== (from & 7) && (ksq >> 3) !== (from >> 3);
++  const role = diagonal ? b.bishop : b.rook;
++  const enemy = them === Color.White ? b.white : b.black;
++  let lo = enemy.lo & (role.lo | b.queen.lo) & lineLo;
++  let hi = enemy.hi & (role.hi | b.queen.hi) & lineHi;
++  const fl = from < 32 ? 1 << from : 0, fh = from >= 32 ? 1 << (from - 32) : 0;
++  // Full analysis never marks an enemy square as pinned.
++  if ((enemy.lo & fl) || (enemy.hi & fh)) return ctx;
++  while (lo || hi) {
++    let slider: number;
++    if (lo) { slider = 31 - Math.clz32(lo & -lo); lo &= lo - 1; }
++    else { slider = 63 - Math.clz32(hi & -hi); hi &= hi - 1; }
++    const bt = attacks.between(ksq, slider);
++    if ((bt.lo & b.occupied.lo) === fl && (bt.hi & b.occupied.hi) === fh) {
++      ctx.pinned = { lo: fl >>> 0, hi: fh >>> 0 }; break;
++    }
++  }
++  return ctx;
++}
++
+ export function dests(pos: Position, from: number): SquareSet {
+   const piece = board.pieceAt(pos.board, from);
+   if (!piece) return { lo: 0, hi: 0 };
+-  return destsFast(pos, from, piece, analyzeCheckContext(pos));
++  return destsFast(pos, from, piece, piece.role === Role.King ? analyzeCheckContext(pos) : singlePieceContext(pos, from));
+ }
+ 
+ export function allDests(pos: Position): Map<number, SquareSet> {
+@@ -1137,7 +1178,8 @@
+   }
+   const piece = board.pieceAt(pos.board, move.from);
+   const to = move.to;
+-  const d = dests(pos, move.from);
++  if (!piece) return false;
++  const d = destsFast(pos, move.from, piece, piece.role === Role.King ? analyzeCheckContext(pos) : singlePieceContext(pos, move.from));
+   if (!sq.has(d, to)) return false;
+   if (piece && piece.role === Role.Pawn) {
+     const destRank = squareRank(to);

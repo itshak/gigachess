@@ -1,0 +1,87 @@
+--- a/src/fen.ts
++++ b/src/fen.ts
+@@ -126,43 +126,49 @@
+   // per-piece `setPiece`. The scanner walks the raw string with charCodeAt:
+   // '/' drops a rank, '1'..'8' skips empty squares, anything else must be a
+   // piece letter (color = uppercase ⇒ white).
+-  const scratch = board.newScratchBoard();
+-  let r = 7;
+-  let file = 0;
+-  for (let k = fs[0]; k < fe[0]; k++) {
+-    const c = fen.charCodeAt(k);
+-    if (c === 47) {
+-      // '/': next rank down
+-      if (file !== 8 || r === 0) return Err({ code: "fen/invalidPiecePlacement" });
+-      r--;
+-      file = 0;
+-      continue;
+-    }
+-    if (c >= 49 && c <= 56) {
+-      // '1'..'8': consecutive empty squares
+-      file += c - 48;
+-      if (file > 8) return Err({ code: "fen/invalidPiecePlacement" });
+-      continue;
+-    }
+-    if (file >= 8) return Err({ code: "fen/invalidPiecePlacement" });
+-    // inline role/color decode (no per-piece object allocation)
+-    let role: Role;
+-    switch (c | 32) {
+-      case 112: role = Role.Pawn; break;   // p
+-      case 110: role = Role.Knight; break; // n
+-      case 98: role = Role.Bishop; break;  // b
+-      case 114: role = Role.Rook; break;   // r
+-      case 113: role = Role.Queen; break;  // q
+-      case 107: role = Role.King; break;   // k
+-      default: return Err({ code: "fen/invalidPiecePlacement" });
+-    }
+-    const color = c >= 97 ? Color.Black : Color.White; // lowercase ⇒ black
+-    const sqIdx = r * 8 + file;
+-    board.putPieceInPlace(scratch, sqIdx, { color, role });
++  // Build locally owned words, then materialize the public board once.
++  let wl=0,wh=0,bl=0,bh=0,pl=0,ph=0,nl=0,nh=0,il=0,ih=0,rl=0,rh=0,ql=0,qh=0,kl=0,kh=0;
++  let wk=-1,bk=-1,r=7,file=0;
++  for(let k=fs[0];k<fe[0];k++){
++    const c=fen.charCodeAt(k);
++    if(c===47){
++      if(file!==8||r===0)return Err({code:"fen/invalidPiecePlacement"});
++      r--;file=0;continue;
++    }
++    if(c>=49&&c<=56){
++      file+=c-48;if(file>8)return Err({code:"fen/invalidPiecePlacement"});continue;
++    }
++    if(file>=8)return Err({code:"fen/invalidPiecePlacement"});
++    const index=r*8+file, bit=1<<(index&31), high=index>=32, white=c<97;
++    if(high){
++      switch(c|32){
++        case 112: ph|=bit;break; case 110: nh|=bit;break;
++        case 98: ih|=bit;break; case 114: rh|=bit;break;
++        case 113: qh|=bit;break; case 107: kh|=bit;if(white)wk=index;else bk=index;break;
++        default:return Err({code:"fen/invalidPiecePlacement"});
++      }
++      if(white)wh|=bit;else bh|=bit;
++    }else{
++      switch(c|32){
++        case 112: pl|=bit;break; case 110: nl|=bit;break;
++        case 98: il|=bit;break; case 114: rl|=bit;break;
++        case 113: ql|=bit;break; case 107: kl|=bit;if(white)wk=index;else bk=index;break;
++        default:return Err({code:"fen/invalidPiecePlacement"});
++      }
++      if(white)wl|=bit;else bl|=bit;
++    }
+     file++;
+   }
+-  if (file !== 8 || r !== 0) return Err({ code: "fen/invalidPiecePlacement" });
+-  const curBoard: BoardLike = board.cloneBoard(scratch);
++  if(file!==8||r!==0)return Err({code:"fen/invalidPiecePlacement"});
++  const scratch: board.WritableBoard = {
++    white:{lo:wl>>>0,hi:wh>>>0},black:{lo:bl>>>0,hi:bh>>>0},
++    pawn:{lo:pl>>>0,hi:ph>>>0},knight:{lo:nl>>>0,hi:nh>>>0},
++    bishop:{lo:il>>>0,hi:ih>>>0},rook:{lo:rl>>>0,hi:rh>>>0},
++    queen:{lo:ql>>>0,hi:qh>>>0},king:{lo:kl>>>0,hi:kh>>>0},
++    occupied:{lo:(wl|bl)>>>0,hi:(wh|bh)>>>0},promoted:{lo:0,hi:0},
++    kingSq:[wk,bk]
++  };
++  const curBoard: BoardLike = scratch;
+ 
+   // ----- active color -----
+   let turn: Color;

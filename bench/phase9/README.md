@@ -30,3 +30,28 @@ selected lanes), 20k positions, 300 replay streams, 15 rounds.
 Deep perft trials include start d6 and Kiwipete d5. Pure JS remains
 primary; WASM reference is separate. Browser testing follows only
 for hypotheses with repeatable meaningful gains.
+
+## Second wave and corrected campaign
+
+Additional hypotheses: single-origin pin detection; direct common UCI
+word decoding (alone and with single-origin analysis); leaf no-pin
+specialization; owned parsed-board constructor; scalar FEN placement;
+combined parser/ownership and parser/serializer/hash; precomputed enemy
+leaf masks; and two FEN + replay combinations.
+
+First screening campaign 45641894993 was canceled after identifying a
+wrong FEN import (the fast entry intentionally exposes only Board) and
+a CRLF-sensitive shared TSV fixture. The corrected harness imports the
+actual FEN module for malformed-input checks, normalizes line endings,
+and also checks each of 276 perft counts independently before timing.
+The prior failures are harness failures, not position mismatches.
+Total: 21 hypotheses, 96 competitive jobs, plus corpus preparation.
+The production branch currently contains Windows harness fixes only;
+performance patches remain experimental until repeatable gates pass.
+
+Local paired screen: fenall 2.166x FEN roundtrip, fenowned 1.554x;
+fenreplay on 10k positions 1.325x FEN roundtrip and 1.229x replay;
+fenreplaytarget 1.281x FEN roundtrip and 1.302x replay but 0.945x
+fresh movegen. Single-origin pin analysis 1.173x replay; UCI-only
+0.943x; leaf no-pin 0.988x; leaf enemy masks 1.031x mixed perft.
+These are observations, not release thresholds.

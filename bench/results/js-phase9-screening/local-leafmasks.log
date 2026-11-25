@@ -1,0 +1,2 @@
+parity 4000 positions [ 'baseline', 'leafmasks' ]
+perft-mixed {"baseline":[1,1],"leafmasks":[1.031,1.031]}

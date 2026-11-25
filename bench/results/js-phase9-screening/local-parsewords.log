@@ -1,0 +1,4 @@
+parity 4000 positions [ 'baseline', 'parsewords' ]
+fen-parse {"baseline":[1,1],"parsewords":[0.856,0.857]}
+fen-write {"baseline":[1,1],"parsewords":[0.998,0.998]}
+fen-roundtrip {"baseline":[1,1],"parsewords":[1.259,1.258]}
