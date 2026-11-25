@@ -1,0 +1,37 @@
+--- a/src/attacks.ts
++++ b/src/attacks.ts
+@@ -286,8 +286,8 @@
+ 
+ const RAY_LO = new Uint32Array(4096);
+ const RAY_HI = new Uint32Array(4096);
+-const BETWEEN_LO = new Uint32Array(4096);
+-const BETWEEN_HI = new Uint32Array(4096);
++export const BETWEEN_LO = new Uint32Array(4096);
++export const BETWEEN_HI = new Uint32Array(4096);
+ 
+ for (let i = 0; i < 64; i++) {
+   for (let j = 0; j < 64; j++) {
+--- a/src/standardMovegen.ts
++++ b/src/standardMovegen.ts
+@@ -101,7 +101,7 @@
+         while (bits) {
+             const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
+             bits &= bits - 1;
+-            const bt = a.between(ks, from), bl = bt.lo & occ.lo, bh = bt.hi & occ.hi;
++            const idx=(ks<<6)|from, bl=a.BETWEEN_LO[idx]&occ.lo, bh=a.BETWEEN_HI[idx]&occ.hi;
+             if ((bl | bh) === 0) {
+                 if (h === 0)
+                     cl |= bit;
+@@ -149,9 +149,9 @@
+     if ((cl | ch) !== 0) {
+         if ((cl !== 0 && ch !== 0) || ((cl | ch) & ((cl | ch) - 1)) !== 0)
+             return count;
+-        const checker = cl !== 0 ? 31 - Math.clz32(cl & -cl) : 63 - Math.clz32(ch & -ch), bt = a.between(ks, checker);
+-        maskLo &= bt.lo | cl;
+-        maskHi &= bt.hi | ch;
++        const checker = cl !== 0 ? 31 - Math.clz32(cl & -cl) : 63 - Math.clz32(ch & -ch), idx = (ks<<6)|checker;
++        maskLo &= a.BETWEEN_LO[idx] | cl;
++        maskHi &= a.BETWEEN_HI[idx] | ch;
+     }
+     for (let h = 0; h < 2; h++) {
+         let bits = (h === 0 ? b.pawn.lo & ownLo : b.pawn.hi & ownHi);

@@ -1,0 +1,28 @@
+{
+  "node": "v24.19.0",
+  "v8": "13.6.233.17-node.51",
+  "platform": "win32",
+  "arch": "x64",
+  "cpu": [
+    {
+      "model": "AMD EPYC 7763 64-Core Processor                ",
+      "speed": 2445
+    },
+    {
+      "model": "AMD EPYC 7763 64-Core Processor                ",
+      "speed": 2445
+    },
+    {
+      "model": "AMD EPYC 7763 64-Core Processor                ",
+      "speed": 2445
+    },
+    {
+      "model": "AMD EPYC 7763 64-Core Processor                ",
+      "speed": 2445
+    }
+  ],
+  "memory": 17174360064,
+  "release": "10.0.26100",
+  "runner": "GitHub Actions 1000022024",
+  "sha": "e9ac711c812fc800634b69ff8a70e80b67722e44"
+}

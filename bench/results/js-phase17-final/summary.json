@@ -1,0 +1,226 @@
+{
+  "phase17-combined-ubuntu-24.04-24.19.0": {
+    "directBase": 1.1701060774918677,
+    "directPublished": 0.7272536716022967,
+    "paired": {
+      "fen-parse": 0.992604065462261,
+      "fen-write": 0.9978024916425176,
+      "fen-roundtrip": 0.9925273806222749,
+      "movegen-fresh": 0.9416685267602553,
+      "validated-replay": 0.9558499321001065,
+      "perft-mixed": 1.0036880268757624,
+      "perft-start-d6": 0.9973161746456595,
+      "perft-kiwi-d5": 1.0242245518157433
+    }
+  },
+  "phase17-combined-ubuntu-24.04-arm-24.19.0": {
+    "directBase": 1.2895979863981994,
+    "directPublished": 1.0149034092498737,
+    "paired": {
+      "fen-parse": 0.9576901416113255,
+      "fen-write": 1.0119847781362452,
+      "fen-roundtrip": 1.0001908709192462,
+      "movegen-fresh": 0.9981517994272237,
+      "validated-replay": 0.933944739150117,
+      "perft-mixed": 1.0053107271825796,
+      "perft-start-d6": 1.003832421455198,
+      "perft-kiwi-d5": 1.0116147422264
+    }
+  },
+  "phase17-combined-windows-11-arm-24.19.0": {
+    "directBase": 1.0046738345502964,
+    "directPublished": 0.9372676455642313,
+    "paired": {
+      "fen-parse": 0.9656011814758344,
+      "fen-write": 1.0248595180164184,
+      "fen-roundtrip": 0.6930078699690684,
+      "movegen-fresh": 0.974658405651705,
+      "validated-replay": 0.9896666753538576,
+      "perft-mixed": 0.9989722557863145,
+      "perft-start-d6": 0.9957166048769098,
+      "perft-kiwi-d5": 0.9961899515830264
+    }
+  },
+  "phase17-combined-windows-2025-24.19.0": {
+    "directBase": 0.9825479538205549,
+    "directPublished": 1.020873575610563,
+    "paired": {
+      "fen-parse": 0.8976336406013053,
+      "fen-write": 1.006253766320706,
+      "fen-roundtrip": 0.994759088568024,
+      "movegen-fresh": 0.9907838693883196,
+      "validated-replay": 1.0070395945193933,
+      "perft-mixed": 1.0113254871016484,
+      "perft-start-d6": 0.9930425803737853,
+      "perft-kiwi-d5": 0.9676384173918384
+    }
+  },
+  "phase17-copy-ubuntu-24.04-24.19.0": {
+    "directBase": 1.2027516801996245,
+    "directPublished": 0.7101234112017784,
+    "paired": {
+      "fen-parse": 0.9851296446070219,
+      "fen-write": 1.0532063981526731,
+      "fen-roundtrip": 1.0028065281606218,
+      "movegen-fresh": 0.992872481171575,
+      "validated-replay": 1.0134128122735393,
+      "perft-mixed": 0.9989619312327201,
+      "perft-start-d6": 0.9909399573253851,
+      "perft-kiwi-d5": 1.0052171162139207
+    }
+  },
+  "phase17-copy-ubuntu-24.04-arm-24.19.0": {
+    "directBase": 1.2111723236888337,
+    "directPublished": 0.978957868099376,
+    "paired": {
+      "fen-parse": 0.9766845596915775,
+      "fen-write": 1.0428292801619787,
+      "fen-roundtrip": 0.97863730279829,
+      "movegen-fresh": 0.9677747066431366,
+      "validated-replay": 1.0074509265677203,
+      "perft-mixed": 0.9840977305341841,
+      "perft-start-d6": 0.9848134149885636,
+      "perft-kiwi-d5": 0.9834891663744944
+    }
+  },
+  "phase17-copy-windows-11-arm-24.19.0": {
+    "directBase": 0.9911584386379579,
+    "directPublished": 0.8952934247162562,
+    "paired": {
+      "fen-parse": 0.9566717664434622,
+      "fen-write": 1.1007888772663714,
+      "fen-roundtrip": 0.9354837671014622,
+      "movegen-fresh": 0.9884030090024385,
+      "validated-replay": 0.9990536091011243,
+      "perft-mixed": 1.0068980074051432,
+      "perft-start-d6": 1.008674964688851,
+      "perft-kiwi-d5": 0.9988374038937684
+    }
+  },
+  "phase17-copy-windows-2025-24.19.0": {
+    "directBase": 1.072708635858891,
+    "directPublished": 1.1096096352609393,
+    "paired": {
+      "fen-parse": 0.9829603467800201,
+      "fen-write": 0.9925136695794571,
+      "fen-roundtrip": 0.9411137656640891,
+      "movegen-fresh": 0.9843876946047967,
+      "validated-replay": 1.0546549715881564,
+      "perft-mixed": 0.9910546015600887,
+      "perft-start-d6": 1.0086058029255904,
+      "perft-kiwi-d5": 1.0217222397015802
+    }
+  },
+  "phase17-geometry-ubuntu-24.04-24.19.0": {
+    "directBase": 1.3235030481275234,
+    "directPublished": 1.0173391185686234,
+    "paired": {
+      "fen-parse": 0.917958237007985,
+      "fen-write": 0.9538615779065289,
+      "fen-roundtrip": 0.9609009726682904,
+      "movegen-fresh": 0.9837130502120989,
+      "validated-replay": 0.982664104707598,
+      "perft-mixed": 0.9532152274641132,
+      "perft-start-d6": 1.0018506404464411,
+      "perft-kiwi-d5": 1.0233384361502336
+    }
+  },
+  "phase17-geometry-ubuntu-24.04-arm-24.19.0": {
+    "directBase": 1.275482471652529,
+    "directPublished": 1.0299029730224833,
+    "paired": {
+      "fen-parse": 0.9943114110312571,
+      "fen-write": 1.0127271190561584,
+      "fen-roundtrip": 0.9873978055596041,
+      "movegen-fresh": 1.02581918189633,
+      "validated-replay": 0.9653765851159782,
+      "perft-mixed": 1.0016380881412006,
+      "perft-start-d6": 0.9953449988401638,
+      "perft-kiwi-d5": 0.9944515118593372
+    }
+  },
+  "phase17-geometry-windows-11-arm-24.19.0": {
+    "directBase": 1.0077518847113232,
+    "directPublished": 0.8956107014493396,
+    "paired": {
+      "fen-parse": 0.954081897475831,
+      "fen-write": 1.0040983606556917,
+      "fen-roundtrip": 0.6931028807775091,
+      "movegen-fresh": 1.0246233022356563,
+      "validated-replay": 0.9409757404997771,
+      "perft-mixed": 1.0102025738423621,
+      "perft-start-d6": 1.0083450994903376,
+      "perft-kiwi-d5": 0.9965118126695843
+    }
+  },
+  "phase17-geometry-windows-2025-24.19.0": {
+    "directBase": 1.016018992877722,
+    "directPublished": 1.008080303219681,
+    "paired": {
+      "fen-parse": 0.9377829729378054,
+      "fen-write": 1.0036259515523787,
+      "fen-roundtrip": 0.9526988406578484,
+      "movegen-fresh": 1.0051286229669545,
+      "validated-replay": 0.972279817538077,
+      "perft-mixed": 1.036503901265403,
+      "perft-start-d6": 1.0165068876097656,
+      "perft-kiwi-d5": 1.0214049370079812
+    }
+  },
+  "phase17-slider-ubuntu-24.04-24.19.0": {
+    "directBase": 1.2223321025346747,
+    "directPublished": 0.9312316442945167,
+    "paired": {
+      "fen-parse": 0.972211169019312,
+      "fen-write": 1.0126336591791223,
+      "fen-roundtrip": 0.9549329501329666,
+      "movegen-fresh": 0.9472163286819879,
+      "validated-replay": 0.9507105322371432,
+      "perft-mixed": 0.9797091848293731,
+      "perft-start-d6": 1.0371656003687326,
+      "perft-kiwi-d5": 1.0159790372406212
+    }
+  },
+  "phase17-slider-ubuntu-24.04-arm-24.19.0": {
+    "directBase": 1.2244502528682286,
+    "directPublished": 0.995410636890613,
+    "paired": {
+      "fen-parse": 0.998422394551284,
+      "fen-write": 1.0262422543518634,
+      "fen-roundtrip": 0.9805857288688385,
+      "movegen-fresh": 0.9618011130303441,
+      "validated-replay": 1.00759562381444,
+      "perft-mixed": 1.0106677761008787,
+      "perft-start-d6": 0.996890825028977,
+      "perft-kiwi-d5": 1.0090914285568229
+    }
+  },
+  "phase17-slider-windows-11-arm-24.19.0": {
+    "directBase": 0.9723304858516305,
+    "directPublished": 0.8983515750133821,
+    "paired": {
+      "fen-parse": 0.9570473785167696,
+      "fen-write": 0.999423761451858,
+      "fen-roundtrip": 0.7333560710664195,
+      "movegen-fresh": 0.9484021270687725,
+      "validated-replay": 1.0195927308126995,
+      "perft-mixed": 0.9901729773375016,
+      "perft-start-d6": 0.986018943653173,
+      "perft-kiwi-d5": 0.9957436762700322
+    }
+  },
+  "phase17-slider-windows-2025-24.19.0": {
+    "directBase": 1.0248082586323735,
+    "directPublished": 0.9244102132616279,
+    "paired": {
+      "fen-parse": 1.002201540771518,
+      "fen-write": 1.019637060909551,
+      "fen-roundtrip": 0.9606326988872058,
+      "movegen-fresh": 0.971122736717128,
+      "validated-replay": 1.0863983344896748,
+      "perft-mixed": 0.991895791178998,
+      "perft-start-d6": 1.0245273314796102,
+      "perft-kiwi-d5": 1.0141485084364539
+    }
+  }
+}
