@@ -1,13 +1,10 @@
-import { createRequire } from "node:module";
-// Use the package's explicit CommonJS export for Node 22.5 compatibility.
-const require = createRequire(import.meta.url);
-const { Chess: coChess } = require("chessops/chess");
-const { parseFen: coParseFen, makeFen: coMakeFen } = require("chessops/fen");
-const { parseSan: coParseSan, makeSan: coMakeSan } = require("chessops/san");
 import { perft } from "../dist/index.js";
 import { parseFen as pcParseFen, makeFen as pcMakeFen } from "../dist/fen.js";
 import { parseSan as pcParseSan, makeSan as pcMakeSan } from "../dist/san.js";
 import { allDests as pcAllDests, isCheckmate as pcIsCheckmate, isStalemate as pcIsStalemate, isInsufficientMaterial as pcIsInsuff } from "../dist/chess.js";
+import { Chess as coChess } from "chessops/chess";
+import { parseFen as coParseFen, makeFen as coMakeFen } from "chessops/fen";
+import { parseSan as coParseSan, makeSan as coMakeSan } from "chessops/san";
 import { iter as sqIter, popcount as sqPopcnt } from "../dist/squareSet.js";
 import { pieceAt as bdPieceAt } from "../dist/board.js";
 import { readFileSync } from "node:fs";

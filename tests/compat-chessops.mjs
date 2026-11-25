@@ -1,16 +1,13 @@
-import { createRequire } from "node:module";
-// Use the package's explicit CommonJS export for Node 22.5 compatibility.
-const require = createRequire(import.meta.url);
-const { Chess: CoChess } = require("chessops/chess");
-const { parseFen: coParseFen, makeFen: coMakeFen } = require("chessops/fen");
-const { makeSan: coMakeSan, parseSan: coParseSan } = require("chessops/san");
-const { perft: coPerft } = require("chessops/debug");
-const { SquareSet: CoSquareSet } = require("chessops/squareSet");
-const { parseUci: coParseUci, makeUci: coMakeUci } = require("chessops/util");
 // tests/compat-chessops.mjs — API-compatibility suite (ADR-014, change
 // purechess-gates-green follow-up). Exercises ONLY the chessops-shaped
 // public API from `dist/chessops/index.js` and cross-checks every output
 // against real chessops. Fails on any divergence.
+import { Chess as CoChess } from "chessops/chess";
+import { parseFen as coParseFen, makeFen as coMakeFen } from "chessops/fen";
+import { makeSan as coMakeSan, parseSan as coParseSan } from "chessops/san";
+import { perft as coPerft } from "chessops/debug";
+import { SquareSet as CoSquareSet } from "chessops/squareSet";
+import { parseUci as coParseUci, makeUci as coMakeUci } from "chessops/util";
 
 import {
   Chess as PcChess,
