@@ -58,7 +58,10 @@ jobs:
           set -euo pipefail
           node --input-type=module -e 'import {Chess} from "chessops/chess"; import {parseFen} from "chessops/fen"; if(typeof Chess!=="function"||typeof parseFen!=="function")throw Error("oracle export mismatch"); console.log("Pinned chessops ESM oracle OK")'
           npm run typecheck
+          sha256sum node_modules/chessops/package.json node_modules/@itshak/chesstree/node_modules/chessops/package.json > benchmark-results/oracle-before.sha
           npm test 2>&1 | tee benchmark-results/correctness.log
+          sha256sum -c benchmark-results/oracle-before.sha
+          node --input-type=module -e 'import {Chess} from "chessops/chess"; if(typeof Chess!=="function")throw Error("oracle export mismatch after suite")'
           node bench/make-split32-tables.mjs
           git diff --exit-code -- src/rookSplit32Blob.ts src/bishopSplit32Blob.ts
       - name: Direct comparison (mixed-engine)
