@@ -1,0 +1,61 @@
+--- a/src/attacks.ts
++++ b/src/attacks.ts
+@@ -352,6 +352,8 @@
+  * evaluate attackedness with the moving king removed from the occupancy so
+  * that sliders x-raying the king stay "attacking" through its old square).
+  */
++const emptyRook = Array.from({length:64},(_,i)=>rookAttacks(i,{lo:0,hi:0}));
++const emptyBishop = Array.from({length:64},(_,i)=>bishopAttacks(i,{lo:0,hi:0}));
+ export function attackersTo(
+   board: import("./board.js").BoardLike,
+   square: number,
+@@ -373,14 +375,20 @@
+   hi = (hi | (aHi & board.knight.hi & nAtt.hi)) >>> 0;
+   const bqLo = (board.bishop.lo | board.queen.lo) >>> 0;
+   const bqHi = (board.bishop.hi | board.queen.hi) >>> 0;
+-  const bAtt = bishopAttacks(square, occ);
+-  lo = (lo | (aLo & bqLo & bAtt.lo)) >>> 0;
+-  hi = (hi | (aHi & bqHi & bAtt.hi)) >>> 0;
++  const br = emptyBishop[square];
++  if ((aLo & bqLo & br.lo) | (aHi & bqHi & br.hi)) {
++    const bAtt = bishopAttacks(square, occ);
++    lo = (lo | (aLo & bqLo & bAtt.lo)) >>> 0;
++    hi = (hi | (aHi & bqHi & bAtt.hi)) >>> 0;
++  }
+   const rqLo = (board.rook.lo | board.queen.lo) >>> 0;
+   const rqHi = (board.rook.hi | board.queen.hi) >>> 0;
+-  const rAtt = rookAttacks(square, occ);
+-  lo = (lo | (aLo & rqLo & rAtt.lo)) >>> 0;
+-  hi = (hi | (aHi & rqHi & rAtt.hi)) >>> 0;
++  const rr = emptyRook[square];
++  if ((aLo & rqLo & rr.lo) | (aHi & rqHi & rr.hi)) {
++    const rAtt = rookAttacks(square, occ);
++    lo = (lo | (aLo & rqLo & rAtt.lo)) >>> 0;
++    hi = (hi | (aHi & rqHi & rAtt.hi)) >>> 0;
++  }
+   const kAtt = kingAttacks(square);
+   lo = (lo | (aLo & board.king.lo & kAtt.lo)) >>> 0;
+   hi = (hi | (aHi & board.king.hi & kAtt.hi)) >>> 0;
+@@ -401,12 +409,18 @@
+   const occ = board.occupied;
+   const bqLo = (board.bishop.lo | board.queen.lo) >>> 0;
+   const bqHi = (board.bishop.hi | board.queen.hi) >>> 0;
+-  const bAtt = bishopAttacks(square, occ);
+-  if ((((aLo & bqLo & bAtt.lo) | (aHi & bqHi & bAtt.hi)) >>> 0) !== 0) return true;
++  const br = emptyBishop[square];
++  if ((aLo & bqLo & br.lo) | (aHi & bqHi & br.hi)) {
++    const bAtt = bishopAttacks(square, occ);
++    if ((aLo & bqLo & bAtt.lo) | (aHi & bqHi & bAtt.hi)) return true;
++  }
+   const rqLo = (board.rook.lo | board.queen.lo) >>> 0;
+   const rqHi = (board.rook.hi | board.queen.hi) >>> 0;
+-  const rAtt = rookAttacks(square, occ);
+-  if ((((aLo & rqLo & rAtt.lo) | (aHi & rqHi & rAtt.hi)) >>> 0) !== 0) return true;
++  const rr = emptyRook[square];
++  if ((aLo & rqLo & rr.lo) | (aHi & rqHi & rr.hi)) {
++    const rAtt = rookAttacks(square, occ);
++    if ((aLo & rqLo & rAtt.lo) | (aHi & rqHi & rAtt.hi)) return true;
++  }
+   const kAtt = kingAttacks(square);
+   if ((((aLo & board.king.lo & kAtt.lo) | (aHi & board.king.hi & kAtt.hi)) >>> 0) !== 0) return true;
+   return false;

@@ -1,0 +1,12 @@
+parity 4000 positions [
+  'baseline', 'fen',
+  'hash',     'attack',
+  'write',    'movegen',
+  'combined'
+]
+fen-parse {"baseline":[1,1],"fen":[1,1],"hash":[0.868,0.868],"attack":[0.868,0.868],"write":[1.095,1.095],"movegen":[1.034,1.034],"combined":[0.886,0.886]}
+fen-write {"baseline":[1,1],"fen":[0.721,0.722],"hash":[0.762,0.763],"attack":[0.717,0.718],"write":[3.502,3.486],"movegen":[0.831,0.831],"combined":[3.471,3.457]}
+fen-roundtrip {"baseline":[1,1],"fen":[0.885,0.885],"hash":[0.873,0.873],"attack":[0.884,0.884],"write":[0.886,0.886],"movegen":[0.922,0.922],"combined":[0.859,0.881]}
+movegen-fresh {"baseline":[1,1],"fen":[0.69,0.616],"hash":[0.86,0.767],"attack":[0.683,0.656],"write":[0.753,0.593],"movegen":[0.676,0.618],"combined":[0.667,0.668]}
+validated-replay {"baseline":[1,1],"fen":[1.117,1.117],"hash":[1.104,1.104],"attack":[1.131,1.131],"write":[1.126,1.126],"movegen":[0.978,0.979],"combined":[1.068,1.068]}
+perft-mixed {"baseline":[1,1],"fen":[0.878,0.879],"hash":[0.89,0.89],"attack":[0.89,0.891],"write":[0.89,0.891],"movegen":[0.889,0.89],"combined":[0.894,0.894]}

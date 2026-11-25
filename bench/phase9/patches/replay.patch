@@ -1,0 +1,57 @@
+--- a/src/chess.ts
++++ b/src/chess.ts
+@@ -789,7 +789,7 @@
+ const BISHOP_KING_RAYS: SquareSet[] = Array.from({ length: 64 }, (_, i) =>
+   attacks.bishopAttacksForTest(i, sq.EMPTY));
+ 
+-export function analyzeCheckContext(pos: Position, reuse?: CheckContext, perftOnly = false): CheckContext {
++export function analyzeCheckContext(pos: Position, reuse?: CheckContext, perftOnly = false, nonKingOnly = false): CheckContext {
+   const us = pos.turn;
+   const them = opposite(us);
+   const ksq = board.kingSquare(pos.board, us);
+@@ -809,7 +809,7 @@
+   // Precompute the position's castling plans once (design D2): the hot loops
+   // (destsFast king branch, genLegalMoves) look them up instead of re-running
+   // detectCastling per king move. The plans belong to THIS context only.
+-  if (!pos.isChess960) {
++  if (!nonKingOnly && !pos.isChess960) {
+     const mask = pos.castlingMask ?? getCastlingMask(pos);
+     if (us === Color.White) {
+       if ((mask & CASTLE_WK) !== 0 && ksq === 4) {
+@@ -854,7 +854,7 @@
+         }
+       }
+     }
+-  } else {
++  } else if (!nonKingOnly) {
+     const rights = us === Color.White ? pos.castling.white : pos.castling.black;
+     if (rights.size > 0) {
+       for (const rs of rights) {
+@@ -935,6 +935,8 @@
+     }
+   }
+   ctx.pinned = { lo: pinnedLo >>> 0, hi: pinnedHi >>> 0 };
++
++  if (nonKingOnly) return ctx;
+ 
+   // Only reachable king destinations require attack checks. King surrounded
+   // by its own pieces is an especially common leaf: no attack map necessary.
+@@ -1089,7 +1091,7 @@
+ export function dests(pos: Position, from: number): SquareSet {
+   const piece = board.pieceAt(pos.board, from);
+   if (!piece) return { lo: 0, hi: 0 };
+-  return destsFast(pos, from, piece, analyzeCheckContext(pos));
++  return destsFast(pos, from, piece, analyzeCheckContext(pos, undefined, false, piece.role !== Role.King));
+ }
+ 
+ export function allDests(pos: Position): Map<number, SquareSet> {
+@@ -1137,7 +1139,8 @@
+   }
+   const piece = board.pieceAt(pos.board, move.from);
+   const to = move.to;
+-  const d = dests(pos, move.from);
++  if (!piece) return false;
++  const d = destsFast(pos, move.from, piece, analyzeCheckContext(pos, undefined, false, piece.role !== Role.King));
+   if (!sq.has(d, to)) return false;
+   if (piece && piece.role === Role.Pawn) {
+     const destRank = squareRank(to);

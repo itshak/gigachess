@@ -1,0 +1,314 @@
+--- a/src/perftCompact.ts
++++ b/src/perftCompact.ts
+@@ -253,10 +253,300 @@
+     }
+     return count;
+ }
++function countLeaf(s: State): number {
++    const bb = s.bb, us = s.turn, own = us * 12, enemy = 12 - own, ownOcc = W + us * 2, enemyOcc = W + (1 - us) * 2;
++    const ownLo = bb[ownOcc], ownHi = bb[ownOcc + 1], enemyLo = bb[enemyOcc], enemyHi = bb[enemyOcc + 1];
++    const occ = { lo: bb[ALL], hi: bb[ALL + 1] }, ks = s.king[us];
++    const pa = a.pawnAttacks(us as Color, ks), na = a.knightAttacks(ks), ka = a.kingAttacks(ks);
++    let checkLo = (pa.lo & bb[enemy + P]) | (na.lo & bb[enemy + N]) | (ka.lo & bb[enemy + K]);
++    let checkHi = (pa.hi & bb[enemy + P + 1]) | (na.hi & bb[enemy + N + 1]) | (ka.hi & bb[enemy + K + 1]);
++    // One empty-ray traversal simultaneously finds direct sliding checks and absolute pins.
++    let candLo = (rookRay[ks].lo & (bb[enemy + R] | bb[enemy + Q])) | (bishopRay[ks].lo & (bb[enemy + B] | bb[enemy + Q]));
++    let candHi = (rookRay[ks].hi & (bb[enemy + R + 1] | bb[enemy + Q + 1])) | (bishopRay[ks].hi & (bb[enemy + B + 1] | bb[enemy + Q + 1]));
++    let pinLo = 0, pinHi = 0;
++    for (let half = 0; half < 2; half++) {
++        let bits = half === 0 ? candLo : candHi;
++        while (bits !== 0) {
++            const lsb = bits & -bits, from = half * 32 + 31 - Math.clz32(lsb);
++            bits &= bits - 1;
++            const bt = a.between(ks, from), bl = bt.lo & occ.lo, bh = bt.hi & occ.hi;
++            if ((bl | bh) === 0) {
++                if (half === 0)
++                    checkLo |= lsb;
++                else
++                    checkHi |= lsb;
++            }
++            else if ((bl === 0 || bh === 0) && (((bl | bh) & ((bl | bh) - 1)) === 0)) {
++                pinLo |= bl & ownLo;
++                pinHi |= bh & ownHi;
++            }
++        }
++    }
++    let count = 0;
++    const ko = { lo: occ.lo & ~bitLo[ks], hi: occ.hi & ~bitHi[ks] };
++    let kl = ka.lo & ~ownLo, kh = ka.hi & ~ownHi;
++    for (let half = 0; half < 2; half++) {
++        let bits = half === 0 ? kl : kh;
++        while (bits !== 0) {
++            const to = half * 32 + 31 - Math.clz32(bits & -bits);
++            bits &= bits - 1;
++            if (!attacked(bb, to, enemy, ko)) {
++                count++;
++            }
++        }
++    }
++    // Standard castling only. With king not in check, the removed-king
++    // occupancy safely tests transit and destination; rook is still on edge.
++    if ((checkLo | checkHi) === 0 && ks === (us ? 60 : 4)) {
++        const offset = us ? 56 : 0, rights = s.rights >> (us * 2), occupied = us ? occ.hi : occ.lo, rooks = bb[own + R + us];
++        if ((rights & 1) && (rooks & (1 << ((offset + 7) & 31))) && !(occupied & (0x60 << (us ? 24 : 0))) &&
++            !attacked(bb, offset + 5, enemy, ko) && !attacked(bb, offset + 6, enemy, ko)) {
++            count++;
++        }
++        if ((rights & 2) && (rooks & (1 << (offset & 31))) && !(occupied & (0x0e << (us ? 24 : 0))) &&
++            !attacked(bb, offset + 3, enemy, ko) && !attacked(bb, offset + 2, enemy, ko)) {
++            count++;
++        }
++    }
++    let maskLo = ~ownLo, maskHi = ~ownHi;
++    if ((checkLo | checkHi) !== 0) {
++        if ((checkLo !== 0 && checkHi !== 0) || ((checkLo | checkHi) & ((checkLo | checkHi) - 1)) !== 0)
++            return count;
++        const c = first(checkLo, checkHi), bt = a.between(ks, c);
++        maskLo &= bt.lo | checkLo;
++        maskHi &= bt.hi | checkHi;
++    }
++    // Parallel pawn counting for unpinned ordinary moves. Check mask applies
++    // after calculating both push steps. Pinned pawns handled individually.
++    let pl = bb[own + P], ph = bb[own + P + 1];
++    {
++        const l = pl & ~pinLo, h = ph & ~pinHi;
++        let oneLo, oneHi, twoLo, twoHi, leftLo, leftHi, rightLo, rightHi;
++        const westL = l & ~FILE_A, westH = h & ~FILE_A, eastL = l & ~FILE_H, eastH = h & ~FILE_H;
++        if (us === 0) {
++            oneLo = (l << 8) & ~occ.lo;
++            oneHi = ((h << 8) | (l >>> 24)) & ~occ.hi;
++            twoLo = ((oneLo & 0x00ff0000) << 8) & ~occ.lo;
++            twoHi = 0;
++            leftLo = (westL << 7) & enemyLo;
++            leftHi = ((westH << 7) | (westL >>> 25)) & enemyHi;
++            rightLo = (eastL << 9) & enemyLo;
++            rightHi = ((eastH << 9) | (eastL >>> 23)) & enemyHi;
++        }
++        else {
++            oneLo = ((l >>> 8) | (h << 24)) & ~occ.lo;
++            oneHi = (h >>> 8) & ~occ.hi;
++            twoLo = 0;
++            twoHi = ((oneHi & 0xff00) >>> 8) & ~occ.hi;
++            leftLo = ((westL >>> 9) | (westH << 23)) & enemyLo;
++            leftHi = (westH >>> 9) & enemyHi;
++            rightLo = ((eastL >>> 7) | (eastH << 25)) & enemyLo;
++            rightHi = (eastH >>> 7) & enemyHi;
++        }
++        oneLo &= maskLo;
++        oneHi &= maskHi;
++        twoLo &= maskLo;
++        twoHi &= maskHi;
++        leftLo &= maskLo;
++        leftHi &= maskHi;
++        rightLo &= maskLo;
++        rightHi &= maskHi;
++        count += popcountParts(oneLo, oneHi) + popcountParts(twoLo, twoHi) + popcountParts(leftLo, leftHi) + popcountParts(rightLo, rightHi);
++        if (us === 0 && (h & 0xff0000))
++            count += 3 * (popcountParts(0, oneHi & 0xff000000) + popcountParts(0, leftHi & 0xff000000) + popcountParts(0, rightHi & 0xff000000));
++        if (us === 1 && (l & 0xff00))
++            count += 3 * (popcountParts(oneLo & 255, 0) + popcountParts(leftLo & 255, 0) + popcountParts(rightLo & 255, 0));
++        pl &= pinLo;
++        ph &= pinHi;
++    }
++    const step = us ? -8 : 8;
++    for (let half = 0; half < 2; half++) {
++        let bits = half === 0 ? pl : ph;
++        while (bits !== 0) {
++            const lsb = bits & -bits, from = half * 32 + 31 - Math.clz32(lsb);
++            bits &= bits - 1;
++            const pat = a.pawnAttacks(us as Color, from);
++            let dl = pat.lo & enemyLo, dh = pat.hi & enemyHi;
++            const one = from + step;
++            if (((bitLo[one] & occ.lo) | (bitHi[one] & occ.hi)) === 0) {
++                dl |= bitLo[one];
++                dh |= bitHi[one];
++                if ((from >> 3) === (us ? 6 : 1)) {
++                    const two = one + step;
++                    if (((bitLo[two] & occ.lo) | (bitHi[two] & occ.hi)) === 0) {
++                        dl |= bitLo[two];
++                        dh |= bitHi[two];
++                    }
++                }
++            }
++            dl &= maskLo;
++            dh &= maskHi;
++            if ((lsb & (half === 0 ? pinLo : pinHi)) !== 0) {
++                const idx = ks * 64 + from;
++                dl &= a.LINE_RAY_LO[idx];
++                dh &= a.LINE_RAY_HI[idx];
++            }
++            const promotes = (from >> 3) === (us ? 1 : 6);
++            count += popcountParts(dl, dh) * (promotes ? 4 : 1);
++        }
++    }
++    // EP is exceptional: test king safety after both pawns disappear from
++    // their origin squares, excluding the removed enemy pawn from attack tests.
++    if (s.ep >= 0) {
++        const ep = s.ep, cap = ep - step, orig = a.pawnAttacks((1 - us) as Color, ep);
++        let el = orig.lo & bb[own + P], eh = orig.hi & bb[own + P + 1];
++        for (let half = 0; half < 2; half++) {
++            let bits = half === 0 ? el : eh;
++            while (bits) {
++                const from = half * 32 + 31 - Math.clz32(bits & -bits);
++                bits &= bits - 1;
++                const eo = { lo: (occ.lo & ~(bitLo[from] | bitLo[cap])) | bitLo[ep], hi: (occ.hi & ~(bitHi[from] | bitHi[cap])) | bitHi[ep] };
++                if (!attacked(bb, ks, enemy, eo, bitLo[cap], bitHi[cap])) {
++                    count++;
++                }
++            }
++        }
++    }
++    {
++        let bits0 = bb[own + 2];
++        while (bits0) {
++            const lsb = bits0 & -bits0, from = 31 - Math.clz32(lsb);
++            bits0 &= bits0 - 1;
++            const at = a.knightAttacks(from);
++            let dl = at.lo & maskLo, dh = at.hi & maskHi;
++            if (lsb & pinLo) {
++                const i = ks * 64 + from;
++                dl &= a.LINE_RAY_LO[i]; dh &= a.LINE_RAY_HI[i];
++            }
++            count += popcountParts(dl, dh);
++        }
++        let bits1 = bb[own + 3];
++        while (bits1) {
++            const lsb = bits1 & -bits1, from = 63 - Math.clz32(lsb);
++            bits1 &= bits1 - 1;
++            const at = a.knightAttacks(from);
++            let dl = at.lo & maskLo, dh = at.hi & maskHi;
++            if (lsb & pinHi) {
++                const i = ks * 64 + from;
++                dl &= a.LINE_RAY_LO[i]; dh &= a.LINE_RAY_HI[i];
++            }
++            count += popcountParts(dl, dh);
++        }
++    }
++    {
++        let bits0 = bb[own + 4];
++        while (bits0) {
++            const lsb = bits0 & -bits0, from = 31 - Math.clz32(lsb);
++            bits0 &= bits0 - 1;
++            const at = a.bishopAttacks(from, occ);
++            let dl = at.lo & maskLo, dh = at.hi & maskHi;
++            if (lsb & pinLo) {
++                const i = ks * 64 + from;
++                dl &= a.LINE_RAY_LO[i]; dh &= a.LINE_RAY_HI[i];
++            }
++            count += popcountParts(dl, dh);
++        }
++        let bits1 = bb[own + 5];
++        while (bits1) {
++            const lsb = bits1 & -bits1, from = 63 - Math.clz32(lsb);
++            bits1 &= bits1 - 1;
++            const at = a.bishopAttacks(from, occ);
++            let dl = at.lo & maskLo, dh = at.hi & maskHi;
++            if (lsb & pinHi) {
++                const i = ks * 64 + from;
++                dl &= a.LINE_RAY_LO[i]; dh &= a.LINE_RAY_HI[i];
++            }
++            count += popcountParts(dl, dh);
++        }
++    }
++    {
++        let bits0 = bb[own + 6];
++        while (bits0) {
++            const lsb = bits0 & -bits0, from = 31 - Math.clz32(lsb);
++            bits0 &= bits0 - 1;
++            const at = a.rookAttacks(from, occ);
++            let dl = at.lo & maskLo, dh = at.hi & maskHi;
++            if (lsb & pinLo) {
++                const i = ks * 64 + from;
++                dl &= a.LINE_RAY_LO[i]; dh &= a.LINE_RAY_HI[i];
++            }
++            count += popcountParts(dl, dh);
++        }
++        let bits1 = bb[own + 7];
++        while (bits1) {
++            const lsb = bits1 & -bits1, from = 63 - Math.clz32(lsb);
++            bits1 &= bits1 - 1;
++            const at = a.rookAttacks(from, occ);
++            let dl = at.lo & maskLo, dh = at.hi & maskHi;
++            if (lsb & pinHi) {
++                const i = ks * 64 + from;
++                dl &= a.LINE_RAY_LO[i]; dh &= a.LINE_RAY_HI[i];
++            }
++            count += popcountParts(dl, dh);
++        }
++    }
++    {
++        let bits0 = bb[own + 8];
++        while (bits0) {
++            const lsb = bits0 & -bits0, from = 31 - Math.clz32(lsb);
++            bits0 &= bits0 - 1;
++            const at = a.queenAttacks(from, occ);
++            let dl = at.lo & maskLo, dh = at.hi & maskHi;
++            if (lsb & pinLo) {
++                const i = ks * 64 + from;
++                dl &= a.LINE_RAY_LO[i]; dh &= a.LINE_RAY_HI[i];
++            }
++            count += popcountParts(dl, dh);
++        }
++        let bits1 = bb[own + 9];
++        while (bits1) {
++            const lsb = bits1 & -bits1, from = 63 - Math.clz32(lsb);
++            bits1 &= bits1 - 1;
++            const at = a.queenAttacks(from, occ);
++            let dl = at.lo & maskLo, dh = at.hi & maskHi;
++            if (lsb & pinHi) {
++                const i = ks * 64 + from;
++                dl &= a.LINE_RAY_LO[i]; dh &= a.LINE_RAY_HI[i];
++            }
++            count += popcountParts(dl, dh);
++        }
++    }
++    return count;
++}
+ function play(s: State, t: State, m: number) {
+     const bb = t.bb;
+-    bb.set(s.bb);
+-    t.king.set(s.king);
++    const old = s.bb;
++    bb[0] = old[0];
++    bb[1] = old[1];
++    bb[2] = old[2];
++    bb[3] = old[3];
++    bb[4] = old[4];
++    bb[5] = old[5];
++    bb[6] = old[6];
++    bb[7] = old[7];
++    bb[8] = old[8];
++    bb[9] = old[9];
++    bb[10] = old[10];
++    bb[11] = old[11];
++    bb[12] = old[12];
++    bb[13] = old[13];
++    bb[14] = old[14];
++    bb[15] = old[15];
++    bb[16] = old[16];
++    bb[17] = old[17];
++    bb[18] = old[18];
++    bb[19] = old[19];
++    bb[20] = old[20];
++    bb[21] = old[21];
++    bb[22] = old[22];
++    bb[23] = old[23];
++    bb[24] = old[24];
++    bb[25] = old[25];
++    bb[26] = old[26];
++    bb[27] = old[27];
++    bb[28] = old[28];
++    bb[29] = old[29];
++    t.king[0] = s.king[0]; t.king[1] = s.king[1];
+     const us = s.turn, own = us * 12, enemy = 12 - own, ownOcc = W + us * 2, enemyOcc = W + (1 - us) * 2;
+     const from = m & 63, to = (m >> 6) & 63, role = (m >> 16) & 7, promo = (m >> 12) & 15;
+     const fl = bitLo[from], fh = bitHi[from], tl = bitLo[to], th = bitHi[to];
+@@ -358,7 +648,7 @@
+     function visit(ply: number): number {
+         const s = states[ply];
+         if (ply === depth - 1)
+-            return generate(s, null);
++            return countLeaf(s);
+         const out = lists[ply], n = generate(s, out), child = states[ply + 1];
+         let total = 0;
+         for (let i = 0; i < n; i++) {

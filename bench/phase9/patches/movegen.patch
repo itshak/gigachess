@@ -1,0 +1,80 @@
+--- a/src/standardMovegen.ts
++++ b/src/standardMovegen.ts
+@@ -184,6 +184,77 @@
+             count = (from >> 3) === (us ? 1 : 6) ? emitPromotion(out, count, from, dl, dh) : emit(out, count, from, dl, dh);
+         }
+     }
++    if ((pinLo | pinHi | cl | ch) === 0) {
++    {
++        const roleBB = b.knight;
++        let bits0 = roleBB.lo & ownLo;
++        while(bits0) {
++            const from = 31 - Math.clz32(bits0 & -bits0);
++            bits0 &= bits0 - 1;
++            const at = a.knightAttacks(from);
++            count = emit(out,count,from,at.lo & maskLo,at.hi & maskHi);
++        }
++        let bits1 = roleBB.hi & ownHi;
++        while(bits1) {
++            const from = 63 - Math.clz32(bits1 & -bits1);
++            bits1 &= bits1 - 1;
++            const at = a.knightAttacks(from);
++            count = emit(out,count,from,at.lo & maskLo,at.hi & maskHi);
++        }
++    }
++    {
++        const roleBB = b.bishop;
++        let bits0 = roleBB.lo & ownLo;
++        while(bits0) {
++            const from = 31 - Math.clz32(bits0 & -bits0);
++            bits0 &= bits0 - 1;
++            const at = a.bishopAttacks(from, occ);
++            count = emit(out,count,from,at.lo & maskLo,at.hi & maskHi);
++        }
++        let bits1 = roleBB.hi & ownHi;
++        while(bits1) {
++            const from = 63 - Math.clz32(bits1 & -bits1);
++            bits1 &= bits1 - 1;
++            const at = a.bishopAttacks(from, occ);
++            count = emit(out,count,from,at.lo & maskLo,at.hi & maskHi);
++        }
++    }
++    {
++        const roleBB = b.rook;
++        let bits0 = roleBB.lo & ownLo;
++        while(bits0) {
++            const from = 31 - Math.clz32(bits0 & -bits0);
++            bits0 &= bits0 - 1;
++            const at = a.rookAttacks(from, occ);
++            count = emit(out,count,from,at.lo & maskLo,at.hi & maskHi);
++        }
++        let bits1 = roleBB.hi & ownHi;
++        while(bits1) {
++            const from = 63 - Math.clz32(bits1 & -bits1);
++            bits1 &= bits1 - 1;
++            const at = a.rookAttacks(from, occ);
++            count = emit(out,count,from,at.lo & maskLo,at.hi & maskHi);
++        }
++    }
++    {
++        const roleBB = b.queen;
++        let bits0 = roleBB.lo & ownLo;
++        while(bits0) {
++            const from = 31 - Math.clz32(bits0 & -bits0);
++            bits0 &= bits0 - 1;
++            const at = a.queenAttacks(from, occ);
++            count = emit(out,count,from,at.lo & maskLo,at.hi & maskHi);
++        }
++        let bits1 = roleBB.hi & ownHi;
++        while(bits1) {
++            const from = 63 - Math.clz32(bits1 & -bits1);
++            bits1 &= bits1 - 1;
++            const at = a.queenAttacks(from, occ);
++            count = emit(out,count,from,at.lo & maskLo,at.hi & maskHi);
++        }
++    }
++        return count;
++    }
+     {
+         const roleBB = b.knight;
+         for (let h = 0; h < 2; h++) {

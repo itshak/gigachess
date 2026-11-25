@@ -1,0 +1,43 @@
+--- a/src/perftCompact.ts
++++ b/src/perftCompact.ts
+@@ -255,8 +255,38 @@
+ }
+ function play(s: State, t: State, m: number) {
+     const bb = t.bb;
+-    bb.set(s.bb);
+-    t.king.set(s.king);
++    const old = s.bb;
++    bb[0] = old[0];
++    bb[1] = old[1];
++    bb[2] = old[2];
++    bb[3] = old[3];
++    bb[4] = old[4];
++    bb[5] = old[5];
++    bb[6] = old[6];
++    bb[7] = old[7];
++    bb[8] = old[8];
++    bb[9] = old[9];
++    bb[10] = old[10];
++    bb[11] = old[11];
++    bb[12] = old[12];
++    bb[13] = old[13];
++    bb[14] = old[14];
++    bb[15] = old[15];
++    bb[16] = old[16];
++    bb[17] = old[17];
++    bb[18] = old[18];
++    bb[19] = old[19];
++    bb[20] = old[20];
++    bb[21] = old[21];
++    bb[22] = old[22];
++    bb[23] = old[23];
++    bb[24] = old[24];
++    bb[25] = old[25];
++    bb[26] = old[26];
++    bb[27] = old[27];
++    bb[28] = old[28];
++    bb[29] = old[29];
++    t.king[0] = s.king[0]; t.king[1] = s.king[1];
+     const us = s.turn, own = us * 12, enemy = 12 - own, ownOcc = W + us * 2, enemyOcc = W + (1 - us) * 2;
+     const from = m & 63, to = (m >> 6) & 63, role = (m >> 16) & 7, promo = (m >> 12) & 15;
+     const fl = bitLo[from], fh = bitHi[from], tl = bitLo[to], th = bitHi[to];

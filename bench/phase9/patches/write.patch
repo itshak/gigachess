@@ -1,0 +1,56 @@
+--- a/src/fen.ts
++++ b/src/fen.ts
+@@ -387,33 +387,28 @@
+ 
+ export function makeFen(setup: Setup, opts?: { shredder?: boolean; chess960?: boolean }): string {
+   const boardVal = setup.board;
+-  // piece placement
+   let placement = "";
+   for (let r = 7; r >= 0; r--) {
+-    let empty = 0;
+-    let rankStr = "";
+-    for (let f = 0; f < 8; f++) {
+-      const sqIdx = r * 8 + f;
+-      // occupancy + role/color via direct bit tests (no per-square pieceAt
+-      // allocation — task 5.1)
+-      if (!sq.has(boardVal.occupied, sqIdx)) {
+-        empty++;
+-      } else {
+-        if (empty > 0) { rankStr += String(empty); empty = 0; }
+-        const isWhite = sq.has(boardVal.white, sqIdx);
+-        let ch: string;
+-        if (sq.has(boardVal.pawn, sqIdx)) ch = isWhite ? "P" : "p";
+-        else if (sq.has(boardVal.knight, sqIdx)) ch = isWhite ? "N" : "n";
+-        else if (sq.has(boardVal.bishop, sqIdx)) ch = isWhite ? "B" : "b";
+-        else if (sq.has(boardVal.rook, sqIdx)) ch = isWhite ? "R" : "r";
+-        else if (sq.has(boardVal.queen, sqIdx)) ch = isWhite ? "Q" : "q";
+-        else ch = isWhite ? "K" : "k";
+-        rankStr += ch;
+-      }
+-    }
+-    if (empty > 0) rankStr += String(empty);
+-    placement += rankStr;
+-    if (r > 0) placement += "/";
++    const high = r >= 4, shift = (r & 3) * 8;
++    const occupied = high ? boardVal.occupied.hi : boardVal.occupied.lo;
++    const white = high ? boardVal.white.hi : boardVal.white.lo;
++    const pawn = high ? boardVal.pawn.hi : boardVal.pawn.lo;
++    const knight = high ? boardVal.knight.hi : boardVal.knight.lo;
++    const bishop = high ? boardVal.bishop.hi : boardVal.bishop.lo;
++    const rook = high ? boardVal.rook.hi : boardVal.rook.lo;
++    const queen = high ? boardVal.queen.hi : boardVal.queen.lo;
++    let bits = (occupied >>> shift) & 255, prev = 0;
++    while (bits) {
++      const bit = bits & -bits, f = 31 - Math.clz32(bit), mask = bit << shift;
++      if (f > prev) placement += String(f - prev);
++      const w = (white & mask) !== 0;
++      placement += pawn & mask ? (w?"P":"p") : knight & mask ? (w?"N":"n") :
++        bishop & mask ? (w?"B":"b") : rook & mask ? (w?"R":"r") :
++        queen & mask ? (w?"Q":"q") : (w?"K":"k");
++      prev = f + 1; bits &= bits - 1;
++    }
++    if (prev < 8) placement += String(8 - prev);
++    if (r) placement += "/";
+   }
+ 
+   const active = setup.turn === Color.White ? "w" : "b";
