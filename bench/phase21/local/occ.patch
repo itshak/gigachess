@@ -1,0 +1,31 @@
+--- a/src/standardMovegen.ts
++++ b/src/standardMovegen.ts
+@@ -26,6 +26,10 @@
+     rLo: number;
+     rHi: number;
+ };
++// A consistent internal pair representation; never returned to callers.
++class MovegenOccupancy {
++ constructor(readonly lo:number, readonly hi:number) {}
++}
+ function threatened(m: AttackMasks, us: Color, target: number, occ: {
+     lo: number;
+     hi: number;
+@@ -118,7 +122,7 @@
+     // checkers contract whenever the fused analysis disagrees.
+     if (pos.checkers && ((cl >>> 0) !== (pos.checkers.lo >>> 0) || (ch >>> 0) !== (pos.checkers.hi >>> 0)))
+         return undefined;
+-    const ko = { lo: occ.lo & ~bitLo[ks], hi: occ.hi & ~bitHi[ks] };
++    const ko = new MovegenOccupancy(occ.lo & ~bitLo[ks], occ.hi & ~bitHi[ks]);
+     let kl = KLO[ks] & ~ownLo, kh = KHI[ks] & ~ownHi;
+     for (let h = 0; h < 2; h++) {
+         let bits = h === 0 ? kl : kh;
+@@ -180,7 +184,7 @@
+                 dh &= a.LINE_RAY_HI[i];
+             }
+             if (ep >= 0 && ((PLO[pidx] & bitLo[ep]) | (PHI[pidx] & bitHi[ep])) !== 0) {
+-                const eo = { lo: (occ.lo & ~(bitLo[from] | bitLo[cap])) | bitLo[ep], hi: (occ.hi & ~(bitHi[from] | bitHi[cap])) | bitHi[ep] };
++                const eo = new MovegenOccupancy((occ.lo & ~(bitLo[from] | bitLo[cap])) | bitLo[ep], (occ.hi & ~(bitHi[from] | bitHi[cap])) | bitHi[ep]);
+                 if (!threatened(m, us, ks, eo, bitLo[cap], bitHi[cap])) {
+                     dl |= bitLo[ep];
+                     dh |= bitHi[ep];

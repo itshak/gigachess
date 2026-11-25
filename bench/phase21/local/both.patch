@@ -1,0 +1,59 @@
+--- a/src/standardMovegen.ts
++++ b/src/standardMovegen.ts
+@@ -14,18 +14,13 @@
+  KLO[i]=k.lo;KHI[i]=k.hi;NLO[i]=n.lo;NHI[i]=n.hi;
+  for(let c=0;c<2;c++){const p=a.pawnAttacks(c as Color,i);PLO[(c<<6)|i]=p.lo;PHI[(c<<6)|i]=p.hi;}
+ }
+-type AttackMasks = {
+-    pLo: number;
+-    pHi: number;
+-    nLo: number;
+-    nHi: number;
+-    kLo: number;
+-    kHi: number;
+-    bLo: number;
+-    bHi: number;
+-    rLo: number;
+-    rHi: number;
+-};
++class AttackMasks {
++ constructor(readonly pLo: number, readonly pHi: number, readonly nLo: number, readonly nHi: number, readonly kLo: number, readonly kHi: number, readonly bLo: number, readonly bHi: number, readonly rLo: number, readonly rHi: number) {}
++}
++// A consistent internal pair representation; never returned to callers.
++class MovegenOccupancy {
++ constructor(readonly lo:number, readonly hi:number) {}
++}
+ function threatened(m: AttackMasks, us: Color, target: number, occ: {
+     lo: number;
+     hi: number;
+@@ -86,9 +81,9 @@
+         ((bitLo[ep] & occ.lo) | (bitHi[ep] & occ.hi)) !== 0 ||
+         ((bitLo[cap] & b.pawn.lo & enemyLo) | (bitHi[cap] & b.pawn.hi & enemyHi)) === 0))
+         return undefined;
+-    const m: AttackMasks = { pLo: enemyLo & b.pawn.lo, pHi: enemyHi & b.pawn.hi, nLo: enemyLo & b.knight.lo, nHi: enemyHi & b.knight.hi,
+-        kLo: enemyLo & b.king.lo, kHi: enemyHi & b.king.hi, bLo: enemyLo & (b.bishop.lo | b.queen.lo), bHi: enemyHi & (b.bishop.hi | b.queen.hi),
+-        rLo: enemyLo & (b.rook.lo | b.queen.lo), rHi: enemyHi & (b.rook.hi | b.queen.hi) };
++    const m = new AttackMasks(enemyLo & b.pawn.lo, enemyHi & b.pawn.hi, enemyLo & b.knight.lo, enemyHi & b.knight.hi,
++        enemyLo & b.king.lo, enemyHi & b.king.hi, enemyLo & (b.bishop.lo | b.queen.lo), enemyHi & (b.bishop.hi | b.queen.hi),
++        enemyLo & (b.rook.lo | b.queen.lo), enemyHi & (b.rook.hi | b.queen.hi));
+     if ((m.kLo | m.kHi) === 0 || (m.kLo !== 0 && m.kHi !== 0) || ((m.kLo | m.kHi) & ((m.kLo | m.kHi) - 1)) !== 0)
+         return undefined;
+     const pidx=(us<<6)|ks;
+@@ -118,7 +113,7 @@
+     // checkers contract whenever the fused analysis disagrees.
+     if (pos.checkers && ((cl >>> 0) !== (pos.checkers.lo >>> 0) || (ch >>> 0) !== (pos.checkers.hi >>> 0)))
+         return undefined;
+-    const ko = { lo: occ.lo & ~bitLo[ks], hi: occ.hi & ~bitHi[ks] };
++    const ko = new MovegenOccupancy(occ.lo & ~bitLo[ks], occ.hi & ~bitHi[ks]);
+     let kl = KLO[ks] & ~ownLo, kh = KHI[ks] & ~ownHi;
+     for (let h = 0; h < 2; h++) {
+         let bits = h === 0 ? kl : kh;
+@@ -180,7 +175,7 @@
+                 dh &= a.LINE_RAY_HI[i];
+             }
+             if (ep >= 0 && ((PLO[pidx] & bitLo[ep]) | (PHI[pidx] & bitHi[ep])) !== 0) {
+-                const eo = { lo: (occ.lo & ~(bitLo[from] | bitLo[cap])) | bitLo[ep], hi: (occ.hi & ~(bitHi[from] | bitHi[cap])) | bitHi[ep] };
++                const eo = new MovegenOccupancy((occ.lo & ~(bitLo[from] | bitLo[cap])) | bitLo[ep], (occ.hi & ~(bitHi[from] | bitHi[cap])) | bitHi[ep]);
+                 if (!threatened(m, us, ks, eo, bitLo[cap], bitHi[cap])) {
+                     dl |= bitLo[ep];
+                     dh |= bitHi[ep];

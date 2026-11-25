@@ -1,0 +1,242 @@
+--- a/src/standardMovegen.ts
++++ b/src/standardMovegen.ts
+@@ -6,44 +6,32 @@
+ import { getCastlingMask } from "./castling.js";
+ const bitLo = Int32Array.from({ length: 64 }, (_, s) => s < 32 ? 1 << s : 0);
+ const bitHi = Int32Array.from({ length: 64 }, (_, s) => s >= 32 ? 1 << (s - 32) : 0);
+-const rr = Array.from({ length: 64 }, (_, s) => a.rookAttacks(s, { lo: 0, hi: 0 }));
+-const br = Array.from({ length: 64 }, (_, s) => a.bishopAttacks(s, { lo: 0, hi: 0 }));
++const RRLO=new Int32Array(64), RRHI=new Int32Array(64), BRLO=new Int32Array(64), BRHI=new Int32Array(64);
++for(let i=0;i<64;i++){
++ const r=a.rookAttacks(i,{lo:0,hi:0}), b=a.bishopAttacks(i,{lo:0,hi:0});
++ RRLO[i]=r.lo;RRHI[i]=r.hi;BRLO[i]=b.lo;BRHI[i]=b.hi;
++}
+ const KLO=new Int32Array(64),KHI=new Int32Array(64),NLO=new Int32Array(64),NHI=new Int32Array(64),PLO=new Int32Array(128),PHI=new Int32Array(128);
+ for(let i=0;i<64;i++){
+  const k=a.kingAttacks(i),n=a.knightAttacks(i);
+  KLO[i]=k.lo;KHI[i]=k.hi;NLO[i]=n.lo;NHI[i]=n.hi;
+  for(let c=0;c<2;c++){const p=a.pawnAttacks(c as Color,i);PLO[(c<<6)|i]=p.lo;PHI[(c<<6)|i]=p.hi;}
+ }
+-type AttackMasks = {
+-    pLo: number;
+-    pHi: number;
+-    nLo: number;
+-    nHi: number;
+-    kLo: number;
+-    kHi: number;
+-    bLo: number;
+-    bHi: number;
+-    rLo: number;
+-    rHi: number;
+-};
+-function threatened(m: AttackMasks, us: Color, target: number, occ: {
+-    lo: number;
+-    hi: number;
+-}, removedLo = 0, removedHi = 0) {
++// Slots 0..9: enemy P,N,K,BQ,RQ pairs; 10..11: transient slider result.
++const scratch = new Int32Array(12);
++let scratchBusy = false;
++function threatened(m:Int32Array,us:Color,target:number,lo:number,hi:number,removedLo=0,removedHi=0) {
+     const p=(us<<6)|target;
+-    if (((PLO[p] & m.pLo & ~removedLo) | (PHI[p] & m.pHi & ~removedHi) | (NLO[target] & m.nLo) | (NHI[target] & m.nHi) | (KLO[target] & m.kLo) | (KHI[target] & m.kHi)) !== 0)
+-        return true;
+-    const b = br[target];
+-    if (((b.lo & m.bLo) | (b.hi & m.bHi)) !== 0) {
+-        const x = a.bishopAttacks(target, occ);
+-        if (((x.lo & m.bLo) | (x.hi & m.bHi)) !== 0)
+-            return true;
+-    }
+-    const r = rr[target];
+-    if (((r.lo & m.rLo) | (r.hi & m.rHi)) !== 0) {
+-        const x = a.rookAttacks(target, occ);
+-        if (((x.lo & m.rLo) | (x.hi & m.rHi)) !== 0)
+-            return true;
++    if (((PLO[p] & m[0] & ~removedLo) | (PHI[p] & m[1] & ~removedHi) |
++        (NLO[target] & m[2]) | (NHI[target] & m[3]) |
++        (KLO[target] & m[4]) | (KHI[target] & m[5])) !== 0) return true;
++    if (((BRLO[target] & m[6]) | (BRHI[target] & m[7])) !== 0) {
++        a.loadedSliderWords(2,target,lo,hi,m);
++        if (((m[10]&m[6]) | (m[11]&m[7])) !== 0) return true;
++    }
++    if (((RRLO[target] & m[8]) | (RRHI[target] & m[9])) !== 0) {
++        a.loadedSliderWords(1,target,lo,hi,m);
++        if (((m[10]&m[8]) | (m[11]&m[9])) !== 0) return true;
+     }
+     return false;
+ }
+@@ -71,10 +59,17 @@
+     return count;
+ }
+ export function standardMovesInto(pos: Position, out: Uint16Array | Uint32Array): number | undefined {
++    if (scratchBusy) return generate(pos,out,new Int32Array(12));
++    scratchBusy=true;
++    try { return generate(pos,out,scratch); }
++    finally { scratchBusy=false; }
++}
++function generate(pos:Position,out:Uint16Array|Uint32Array,m:Int32Array):number|undefined {
+     if (pos.isChess960 || !a.magicTablesLoaded() || (pos.turn !== Color.White && pos.turn !== Color.Black))
+         return undefined;
+     const b = pos.board, us = pos.turn, own = us ? b.black : b.white, enemy = us ? b.white : b.black, occ = b.occupied;
+     const ownLo = own.lo, ownHi = own.hi, enemyLo = enemy.lo, enemyHi = enemy.hi;
++    const ol=occ.lo,oh=occ.hi;
+     const ks = b.kingSq?.[us] ?? -1;
+     // Existing generator handles kingless/invalid inputs and Chess960.
+     if (ks < 0 || ks > 63 || ((bitLo[ks] & b.king.lo & ownLo) | (bitHi[ks] & b.king.hi & ownHi)) === 0 ||
+@@ -86,22 +81,24 @@
+         ((bitLo[ep] & occ.lo) | (bitHi[ep] & occ.hi)) !== 0 ||
+         ((bitLo[cap] & b.pawn.lo & enemyLo) | (bitHi[cap] & b.pawn.hi & enemyHi)) === 0))
+         return undefined;
+-    const m: AttackMasks = { pLo: enemyLo & b.pawn.lo, pHi: enemyHi & b.pawn.hi, nLo: enemyLo & b.knight.lo, nHi: enemyHi & b.knight.hi,
+-        kLo: enemyLo & b.king.lo, kHi: enemyHi & b.king.hi, bLo: enemyLo & (b.bishop.lo | b.queen.lo), bHi: enemyHi & (b.bishop.hi | b.queen.hi),
+-        rLo: enemyLo & (b.rook.lo | b.queen.lo), rHi: enemyHi & (b.rook.hi | b.queen.hi) };
+-    if ((m.kLo | m.kHi) === 0 || (m.kLo !== 0 && m.kHi !== 0) || ((m.kLo | m.kHi) & ((m.kLo | m.kHi) - 1)) !== 0)
++    m[0]=enemyLo & b.pawn.lo;m[1]=enemyHi & b.pawn.hi;
++    m[2]=enemyLo & b.knight.lo;m[3]=enemyHi & b.knight.hi;
++    m[4]=enemyLo & b.king.lo;m[5]=enemyHi & b.king.hi;
++    m[6]=enemyLo & (b.bishop.lo | b.queen.lo);m[7]=enemyHi & (b.bishop.hi | b.queen.hi);
++    m[8]=enemyLo & (b.rook.lo | b.queen.lo);m[9]=enemyHi & (b.rook.hi | b.queen.hi);
++    if ((m[4] | m[5]) === 0 || (m[4] !== 0 && m[5] !== 0) || ((m[4] | m[5]) & ((m[4] | m[5]) - 1)) !== 0)
+         return undefined;
+     const pidx=(us<<6)|ks;
+-    let cl = (PLO[pidx] & m.pLo) | (NLO[ks] & m.nLo) | (KLO[ks] & m.kLo), ch = (PHI[pidx] & m.pHi) | (NHI[ks] & m.nHi) | (KHI[ks] & m.kHi);
++    let cl = (PLO[pidx] & m[0]) | (NLO[ks] & m[2]) | (KLO[ks] & m[4]), ch = (PHI[pidx] & m[1]) | (NHI[ks] & m[3]) | (KHI[ks] & m[5]);
+     // Direct slider checks and pins from the same empty-board ray candidates.
+-    const sl = (rr[ks].lo & m.rLo) | (br[ks].lo & m.bLo), sh = (rr[ks].hi & m.rHi) | (br[ks].hi & m.bHi);
++    const sl = (RRLO[ks] & m[8]) | (BRLO[ks] & m[6]), sh = (RRHI[ks] & m[9]) | (BRHI[ks] & m[7]);
+     let pinLo = 0, pinHi = 0;
+     for (let h = 0; h < 2; h++) {
+         let bits = h === 0 ? sl : sh;
+         while (bits) {
+             const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
+             bits &= bits - 1;
+-            const bt = a.between(ks, from), bl = bt.lo & occ.lo, bh = bt.hi & occ.hi;
++            const idx=(ks<<6)|from, bl=a.BETWEEN_LO[idx]&occ.lo, bh=a.BETWEEN_HI[idx]&occ.hi;
+             if ((bl | bh) === 0) {
+                 if (h === 0)
+                     cl |= bit;
+@@ -118,14 +115,14 @@
+     // checkers contract whenever the fused analysis disagrees.
+     if (pos.checkers && ((cl >>> 0) !== (pos.checkers.lo >>> 0) || (ch >>> 0) !== (pos.checkers.hi >>> 0)))
+         return undefined;
+-    const ko = { lo: occ.lo & ~bitLo[ks], hi: occ.hi & ~bitHi[ks] };
++    const kol=ol & ~bitLo[ks], koh=oh & ~bitHi[ks];
+     let kl = KLO[ks] & ~ownLo, kh = KHI[ks] & ~ownHi;
+     for (let h = 0; h < 2; h++) {
+         let bits = h === 0 ? kl : kh;
+         while (bits) {
+             const bit = bits & -bits, to = h * 32 + 31 - Math.clz32(bit);
+             bits &= bits - 1;
+-            if (threatened(m, us, to, ko)) {
++            if (threatened(m, us, to, kol,koh)) {
+                 if (h === 0)
+                     kl &= ~bit;
+                 else
+@@ -135,11 +132,11 @@
+     }
+     if ((cl | ch) === 0 && ks === (us ? 60 : 4)) {
+         const offset = us ? 56 : 0, rights = (pos.castlingMask ?? getCastlingMask(pos)) >> (us * 2), occupied = us ? occ.hi : occ.lo, rooks = us ? (b.rook.hi & ownHi) : (b.rook.lo & ownLo);
+-        if ((rights & 1) && (rooks & (1 << ((offset + 7) & 31))) && !(occupied & (0x60 << (us ? 24 : 0))) && !threatened(m, us, offset + 5, ko) && !threatened(m, us, offset + 6, ko)) {
++        if ((rights & 1) && (rooks & (1 << ((offset + 7) & 31))) && !(occupied & (0x60 << (us ? 24 : 0))) && !threatened(m, us, offset + 5, kol,koh) && !threatened(m, us, offset + 6, kol,koh)) {
+             kl |= bitLo[offset + 7];
+             kh |= bitHi[offset + 7];
+         }
+-        if ((rights & 2) && (rooks & (1 << (offset & 31))) && !(occupied & (0x0e << (us ? 24 : 0))) && !threatened(m, us, offset + 3, ko) && !threatened(m, us, offset + 2, ko)) {
++        if ((rights & 2) && (rooks & (1 << (offset & 31))) && !(occupied & (0x0e << (us ? 24 : 0))) && !threatened(m, us, offset + 3, kol,koh) && !threatened(m, us, offset + 2, kol,koh)) {
+             kl |= bitLo[offset];
+             kh |= bitHi[offset];
+         }
+@@ -149,9 +146,9 @@
+     if ((cl | ch) !== 0) {
+         if ((cl !== 0 && ch !== 0) || ((cl | ch) & ((cl | ch) - 1)) !== 0)
+             return count;
+-        const checker = cl !== 0 ? 31 - Math.clz32(cl & -cl) : 63 - Math.clz32(ch & -ch), bt = a.between(ks, checker);
+-        maskLo &= bt.lo | cl;
+-        maskHi &= bt.hi | ch;
++        const checker = cl !== 0 ? 31 - Math.clz32(cl & -cl) : 63 - Math.clz32(ch & -ch), idx = (ks<<6)|checker;
++        maskLo &= a.BETWEEN_LO[idx] | cl;
++        maskHi &= a.BETWEEN_HI[idx] | ch;
+     }
+     for (let h = 0; h < 2; h++) {
+         let bits = (h === 0 ? b.pawn.lo & ownLo : b.pawn.hi & ownHi);
+@@ -180,8 +177,8 @@
+                 dh &= a.LINE_RAY_HI[i];
+             }
+             if (ep >= 0 && ((PLO[pidx] & bitLo[ep]) | (PHI[pidx] & bitHi[ep])) !== 0) {
+-                const eo = { lo: (occ.lo & ~(bitLo[from] | bitLo[cap])) | bitLo[ep], hi: (occ.hi & ~(bitHi[from] | bitHi[cap])) | bitHi[ep] };
+-                if (!threatened(m, us, ks, eo, bitLo[cap], bitHi[cap])) {
++                const eol=(ol & ~(bitLo[from] | bitLo[cap])) | bitLo[ep], eoh=(oh & ~(bitHi[from] | bitHi[cap])) | bitHi[ep];
++                if (!threatened(m, us, ks, eol,eoh, bitLo[cap], bitHi[cap])) {
+                     dl |= bitLo[ep];
+                     dh |= bitHi[ep];
+                 }
+@@ -213,8 +210,8 @@
+             while (bits) {
+                 const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
+                 bits &= bits - 1;
+-                const at = a.bishopAttacks(from, occ);
+-                let dl = at.lo & maskLo, dh = at.hi & maskHi;
++                a.loadedSliderWords(2,from,ol,oh,m);
++                let dl = m[10] & maskLo, dh = m[11] & maskHi;
+                 if (bit & (h === 0 ? pinLo : pinHi)) {
+                     const i = ks * 64 + from;
+                     dl &= a.LINE_RAY_LO[i];
+@@ -231,8 +228,8 @@
+             while (bits) {
+                 const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
+                 bits &= bits - 1;
+-                const at = a.rookAttacks(from, occ);
+-                let dl = at.lo & maskLo, dh = at.hi & maskHi;
++                a.loadedSliderWords(1,from,ol,oh,m);
++                let dl = m[10] & maskLo, dh = m[11] & maskHi;
+                 if (bit & (h === 0 ? pinLo : pinHi)) {
+                     const i = ks * 64 + from;
+                     dl &= a.LINE_RAY_LO[i];
+@@ -249,8 +246,8 @@
+             while (bits) {
+                 const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
+                 bits &= bits - 1;
+-                const at = a.queenAttacks(from, occ);
+-                let dl = at.lo & maskLo, dh = at.hi & maskHi;
++                a.loadedSliderWords(0,from,ol,oh,m);
++                let dl = m[10] & maskLo, dh = m[11] & maskHi;
+                 if (bit & (h === 0 ? pinLo : pinHi)) {
+                     const i = ks * 64 + from;
+                     dl &= a.LINE_RAY_LO[i];
+--- a/src/attacks.ts
++++ b/src/attacks.ts
+@@ -231,6 +231,24 @@
+   return {lo:(bt[bi]|(rt[rl]&rt[rh]))>>>0,hi:(bt[bi+1]|(rt[rl+1]&rt[rh+1]))>>>0};
+ }
+ 
++// Internal loaded-table lookup, writing a caller-owned typed scratch pair.
++export function loadedSliderWords(role:number,s:number,lo:number,hi:number,out:Int32Array):void {
++  const bv=bishopViews!,rv=rookViews!,b=s*8;
++  let l=0,h=0;
++  if(role!==1){
++    const m=bv.meta,t=bv.attacks;
++    const i=((((Math.imul(lo&m[b],m[b+2])>>>m[b+4])<<m[b+6])|(Math.imul(hi&m[b+1],m[b+3])>>>m[b+5]))+m[b+7])*2;
++    l=t[i];h=t[i+1];
++  }
++  if(role!==2){
++    const m=rv.meta,t=rv.attacks;
++    const i=(m[b+7]+(Math.imul(lo&m[b],m[b+2])>>>m[b+4]))*2;
++    const j=(m[b+6]+(Math.imul(hi&m[b+1],m[b+3])>>>m[b+5]))*2;
++    l|=t[i]&t[j];h|=t[i+1]&t[j+1];
++  }
++  out[10]=l;out[11]=h;
++}
++
+ // Independent naive ray walk for correctness verification.
+ function slidingNaive(sqIdx: number, occupied: SquareSet, deltas: [number, number][]): SquareSet {
+   const f0 = squareFile(sqIdx);
+@@ -286,8 +304,8 @@
+ 
+ const RAY_LO = new Uint32Array(4096);
+ const RAY_HI = new Uint32Array(4096);
+-const BETWEEN_LO = new Uint32Array(4096);
+-const BETWEEN_HI = new Uint32Array(4096);
++export const BETWEEN_LO = new Uint32Array(4096);
++export const BETWEEN_HI = new Uint32Array(4096);
+ 
+ for (let i = 0; i < 64; i++) {
+   for (let j = 0; j < 64; j++) {

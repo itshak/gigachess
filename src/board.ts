@@ -120,6 +120,18 @@ type PerftUndo = {
 // not escape: each public result is an independently owned typed array.
 const ownedMoveScratch = new Uint16Array(256);
 let ownedMoveScratchBusy = false;
+// Cache only the canonical initial position, not arbitrary user FENs.
+// Each instance receives independent mutable bitboards and king coordinates.
+let initialTemplate: Board | undefined;
+let buildingInitialTemplate = false;
+function initialBoardTemplate(): Board {
+  if (initialTemplate === undefined) {
+    buildingInitialTemplate = true;
+    try { initialTemplate = new Board(INITIAL_FEN); }
+    finally { buildingInitialTemplate = false; }
+  }
+  return initialTemplate;
+}
 export class Board implements BoardLike {
   white: MutableSquareSet;
   black: MutableSquareSet;
@@ -151,9 +163,17 @@ export class Board implements BoardLike {
     // Subclass initialization keeps the original virtual loadFen behavior.
     if (new.target === Board && (input === undefined || typeof input === "string")) {
       const fen = input ?? INITIAL_FEN;
-      const parsed = parseFen(fen);
-      if (!parsed.ok) throw new Error(`Invalid FEN: ${fen}`);
-      const pos = parsed.value, b = pos.board;
+      const template = fen === INITIAL_FEN && !buildingInitialTemplate ? initialBoardTemplate() : undefined;
+      let pos: Position, b: BoardLike;
+      if (template) {
+        pos = template;
+        b = cloneAsWritable(template);
+      } else {
+        const parsed = parseFen(fen);
+        if (!parsed.ok) throw new Error(`Invalid FEN: ${fen}`);
+        pos = parsed.value;
+        b = pos.board;
+      }
       this.white = b.white as MutableSquareSet;
       this.black = b.black as MutableSquareSet;
       this.pawn = b.pawn as MutableSquareSet;
@@ -171,7 +191,7 @@ export class Board implements BoardLike {
       this.epSquare = pos.epSquare;
       this.halfmoves = pos.halfmoves ?? pos.halfmove ?? 0;
       this.fullmoves = pos.fullmoves ?? pos.fullmove ?? 1;
-      this.checkers = pos.checkers!;
+      this.checkers = template ? { lo: template.checkers.lo, hi: template.checkers.hi } : pos.checkers!;
       this.isChess960 = !!pos.isChess960;
       this._zobristLo = pos.zobristLo ?? 0;
       this._zobristHi = pos.zobristHi ?? 0;
