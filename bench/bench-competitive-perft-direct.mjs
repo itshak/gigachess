@@ -19,7 +19,7 @@ const cases=[
 ];
 const fens=readFileSync(new URL('./data/perftsuite.epd',import.meta.url),'utf8').trim().split(/\r?\n/).map(l=>l.split(';')[0].trim());
 fens.push(...readFileSync(new URL('./data/wac_150.epd',import.meta.url),'utf8').trim().split(/\r?\n/).map(l=>l.split(';')[0].trim().replace(/\s+bm\s+.*$/,'')+' 0 1'));
-const engines=[old.Board,candidate.Board,Published],ids=['phase6','candidate','drumevp-published'];
+const engines=[old.Board,candidate.Board,Published],ids=['baseline','candidate','drumevp-published'];
 const med=x=>[...x].sort((a,b)=>a-b)[Math.floor(x.length/2)];
 function lane(name,sets,units){
  const run=j=>sets[j].reduce((total,[b,d])=>total+b.perft(d),0);

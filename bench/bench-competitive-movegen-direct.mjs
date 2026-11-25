@@ -24,7 +24,12 @@ const entries=[
  ['published',f=>new Published(f),b=>b.generateLegalMoves()],
  ['source',parse,generate]
 ];
-const expected=datasets.reduce((n,f)=>n+new prev.Board(f).legalMoves().length,0);
+let expected=0;
+for(const f of datasets){
+ const counts=entries.map(([,create,gen])=>gen(create(f)).length);
+ if(counts.some(n=>n!==counts[0]))throw Error('per-position move count mismatch '+f+' '+counts);
+ expected+=counts[0];
+}
 const samples=Object.fromEntries(entries.map(([id])=>[id,{wallMs:[],cpuMs:[]}]));
 function run(i,record){
  const [id,create,gen]=entries[i],boards=datasets.map(f=>create(f));

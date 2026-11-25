@@ -1,51 +1,77 @@
-# Real-world benchmark suites (change: purechess-bench-real).
-# - PRs: reduced-corpus `--quick` run of every suite (same methodology, fast).
-# - Nightly: full-corpus run (100k-game PGN streaming, perft(4) corpora, 10M
-#   occupancy sliding, 10k-position parity).
-# Gates: `bench:real:ci` exits non-zero if any purechess-benchmarks SHALL gate
-# is unmet, so unmet gates turn CI red (results are gated, not just logged).
+# Dedicated branch-only cross-machine experiment; default-branch workflow untouched.
 name: bench-real
-
 on:
-  pull_request:
-  schedule:
-    - cron: "0 3 * * *" # nightly, 03:00 UTC
   workflow_dispatch:
-
+permissions:
+  contents: read
 jobs:
-  bench-quick:
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    env:
-      BENCH_ALLOW_NODE: "1"
+  independent:
+    name: Independent benchmark (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2025]
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: "22.x"
-      - run: npm ci
-      - run: npm run build
-      - run: npm run bench:real:ci -- --quick
-        # The pinned Lichess corpus is re-downloadable (see bench/data/README.md);
-        # --quick mode also runs without it via the vendored 10-game sample.
-
-  bench-nightly:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    env:
-      BENCH_ALLOW_NODE: "1"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22.x"
-      - run: npm ci
-      - run: npm run build
-      - name: Download pinned PGN corpus
+          node-version: '24.19.0'
+      - name: Record machine and exact candidate
         run: |
-          curl -sL -o bench/data/lichess_db_standard_rated_2013-01.pgn.zst \
-            https://database.lichess.org/standard/lichess_db_standard_rated_2013-01.pgn.zst
-          shasum -a 256 bench/data/lichess_db_standard_rated_2013-01.pgn.zst
-          echo "aa40b3671fa3cf1072eb182892cd90b0e1e003a4a5943492f64b77e7f3fd1635  bench/data/lichess_db_standard_rated_2013-01.pgn.zst" | shasum -a 256 -c -
-      - run: npm run bench:real:ci
+          mkdir -p benchmark-results
+          node --input-type=module -e 'import os from "node:os"; console.log(JSON.stringify({node:process.version,v8:process.versions.v8,platform:process.platform,arch:process.arch,cpus:os.cpus().map(x=>({model:x.model,speed:x.speed})),memory:os.totalmem(),release:os.release(),runner:process.env.RUNNER_NAME,sha:process.env.GITHUB_SHA},null,2))' | tee benchmark-results/machine.json
+          git rev-parse HEAD
+      - name: Build candidate and Phase 7 baseline
+        run: |
+          npm ci
+          npm run build
+          mkdir -p ci-benchmark
+          git worktree add --detach ci-benchmark/baseline dc3bc8fd72488b7a8133b0e76d0317ab2fbbb9a5
+          (cd ci-benchmark/baseline && npm ci && npm run build)
+      - name: Fetch exact independent competitors
+        run: |
+          git init ci-benchmark/drumevp
+          git -C ci-benchmark/drumevp remote add origin https://github.com/drumevp/chess-engine.git
+          git -C ci-benchmark/drumevp fetch --depth=1 origin 0bfd032c197dde4dddfcf0810f036cdf78bb8b45
+          git -C ci-benchmark/drumevp checkout --detach FETCH_HEAD
+          test "$(git -C ci-benchmark/drumevp rev-parse HEAD)" = 0bfd032c197dde4dddfcf0810f036cdf78bb8b45
+          npm install --prefix ci-benchmark/tools --ignore-scripts --no-audit --no-fund tsx@4.22.3
+          npm pack --ignore-scripts --pack-destination ci-benchmark @drumevp/chess-engine@1.3.2
+          node --input-type=module -e 'import fs from "node:fs";import crypto from "node:crypto";const hash=crypto.createHash("sha512").update(fs.readFileSync("ci-benchmark/drumevp-chess-engine-1.3.2.tgz")).digest("base64");if(hash!=="jPV79hx+LEX4t34Sw1IQf0P1AbpK8D/NpnOOwc6Hn3fGUftXtv5CS9VMB0lnhi3EM77cGn1nDCFwawLXRo/Xhw==")throw Error("published integrity mismatch");'
+          tar -xzf ci-benchmark/drumevp-chess-engine-1.3.2.tgz -C ci-benchmark
+      - name: Correctness before measurements
+        run: |
+          set -o pipefail
+          (node tests/pawn-list-order.mjs
+           node tests/move-list-ownership.mjs
+           node tests/perft-specialized-parity.mjs
+           node tests/split32-exhaustive.mjs --cold
+           node tests/split32-exhaustive.mjs
+           node tests/perft-compact-differential.mjs
+           node tests/standard-movegen-differential.mjs) 2>&1 | tee benchmark-results/correctness.log
+      - name: Fresh uncached move generation (two independent processes)
+        run: |
+          set -o pipefail
+          for i in 1 2; do
+            node --expose-gc --import ./ci-benchmark/tools/node_modules/tsx/dist/loader.mjs bench/bench-competitive-movegen-direct.mjs --baseline ci-benchmark/baseline/dist/fast/index.js --drumevp ci-benchmark/drumevp --published ci-benchmark/package/dist/index.js --warmups 12 --runs 11 | tee benchmark-results/movegen-$i.json
+          done
+      - name: Perft, FEN and replay comparisons
+        run: |
+          set -o pipefail
+          node --expose-gc bench/bench-competitive-perft-direct.mjs --baseline ci-benchmark/baseline/dist/fast/index.js --published ci-benchmark/package/dist/index.js --runs 11 | tee benchmark-results/perft.jsonl
+          node --expose-gc bench/bench-package-gameplay-ab.mjs --baseline ci-benchmark/baseline/dist/fast/index.js | tee benchmark-results/gameplay.jsonl
+      - name: Save raw results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: independent-${{ matrix.runner }}
+          path: benchmark-results/
+          retention-days: 14
