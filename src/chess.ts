@@ -788,7 +788,7 @@ const ROOK_KING_RAYS: SquareSet[] = Array.from({ length: 64 }, (_, i) =>
 const BISHOP_KING_RAYS: SquareSet[] = Array.from({ length: 64 }, (_, i) =>
   attacks.bishopAttacksForTest(i, sq.EMPTY));
 
-export function analyzeCheckContext(pos: Position, reuse?: CheckContext): CheckContext {
+export function analyzeCheckContext(pos: Position, reuse?: CheckContext, perftOnly = false): CheckContext {
   const us = pos.turn;
   const them = opposite(us);
   const ksq = board.kingSquare(pos.board, us);
@@ -812,21 +812,45 @@ export function analyzeCheckContext(pos: Position, reuse?: CheckContext): CheckC
     const mask = pos.castlingMask ?? getCastlingMask(pos);
     if (us === Color.White) {
       if ((mask & CASTLE_WK) !== 0 && ksq === 4) {
-        const rp = board.pieceAt(pos.board, 7);
-        if (rp && rp.color === Color.White && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_WHITE_K);
+        if (perftOnly) {
+          if ((pos.board.occupied.lo & 0x60) === 0 &&
+              (pos.board.white.lo & pos.board.rook.lo & 0x80) !== 0)
+            ctx.castlingPlans.push(PLAN_WHITE_K);
+        } else {
+          const rp = board.pieceAt(pos.board, 7);
+          if (rp && rp.color === Color.White && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_WHITE_K);
+        }
       }
       if ((mask & CASTLE_WQ) !== 0 && ksq === 4) {
-        const rp = board.pieceAt(pos.board, 0);
-        if (rp && rp.color === Color.White && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_WHITE_Q);
+        if (perftOnly) {
+          if ((pos.board.occupied.lo & 0x0e) === 0 &&
+              (pos.board.white.lo & pos.board.rook.lo & 0x01) !== 0)
+            ctx.castlingPlans.push(PLAN_WHITE_Q);
+        } else {
+          const rp = board.pieceAt(pos.board, 0);
+          if (rp && rp.color === Color.White && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_WHITE_Q);
+        }
       }
     } else {
       if ((mask & CASTLE_BK) !== 0 && ksq === 60) {
-        const rp = board.pieceAt(pos.board, 63);
-        if (rp && rp.color === Color.Black && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_BLACK_K);
+        if (perftOnly) {
+          if ((pos.board.occupied.hi & 0x60000000) === 0 &&
+              (pos.board.black.hi & pos.board.rook.hi & 0x80000000) !== 0)
+            ctx.castlingPlans.push(PLAN_BLACK_K);
+        } else {
+          const rp = board.pieceAt(pos.board, 63);
+          if (rp && rp.color === Color.Black && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_BLACK_K);
+        }
       }
       if ((mask & CASTLE_BQ) !== 0 && ksq === 60) {
-        const rp = board.pieceAt(pos.board, 56);
-        if (rp && rp.color === Color.Black && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_BLACK_Q);
+        if (perftOnly) {
+          if ((pos.board.occupied.hi & 0x0e000000) === 0 &&
+              (pos.board.black.hi & pos.board.rook.hi & 0x01000000) !== 0)
+            ctx.castlingPlans.push(PLAN_BLACK_Q);
+        } else {
+          const rp = board.pieceAt(pos.board, 56);
+          if (rp && rp.color === Color.Black && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_BLACK_Q);
+        }
       }
     }
   } else {
@@ -890,11 +914,8 @@ export function analyzeCheckContext(pos: Position, reuse?: CheckContext): CheckC
     const blockerBits = (bLo | bHi) >>> 0;
     if (blockerBits !== 0 && (bLo === 0 || bHi === 0)
         && (blockerBits & (blockerBits - 1)) === 0) {
-      const blockerSq = bLo !== 0 ? (Math.clz32((bLo & -bLo) >>> 0) ^ 31) : (32 + (Math.clz32((bHi & -bHi) >>> 0) ^ 31));
-      if (!sq.has(themOcc, blockerSq)) {
-        if (blockerSq < 32) pinnedLo |= (1 << blockerSq) >>> 0;
-        else pinnedHi |= (1 << (blockerSq - 32)) >>> 0;
-      }
+      pinnedLo |= bLo & ~themOcc.lo;
+      pinnedHi |= bHi & ~themOcc.hi;
     }
   }
   while (sHi !== 0) {
@@ -908,11 +929,8 @@ export function analyzeCheckContext(pos: Position, reuse?: CheckContext): CheckC
     const blockerBits = (bLo | bHi) >>> 0;
     if (blockerBits !== 0 && (bLo === 0 || bHi === 0)
         && (blockerBits & (blockerBits - 1)) === 0) {
-      const blockerSq = bLo !== 0 ? (Math.clz32((bLo & -bLo) >>> 0) ^ 31) : (32 + (Math.clz32((bHi & -bHi) >>> 0) ^ 31));
-      if (!sq.has(themOcc, blockerSq)) {
-        if (blockerSq < 32) pinnedLo |= (1 << blockerSq) >>> 0;
-        else pinnedHi |= (1 << (blockerSq - 32)) >>> 0;
-      }
+      pinnedLo |= bLo & ~themOcc.lo;
+      pinnedHi |= bHi & ~themOcc.hi;
     }
   }
   ctx.pinned = { lo: pinnedLo >>> 0, hi: pinnedHi >>> 0 };

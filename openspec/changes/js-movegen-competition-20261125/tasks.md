@@ -60,3 +60,15 @@
 - [x] Document raw samples and preserve draft/npm release gate
 - [ ] Consistently outperform MIT drumevp's published build on
       start d5 and Kiwipete d4 without gameplay/correctness regression
+
+## Phase 6: structural context and irrelevant EP processing
+- [x] Profile start d5 and inspect competing color-separated representation
+- [x] Isolate EP normalization, blocked castling plans, masked bulk pawns, singleton pin masks
+- [x] Validate combined candidate with complete npm test and 9,933-position independent leaf/perft2 oracle
+- [x] Repeat paired fast-bundle comparisons and use fixed-CPU wall/process-time measurements
+- [x] Retain combined draft with repeatable start gain and document small gameplay/Kiwipete regressions and shared-host noise
+- [x] Nine-round competitor run: first start d5 win over published drumevp; mixed effectively tied; Kiwipete and raw movegen still behind
+- [x] Preserve king-target role-mask reuse prototype and initial 11-round A/B evidence
+- [ ] Repeat king-role mask prototype on fixed CPU, full npm test, real workload A/B and competitor
+- [ ] Achieve repeatable Kiwipete superiority; test packed color-separated perft state if necessary
+- [ ] Verify official pinned-runtime real-workstation gates and independent CPU/browser performance before release

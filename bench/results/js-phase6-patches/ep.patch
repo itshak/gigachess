@@ -1,0 +1,29 @@
+--- a/src/board.ts
++++ b/src/board.ts
+@@ -6,7 +6,7 @@
+ import { Color, Role } from "./types.js";
+ import type { Position, Setup, Move, CastlingRights } from "./types.js";
+ import { opposite } from "./util.js";
+-import { kingAttackers, attackersTo } from "./attacks.js";
++import { kingAttackers, attackersTo, pawnAttacks } from "./attacks.js";
+ import {
+   zobristTablesLoaded,
+   calculateZobrist,
+@@ -1046,8 +1046,15 @@
+       }
+     }
+ 
+-    this.epSquare = movingRole === Role.Pawn && Math.abs((to >> 3) - (from >> 3)) === 2
+-      ? ((from + to) >>> 1) : null;
++    this.epSquare = null;
++    if (movingRole === Role.Pawn && Math.abs(to - from) === 16) {
++      const ep = (from + to) >>> 1;
++      const origins = pawnAttacks(us, ep);
++      const enemy = them === Color.White ? this.white : this.black;
++      // A non-capturable EP target has no effect on any descendant legal move.
++      if (((origins.lo & enemy.lo & this.pawn.lo) |
++           (origins.hi & enemy.hi & this.pawn.hi)) !== 0) this.epSquare = ep;
++    }
+     this.turn = them;
+     this.checkers = kingAttackers(this, them);
+     return {

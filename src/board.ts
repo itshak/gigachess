@@ -46,6 +46,10 @@ import { parseSan, parseSanCandidates, makeSan, parseUci, makeUci } from "./san.
 import { legalMovesInto, forEachLegalMove, countLegalMoves, analyzeCheckContext, isLegal, INITIAL_FEN } from "./chess.js";
 import type { CheckContext } from "./chess.js";
 
+const PERFT_ADJACENT_FILES = Int32Array.from({length: 64}, (_, square) =>
+  ((square & 7) !== 0 ? 1 << ((square - 1) & 31) : 0) |
+  ((square & 7) !== 7 ? 1 << ((square + 1) & 31) : 0));
+
 export type BoardLike = {
   readonly white: SquareSet;
   readonly black: SquareSet;
@@ -1046,8 +1050,18 @@ export class Board implements BoardLike {
       }
     }
 
-    this.epSquare = movingRole === Role.Pawn && Math.abs((to >> 3) - (from >> 3)) === 2
-      ? ((from + to) >>> 1) : null;
+    this.epSquare = null;
+    if (movingRole === Role.Pawn && Math.abs(to - from) === 16) {
+      // The target of a double push is reachable only by an opposing
+      // pawn next to the mover on the same rank. No cross-halfboard shifts.
+      const enemy = them === Color.White ? this.white : this.black;
+      const adjacent = PERFT_ADJACENT_FILES[to];
+      if ((us === Color.White
+          ? this.pawn.lo & enemy.lo & adjacent
+          : this.pawn.hi & enemy.hi & adjacent) !== 0) {
+        this.epSquare = (from + to) >>> 1;
+      }
+    }
     this.turn = them;
     this.checkers = kingAttackers(this, them);
     return {
@@ -1101,7 +1115,7 @@ export class Board implements BoardLike {
     }
 
     const visit = (ply: number, remaining: number): number => {
-      const ctx = analyzeCheckContext(this, contexts[ply]);
+      const ctx = analyzeCheckContext(this, contexts[ply], true);
       contexts[ply] = ctx;
       if (remaining === 1) return countLegalMoves(this, ctx);
 

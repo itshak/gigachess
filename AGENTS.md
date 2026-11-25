@@ -150,3 +150,14 @@ GigaChess JS must remain pure JS/TS, no required WASM import or startup wait.
 Rust maintains its own optimized native implementation; identical *semantics*
 do not require identical internal structures or perft algorithms.
 All new rules require paired fixtures and independent parity verification.
+
+### Phase 6 continuation
+Read bench/results/js-phase6-2026-11-25.md and its raw JSON before further
+work. The draft combined private EP/blocked-castle/direct-pin change
+reproduces a large start-d5 gain across three runs, including a fixed-CPU
+A/B and one direct published-drumevp win. Kiwipete and raw source movegen
+remain deficits; mixed perft is a tie, not proof of fastest. Fixed-CPU
+wall and CPU timing helps distinguish shared server scheduling noise.
+The kingroles prototype is preserved as a patch, not production code:
+targeted tests and one A/B passed, but full repeatability is outstanding.
+Run the new independent leaf oracle and gameplay A/B; do not publish or merge.

@@ -1,0 +1,60 @@
+--- a/src/chess.ts
++++ b/src/chess.ts
+@@ -1195,8 +1195,17 @@
+   const pawnPiece = isWhite ? P_W_P : P_B_P;
+   let pLo = (own.lo & pos.board.pawn.lo) >>> 0;
+   let pHi = (own.hi & pos.board.pawn.hi) >>> 0;
+-  if (pos.epSquare === null && ctx.checkMask === sq.FULL
+-      && (((ctx.pinned.lo & pLo) | (ctx.pinned.hi & pHi)) === 0)) {
++  const ep = pos.epSquare;
++  const epOrigins = ep === null ? sq.EMPTY : attacks.pawnAttacks(isWhite ? Color.Black : Color.White, ep);
++  const hasEp = ((pLo & epOrigins.lo) | (pHi & epOrigins.hi)) !== 0;
++  // Bulk-count unpinned ordinary pawns even in a single check. Double
++  // pushes are derived before the destination check mask is applied.
++  // Actual EP candidates retain the full existing exact legality path.
++  const fallbackLo = hasEp ? pLo : (pLo & ctx.pinned.lo) >>> 0;
++  const fallbackHi = hasEp ? pHi : (pHi & ctx.pinned.hi) >>> 0;
++  pLo = (pLo & ~fallbackLo) >>> 0;
++  pHi = (pHi & ~fallbackHi) >>> 0;
++  if ((pLo | pHi) !== 0) {
+     const occ = pos.board.occupied;
+     const them = isWhite ? pos.board.black : pos.board.white;
+     const emptyLo = ~occ.lo, emptyHi = ~occ.hi;
+@@ -1215,6 +1224,11 @@
+       leftHi = (((westHi << 7) | (westLo >>> 25)) & them.hi) >>> 0;
+       rightLo = ((eastLo << 9) & them.lo) >>> 0;
+       rightHi = (((eastHi << 9) | (eastLo >>> 23)) & them.hi) >>> 0;
++      if (ctx.checkMask !== sq.FULL) {
++        const cLo = ctx.checkMask.lo, cHi = ctx.checkMask.hi;
++        oneLo &= cLo; oneHi &= cHi; twoLo &= cLo; twoHi &= cHi;
++        leftLo &= cLo; leftHi &= cHi; rightLo &= cLo; rightHi &= cHi;
++      }
+       // Only white pawns on rank 7 can promote in one move. Avoid three
+       // expensive popcounts in almost every ordinary leaf position.
+       if ((pHi & 0x00ff0000) !== 0) {
+@@ -1233,6 +1247,11 @@
+       leftHi = ((westHi >>> 9) & them.hi) >>> 0;
+       rightLo = (((eastLo >>> 7) | (eastHi << 25)) & them.lo) >>> 0;
+       rightHi = ((eastHi >>> 7) & them.hi) >>> 0;
++      if (ctx.checkMask !== sq.FULL) {
++        const cLo = ctx.checkMask.lo, cHi = ctx.checkMask.hi;
++        oneLo &= cLo; oneHi &= cHi; twoLo &= cLo; twoHi &= cHi;
++        leftLo &= cLo; leftHi &= cHi; rightLo &= cLo; rightHi &= cHi;
++      }
+       if ((pLo & 0x0000ff00) !== 0) {
+         count += 3 * (
+           sq.popcountParts(oneLo & 0x000000ff, 0) +
+@@ -1245,8 +1264,11 @@
+     count += sq.popcountParts(twoLo, twoHi);
+     count += sq.popcountParts(leftLo, leftHi);
+     count += sq.popcountParts(rightLo, rightHi);
+-  } else {
+-    // Fallback handles checks, pins and en-passant discovered-check traps.
++  }
++  pLo = fallbackLo;
++  pHi = fallbackHi;
++  {
++    // Fallback handles pinned pawns and en-passant discovered-check traps.
+     while (pLo !== 0) {
+       const lsb = (pLo & -pLo) >>> 0;
+       const from = Math.clz32(lsb) ^ 31;
