@@ -1265,44 +1265,44 @@ export function countLegalMoves(pos: Position, existingContext?: CheckContext): 
     }
   }
 
-  // 3. Knights/Bishops/Rooks/Queens: direct mask counting, no
-  // per-piece legal-destination SquareSet allocation.
-  const countPieces = (roleBB: SquareSet, role: Role) => {
-    let rLo = (own.lo & roleBB.lo) >>> 0;
-    let rHi = (own.hi & roleBB.hi) >>> 0;
-    let offset = 0;
-    for (let half = 0; half < 2; half++) {
-      while (rLo !== 0) {
-        const lsb = (rLo & -rLo) >>> 0;
-        const from = offset + (31 - Math.clz32(lsb));
-        rLo = (rLo ^ lsb) >>> 0;
-        let attacksBB: SquareSet;
-        switch (role) {
-          case Role.Knight: attacksBB = attacks.knightAttacks(from); break;
-          case Role.Bishop: attacksBB = attacks.bishopAttacks(from, pos.board.occupied); break;
-          case Role.Rook: attacksBB = attacks.rookAttacks(from, pos.board.occupied); break;
-          case Role.Queen: attacksBB = attacks.queenAttacks(from, pos.board.occupied); break;
-          default: continue;
-        }
-        let lo = (attacksBB.lo & ~own.lo & ctx.checkMask.lo) >>> 0;
-        let hi = (attacksBB.hi & ~own.hi & ctx.checkMask.hi) >>> 0;
-        if (sq.has(ctx.pinned, from)) {
-          const idx = (ctx.ksq << 6) | from;
-          lo &= attacks.LINE_RAY_LO[idx];
-          hi &= attacks.LINE_RAY_HI[idx];
-        }
-        count += sq.popcountParts(lo, hi);
+  // 3. All non-pawn, non-king pieces in one bit traversal. Unlike four
+  // per-role calls this performs one two-half scan and chooses role from
+  // disjoint piece role bitboards. Still applies the same pin and check masks.
+  const allRoles = pos.board;
+  let piecesLo = (own.lo & (allRoles.knight.lo | allRoles.bishop.lo
+    | allRoles.rook.lo | allRoles.queen.lo)) >>> 0;
+  let piecesHi = (own.hi & (allRoles.knight.hi | allRoles.bishop.hi
+    | allRoles.rook.hi | allRoles.queen.hi)) >>> 0;
+  const pinnedLo = ctx.pinned.lo;
+  const pinnedHi = ctx.pinned.hi;
+  const occ = allRoles.occupied;
+  const cLo = (ctx.checkMask.lo & ~own.lo) >>> 0;
+  const cHi = (ctx.checkMask.hi & ~own.hi) >>> 0;
+  for (let half = 0; half < 2; half++) {
+    let bits = half === 0 ? piecesLo : piecesHi;
+    const knightBits = half === 0 ? allRoles.knight.lo : allRoles.knight.hi;
+    const bishopBits = half === 0 ? allRoles.bishop.lo : allRoles.bishop.hi;
+    const rookBits = half === 0 ? allRoles.rook.lo : allRoles.rook.hi;
+    const pins = half === 0 ? pinnedLo : pinnedHi;
+    while (bits !== 0) {
+      const lsb = (bits & -bits) >>> 0;
+      const from = (half << 5) + (31 - Math.clz32(lsb));
+      bits = (bits ^ lsb) >>> 0;
+      let target: SquareSet;
+      if ((lsb & knightBits) !== 0) target = attacks.knightAttacks(from);
+      else if ((lsb & bishopBits) !== 0) target = attacks.bishopAttacks(from, occ);
+      else if ((lsb & rookBits) !== 0) target = attacks.rookAttacks(from, occ);
+      else target = attacks.queenAttacks(from, occ);
+      let lo = (target.lo & cLo) >>> 0;
+      let hi = (target.hi & cHi) >>> 0;
+      if ((lsb & pins) !== 0) {
+        const idx = (ctx.ksq << 6) | from;
+        lo &= attacks.LINE_RAY_LO[idx];
+        hi &= attacks.LINE_RAY_HI[idx];
       }
-      rLo = rHi;
-      rHi = 0;
-      offset = 32;
+      count += sq.popcountParts(lo, hi);
     }
-  };
-
-  countPieces(pos.board.knight, Role.Knight);
-  countPieces(pos.board.bishop, Role.Bishop);
-  countPieces(pos.board.rook, Role.Rook);
-  countPieces(pos.board.queen, Role.Queen);
+  }
 
   return count;
 }

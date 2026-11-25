@@ -32,3 +32,17 @@
 
 - [x] Separately test perft-only reusable small Undo and reject uneven
       +5% Kiwipete, -2.4% start and -2.8% promotion results
+
+## Phase 4: MIT-competitor-informed investigations (2026-11-25)
+- [x] Inspect MIT drumevp source attack lookup, checker/pin, perft and make/undo algorithms
+- [x] Adapt and correctness-test MIT-inspired king-ray pins, fused checker/pin
+      analysis, direct king checker lookup and split magic arrays, reject regressions
+- [x] Replace four per-role leaf count passes with one unified legal
+      non-pawn-role bitboard traversal and retain exact pin/check filters
+- [x] Complete 1,000-game chess.js fuzz, 380 frozen move-order fixtures and
+      114 standard/Chess960 perft-state fixtures with zero mismatches
+- [x] Measure 11-round source and independent bundled A/B, four perft positions
+- [x] Run 9-round direct source/published drumevp correctness-gated comparison
+- [x] Document all findings and immutable raw timings, no npm release
+- [ ] Consistently beat current published drumevp on deep start and Kiwipete perft
+- [ ] Validate performance on newer CPUs and browser engines

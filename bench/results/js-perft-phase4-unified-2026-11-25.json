@@ -1,0 +1,918 @@
+{
+  "comparison": "GigaChess JS/TS unified perft leaf counting vs previous tested fast candidate, 11 alternating rounds; source and bundled",
+  "source_ab": {
+    "start": {
+      "nodes": 4865609,
+      "depth": 5,
+      "originalM": 11.91,
+      "experimentalM": 12.569,
+      "ratio": 1.055,
+      "rawMs": {
+        "original": [
+          406.69365199999993,
+          410.8494129999999,
+          415.18191000000024,
+          403.6878719999995,
+          407.7562829999997,
+          415.27699399999983,
+          407.3263710000001,
+          402.5725059999995,
+          415.65403499999957,
+          498.0148420000005,
+          408.5446009999996
+        ],
+        "experimental": [
+          393.5087310000001,
+          387.1057209999999,
+          384.70173300000033,
+          384.17244600000004,
+          387.1133550000004,
+          477.1220880000001,
+          387.81257300000016,
+          419.0299300000006,
+          387.16022599999997,
+          386.5626460000003,
+          380.75254799999857
+        ]
+      }
+    },
+    "kiwipete": {
+      "nodes": 4085603,
+      "depth": 4,
+      "originalM": 12.189,
+      "experimentalM": 12.792,
+      "ratio": 1.049,
+      "rawMs": {
+        "original": [
+          336.9064039999994,
+          345.6777669999992,
+          334.9795290000002,
+          335.1785090000012,
+          327.60166799999934,
+          331.2042970000002,
+          345.74164700000074,
+          328.4317350000001,
+          328.38684099999955,
+          346.9667440000012,
+          349.105607999998
+        ],
+        "experimental": [
+          322.19115899999997,
+          320.9228800000001,
+          316.0191109999996,
+          326.67841600000065,
+          330.3600150000002,
+          313.8969899999993,
+          319.2659279999989,
+          319.3753940000006,
+          315.97571799999787,
+          318.25075300000026,
+          327.7493460000005
+        ]
+      }
+    },
+    "endgame": {
+      "nodes": 674624,
+      "depth": 5,
+      "originalM": 8.278,
+      "experimentalM": 9.451,
+      "ratio": 1.142,
+      "rawMs": {
+        "original": [
+          81.62831300000107,
+          79.19499599999835,
+          81.52171200000157,
+          87.93549899999925,
+          80.72369400000025,
+          79.0728850000014,
+          80.59641600000032,
+          80.85744100000011,
+          83.25290699999823,
+          81.49817600000097,
+          90.53159600000072
+        ],
+        "experimental": [
+          71.39418900000237,
+          71.55707900000198,
+          69.90446599999996,
+          72.98269000000073,
+          70.16504899999927,
+          71.38282200000322,
+          69.90033799999946,
+          71.33163699999932,
+          70.13097600000037,
+          73.48206299999947,
+          77.28040200000032
+        ]
+      }
+    },
+    "promotion": {
+      "nodes": 2103487,
+      "depth": 4,
+      "originalM": 15.364,
+      "experimentalM": 17.41,
+      "ratio": 1.133,
+      "rawMs": {
+        "original": [
+          133.8959590000013,
+          136.11958500000037,
+          136.91054499999882,
+          135.32593799999813,
+          134.81992499999978,
+          136.51994899999772,
+          149.60155099999974,
+          141.0465320000003,
+          145.89774599999873,
+          146.05147399999987,
+          138.80902799999967
+        ],
+        "experimental": [
+          120.81729200000336,
+          118.42982800000027,
+          117.95492400000148,
+          117.35805299999993,
+          122.0758339999993,
+          117.61185800000021,
+          131.13011600000027,
+          120.60942599999908,
+          128.63698700000168,
+          142.8174889999973,
+          128.86397399999987
+        ]
+      }
+    }
+  },
+  "bundle_ab": {
+    "start": {
+      "oldM": 11.306,
+      "newM": 11.74,
+      "ratio": 1.0383,
+      "oldMs": [
+        399.7837450000002,
+        431.0787250000003,
+        427.5170439999997,
+        434.6804809999994,
+        430.3418179999999,
+        430.1507410000004,
+        431.90291100000013,
+        429.51456099999996,
+        424.090408,
+        492.03789700000016,
+        465.032545
+      ],
+      "newMs": [
+        395.7245630000002,
+        447.0068550000001,
+        392.7186780000002,
+        415.24522899999965,
+        465.35342500000024,
+        476.00139800000034,
+        398.48791900000015,
+        403.898048,
+        478.7171299999991,
+        392.3514610000002,
+        414.4642720000011
+      ]
+    },
+    "kiwipete": {
+      "oldM": 11.79,
+      "newM": 12.992,
+      "ratio": 1.102,
+      "oldMs": [
+        432.75842100000045,
+        324.81124400000044,
+        341.2185960000006,
+        396.268587999999,
+        322.0417149999994,
+        380.4767440000014,
+        346.53297900000325,
+        353.7542500000018,
+        344.8620609999998,
+        348.9908770000002,
+        331.2050940000008
+      ],
+      "newMs": [
+        316.0924100000011,
+        306.40383999999904,
+        330.27111200000036,
+        316.89036599999963,
+        353.3659210000005,
+        479.6023649999988,
+        314.4613599999975,
+        312.25808900000266,
+        307.3819110000004,
+        302.653323999999,
+        301.80250499999966
+      ]
+    },
+    "endgame": {
+      "oldM": 8.036,
+      "newM": 9.312,
+      "ratio": 1.1588,
+      "oldMs": [
+        80.76844999999958,
+        83.9458029999987,
+        78.65565799999968,
+        96.77991100000145,
+        109.1367390000014,
+        116.62839800000074,
+        73.27671200000259,
+        85.4976179999976,
+        82.9893430000011,
+        84.89030699999785,
+        82.95705100000123
+      ],
+      "newMs": [
+        69.44599799999924,
+        72.44372600000133,
+        74.86779100000058,
+        92.07852999999886,
+        76.52159199999733,
+        72.30202199999985,
+        71.21053400000164,
+        72.95920199999819,
+        69.91135700000086,
+        73.26371300000028,
+        72.2906839999996
+      ]
+    },
+    "promotion": {
+      "oldM": 15.551,
+      "newM": 18.004,
+      "ratio": 1.1578,
+      "oldMs": [
+        133.32154099999752,
+        137.2835269999996,
+        167.66877100000056,
+        127.8939790000004,
+        134.000637000001,
+        131.08011899999838,
+        134.16142300000138,
+        158.8987339999985,
+        209.06033899999966,
+        145.70262500000172,
+        135.26751499999955
+      ],
+      "newMs": [
+        128.2057019999993,
+        117.99902599999768,
+        158.11564999999973,
+        116.70542700000078,
+        120.90394699999888,
+        113.56031900000016,
+        113.27362200000061,
+        115.08820399999968,
+        130.48923400000058,
+        116.8331410000028,
+        115.39204699999755
+      ]
+    }
+  },
+  "competitive": {
+    "node": "v24.13.0",
+    "platform": "linux",
+    "arch": "x64",
+    "cpu": "Intel(R) Xeon(R) CPU E5-1620 v2 @ 3.70GHz",
+    "memoryGiB": 31.3,
+    "date": "2026-11-25T05:56:09.674Z",
+    "runs": 9,
+    "mode": "full",
+    "drumevp": {
+      "version": "1.3.2",
+      "revision": "0bfd032c197dde4dddfcf0810f036cdf78bb8b45",
+      "publishedEntry": "/var/lib/sentinelx/gigachess-maintenance-20261123/drumevp-npm/package/dist/index.js"
+    },
+    "corpus": {
+      "perftSha256": "cb27ea3a61e11e8466ab4f76305e5db8f5de47eb413a723398217d490dfdab41",
+      "wacSha256": "54a984ab7a1ba74ae021ab2a646fc157933995722b90321ea9de9a33d1ed381c",
+      "positions": 2625,
+      "seed": "0x5e1ec7e5"
+    },
+    "correctness": {
+      "legal": {
+        "samples": 2600,
+        "rejections": 0,
+        "fenErrors": 0,
+        "moveErrors": 0,
+        "publishedMoveErrors": 0,
+        "publishedFenErrors": 0,
+        "epPresentationDifferences": 0
+      },
+      "replay": {
+        "gamesOk": 24,
+        "plies": 2400,
+        "replayErrors": 0,
+        "epReplayDifferences": 134
+      },
+      "invalid": {
+        "invalidFen": [
+          {
+            "name": "missing-king",
+            "drumevpRejects": true,
+            "chessJsRejects": true
+          },
+          {
+            "name": "duplicate-king",
+            "drumevpRejects": false,
+            "chessJsRejects": true
+          },
+          {
+            "name": "adjacent-kings",
+            "drumevpRejects": false,
+            "chessJsRejects": false
+          },
+          {
+            "name": "pawn-on-back-rank",
+            "drumevpRejects": false,
+            "chessJsRejects": true
+          },
+          {
+            "name": "invalid-turn",
+            "drumevpRejects": true,
+            "chessJsRejects": true
+          },
+          {
+            "name": "invalid-ep-rank",
+            "drumevpRejects": false,
+            "chessJsRejects": true
+          },
+          {
+            "name": "extra-field",
+            "drumevpRejects": true,
+            "chessJsRejects": true
+          },
+          {
+            "name": "opponent-in-check",
+            "drumevpRejects": false,
+            "chessJsRejects": false
+          }
+        ],
+        "invalidMoves": [
+          {
+            "uci": "e1e5",
+            "rejected": true,
+            "unchanged": true
+          },
+          {
+            "uci": "c1h6",
+            "rejected": true,
+            "unchanged": true
+          },
+          {
+            "uci": "e7e5",
+            "rejected": true,
+            "unchanged": true
+          }
+        ]
+      },
+      "perft": {
+        "refChecks": 20,
+        "refErrors": 0,
+        "corpusChecks": 276,
+        "corpusErrors": 0,
+        "skips": 0,
+        "verified": 276
+      },
+      "passed": true,
+      "failures": 0,
+      "unsupportedOrRejectedCorpusFens": 0
+    },
+    "timings": {
+      "legal-movegen-positions": {
+        "gigachess-encoded": {
+          "medianMs": 3.1882,
+          "p10Ms": 2.9497,
+          "p90Ms": 5.8155,
+          "unitsPerSec": 250929,
+          "rawMs": [
+            5.9122,
+            3.9552,
+            3.1882,
+            3.0877,
+            3.0212,
+            2.9497,
+            4.5178,
+            5.8155,
+            3.1264
+          ]
+        },
+        "drumevp-raw-movegen": {
+          "medianMs": 3.8129,
+          "p10Ms": 3.4814,
+          "p90Ms": 6.7101,
+          "unitsPerSec": 209811,
+          "rawMs": [
+            6.3576,
+            6.7107,
+            3.8129,
+            3.5753,
+            3.4999,
+            3.4814,
+            3.5662,
+            6.7101,
+            3.896
+          ]
+        },
+        "drumevp-published-fresh-engine": {
+          "medianMs": 11.0797,
+          "p10Ms": 10.9565,
+          "p90Ms": 20.6507,
+          "unitsPerSec": 72204,
+          "rawMs": [
+            32.3355,
+            20.6507,
+            12.8436,
+            11.0797,
+            11.0413,
+            11.0516,
+            10.9565,
+            17.0277,
+            11.0728
+          ]
+        },
+        "chessops-dests": {
+          "medianMs": 5.466,
+          "p10Ms": 4.3474,
+          "p90Ms": 9.6068,
+          "unitsPerSec": 146359,
+          "rawMs": [
+            14.0418,
+            8.368,
+            4.498,
+            5.466,
+            4.4694,
+            4.3952,
+            4.3474,
+            7.4895,
+            9.6068
+          ]
+        },
+        "chess.js-SAN": {
+          "medianMs": 261.1664,
+          "p10Ms": 229.7203,
+          "p90Ms": 426.5325,
+          "unitsPerSec": 3063,
+          "rawMs": [
+            456.6214,
+            261.1664,
+            238.7613,
+            229.7203,
+            233.6762,
+            371.5054,
+            233.7754,
+            327.5584,
+            426.5325
+          ]
+        }
+      },
+      "cached-move-list-positions": {
+        "drumevp-cached": {
+          "medianMs": 0.0784,
+          "p10Ms": 0.0191,
+          "p90Ms": 0.1526,
+          "unitsPerSec": 10199788,
+          "rawMs": [
+            0.2851,
+            0.1526,
+            0.0368,
+            0.0784,
+            0.0193,
+            0.0817,
+            0.0192,
+            0.0792,
+            0.0191
+          ]
+        },
+        "gigachess-regenerate": {
+          "medianMs": 2.6947,
+          "p10Ms": 2.6125,
+          "p90Ms": 3.1395,
+          "unitsPerSec": 296874,
+          "rawMs": [
+            3.8293,
+            3.1395,
+            3.1335,
+            2.6947,
+            2.6125,
+            2.6806,
+            2.7166,
+            2.6654,
+            2.6823
+          ]
+        }
+      },
+      "fen-parse-and-write-positions": {
+        "gigachess": {
+          "medianMs": 9.468,
+          "p10Ms": 8.6665,
+          "p90Ms": 9.6564,
+          "unitsPerSec": 95057,
+          "rawMs": [
+            9.468,
+            9.4897,
+            8.9408,
+            10.564,
+            9.0653,
+            9.6564,
+            8.6665,
+            8.8512,
+            9.5665
+          ]
+        },
+        "drumevp": {
+          "medianMs": 12.4386,
+          "p10Ms": 7.0413,
+          "p90Ms": 15.5719,
+          "unitsPerSec": 72356,
+          "rawMs": [
+            17.3966,
+            7.5416,
+            13.6989,
+            12.4386,
+            10.4177,
+            7.0413,
+            15.5719,
+            9.9261,
+            14.1786
+          ]
+        },
+        "drumevp-published": {
+          "medianMs": 12.0781,
+          "p10Ms": 6.7574,
+          "p90Ms": 15.6377,
+          "unitsPerSec": 74515,
+          "rawMs": [
+            17.474,
+            11.7552,
+            12.9562,
+            12.631,
+            6.8057,
+            6.7574,
+            10.9203,
+            12.0781,
+            15.6377
+          ]
+        },
+        "chess.js": {
+          "medianMs": 41.6787,
+          "p10Ms": 21.5642,
+          "p90Ms": 46.1376,
+          "unitsPerSec": 21594,
+          "rawMs": [
+            38.3946,
+            41.6787,
+            43.4837,
+            36.9486,
+            21.5642,
+            41.3169,
+            44.0423,
+            46.1376,
+            54.0342
+          ]
+        }
+      },
+      "uci-game-replay-plies": {
+        "drumevp-validated": {
+          "medianMs": 14.7911,
+          "p10Ms": 14.4646,
+          "p90Ms": 26.2942,
+          "unitsPerSec": 162259,
+          "rawMs": [
+            17.4052,
+            26.2942,
+            20.3226,
+            28.5739,
+            14.7911,
+            14.7657,
+            14.6845,
+            14.4646,
+            14.6458
+          ]
+        },
+        "drumevp-published-validated": {
+          "medianMs": 17.2003,
+          "p10Ms": 14.6228,
+          "p90Ms": 22.4384,
+          "unitsPerSec": 139533,
+          "rawMs": [
+            16.5774,
+            17.2003,
+            17.4395,
+            25.7838,
+            15.2062,
+            15.0847,
+            14.6228,
+            18.6608,
+            22.4384
+          ]
+        },
+        "chess.js-validated": {
+          "medianMs": 1420.2803,
+          "p10Ms": 1227.6588,
+          "p90Ms": 1677.4036,
+          "unitsPerSec": 1690,
+          "rawMs": [
+            1227.6588,
+            1677.4036,
+            1420.2803,
+            1276.066,
+            1330.0366,
+            1618.4333,
+            1386.1072,
+            1725.4967,
+            1672.4823
+          ]
+        },
+        "gigachess-validated": {
+          "medianMs": 4.3983,
+          "p10Ms": 3.9276,
+          "p90Ms": 5.515,
+          "unitsPerSec": 545664,
+          "rawMs": [
+            4.9767,
+            6.5247,
+            5.515,
+            4.5959,
+            3.9535,
+            4.3983,
+            3.9923,
+            4.2744,
+            3.9276
+          ]
+        }
+      },
+      "mixed-perft-nodes": {
+        "gigachess": {
+          "medianMs": 407.5257,
+          "p10Ms": 356.6268,
+          "p90Ms": 471.94,
+          "unitsPerSec": 20520419,
+          "rawMs": [
+            358.2824,
+            407.5257,
+            356.6268,
+            471.94,
+            368.1482,
+            423.6128,
+            363.5916,
+            464.1786,
+            573.2302
+          ]
+        },
+        "drumevp-no-hash": {
+          "medianMs": 407.374,
+          "p10Ms": 378.9341,
+          "p90Ms": 566.2242,
+          "unitsPerSec": 20528060,
+          "rawMs": [
+            388.2872,
+            381.0442,
+            378.9341,
+            566.2242,
+            407.374,
+            479.1545,
+            642.3755,
+            397.2141,
+            488.242
+          ]
+        },
+        "drumevp-full-hash": {
+          "medianMs": 504.1167,
+          "p10Ms": 442.8712,
+          "p90Ms": 680.8804,
+          "unitsPerSec": 16588616,
+          "rawMs": [
+            504.1167,
+            490.4635,
+            506.9261,
+            442.8712,
+            680.8804,
+            552.4452,
+            852.6893,
+            453.7283,
+            461.5031
+          ]
+        },
+        "drumevp-published": {
+          "medianMs": 422.5759,
+          "p10Ms": 347.788,
+          "p90Ms": 570.4681,
+          "unitsPerSec": 19789578,
+          "rawMs": [
+            561.1368,
+            347.788,
+            422.5759,
+            352.5968,
+            570.4681,
+            370.8756,
+            594.3722,
+            369.0559,
+            442.9094
+          ]
+        },
+        "chessops": {
+          "medianMs": 1667.0474,
+          "p10Ms": 1475.8654,
+          "p90Ms": 2026.8622,
+          "unitsPerSec": 5016413,
+          "rawMs": [
+            1623.0549,
+            1775.8157,
+            1478.416,
+            1577.3549,
+            1475.8654,
+            2054.51,
+            1822.5515,
+            2026.8622,
+            1667.0474
+          ]
+        }
+      },
+      "deep-perft-start-d5-nodes": {
+        "gigachess": {
+          "medianMs": 531.6925,
+          "p10Ms": 489.6996,
+          "p90Ms": 622.6596,
+          "unitsPerSec": 9151172,
+          "rawMs": [
+            531.6925,
+            520.797,
+            489.6996,
+            516.7264,
+            673.4899,
+            607.554,
+            622.6596,
+            612.5361,
+            528.3275
+          ]
+        },
+        "drumevp-no-hash": {
+          "medianMs": 512.5191,
+          "p10Ms": 319.8761,
+          "p90Ms": 549.5755,
+          "unitsPerSec": 9493517,
+          "rawMs": [
+            319.8761,
+            382.4628,
+            339.3931,
+            373.3777,
+            546.9301,
+            549.5755,
+            537.9034,
+            581.2422,
+            512.5191
+          ]
+        },
+        "drumevp-full-hash": {
+          "medianMs": 547.7099,
+          "p10Ms": 406.1042,
+          "p90Ms": 663.4411,
+          "unitsPerSec": 8883552,
+          "rawMs": [
+            406.1042,
+            535.4319,
+            420.6921,
+            413.7685,
+            663.4411,
+            648.168,
+            547.7099,
+            680.2027,
+            656.1871
+          ]
+        },
+        "drumevp-published": {
+          "medianMs": 470.0011,
+          "p10Ms": 366.5353,
+          "p90Ms": 490.0699,
+          "unitsPerSec": 10352336,
+          "rawMs": [
+            387.9636,
+            371.342,
+            470.0011,
+            366.5353,
+            464.174,
+            490.0699,
+            476.6285,
+            486.9747,
+            521.2648
+          ]
+        },
+        "chessops": {
+          "medianMs": 2349.1762,
+          "p10Ms": 1554.9983,
+          "p90Ms": 2433.1035,
+          "unitsPerSec": 2071198,
+          "rawMs": [
+            1554.9983,
+            1727.0011,
+            2371.9421,
+            2433.1035,
+            2446.0847,
+            2404.9191,
+            2283.9101,
+            2349.1762,
+            2309.6194
+          ]
+        }
+      },
+      "deep-perft-kiwipete-d4-nodes": {
+        "gigachess": {
+          "medianMs": 442.3579,
+          "p10Ms": 305.6782,
+          "p90Ms": 518.3689,
+          "unitsPerSec": 9235967,
+          "rawMs": [
+            442.3579,
+            517.6521,
+            463.8755,
+            399.6166,
+            518.3689,
+            557.6301,
+            327.9776,
+            395.281,
+            305.6782
+          ]
+        },
+        "drumevp-no-hash": {
+          "medianMs": 310.5756,
+          "p10Ms": 229.4554,
+          "p90Ms": 384.3429,
+          "unitsPerSec": 13154940,
+          "rawMs": [
+            310.5756,
+            364.5694,
+            258.8742,
+            398.2822,
+            381.5147,
+            384.3429,
+            244.6339,
+            258.7835,
+            229.4554
+          ]
+        },
+        "drumevp-full-hash": {
+          "medianMs": 405.0648,
+          "p10Ms": 263.1173,
+          "p90Ms": 433.8987,
+          "unitsPerSec": 10086294,
+          "rawMs": [
+            353.5191,
+            405.0648,
+            461.3913,
+            433.8987,
+            426.5037,
+            428.3339,
+            270.1719,
+            265.9468,
+            263.1173
+          ]
+        },
+        "drumevp-published": {
+          "medianMs": 316.145,
+          "p10Ms": 212.6597,
+          "p90Ms": 327.1727,
+          "unitsPerSec": 12923194,
+          "rawMs": [
+            305.457,
+            348.1012,
+            327.1727,
+            320.9796,
+            316.145,
+            326.4306,
+            212.6597,
+            227.8432,
+            215.4007
+          ]
+        },
+        "chessops": {
+          "medianMs": 1224.5823,
+          "p10Ms": 902.6561,
+          "p90Ms": 1568.6111,
+          "unitsPerSec": 3336324,
+          "rawMs": [
+            1458.5338,
+            1893.0073,
+            1364.8591,
+            1224.5823,
+            1568.6111,
+            930.7239,
+            902.6561,
+            1076.3365,
+            934.3348
+          ]
+        }
+      }
+    },
+    "failures": [],
+    "caveats": [
+      "Perft/FEN/SAN EPD sources include 4-field EPD notation, converted to 6-field FEN before invoking the standard-only competitor.",
+      "Drumevp perft explicitly SKIPS Zobrist maintenance. Both no-hash and full-hash (diagnostic upstream make) perft timings are included; GigaChess uses its public Board.perft.",
+      "Chess.js suppresses phantom EP targets in serialized FEN, while drumevp may preserve them after a double pawn push. FEN board/turn/castling/clocks are checked separately; EP presentation differences are counted and legal en-passant moves are checked independently.",
+      "Drumevp has 32-bit packed moves, standard chess only, no comparable SAN/PGN or Chess960 API; report N/A, not a win.",
+      "Drumevp cached move list is a cache lookup, not a new legal-move generation; comparison deliberately separate.",
+      "Cross-library perft counts prove aggregate node parity, NOT equal per-position legal moves or input validation.",
+      "Warm-up excludes 2 preliminary passes; 7 (or --runs N) samples rotate engine order and report medians/p10/p90. Shared-server contention can affect results; repeat independently for significance.",
+      "Move list generation is not API-identical: chess.js emits SAN, chessops provides destination bitsets (promotions unexpanded), GigaChess/drumevp return packed moves. Never treat those four numbers as a pure movegen microbenchmark."
+    ]
+  }
+}
