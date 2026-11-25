@@ -25,6 +25,7 @@ jobs:
       - run: |
           mkdir -p benchmark-results
           set -o pipefail
+          node tests/maintenance-regression.mjs | tee benchmark-results/golden-vectors.log
           node --expose-gc bench/bench-real.mjs --suite bundle --json | tee benchmark-results/bundle.log
       - uses: actions/upload-artifact@v4
         if: always()

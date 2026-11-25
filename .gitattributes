@@ -1,4 +1,6 @@
 
+# Byte-pinned benchmark and shared cross-language fixtures.
 bench/data/*.epd -text
 bench/data/*.pgn -text
 bench/data/*.zst -text
+tests/*.tsv -text
