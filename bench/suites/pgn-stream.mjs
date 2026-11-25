@@ -45,10 +45,6 @@ export async function run(opts) {
   let pcOkGames = 0;
   let coOkGames = 0;
   const parityFailures = [];
-  const pcTrees = new Array(games.length);
-  const pcRtSans = new Array(games.length); // pc round-trip SAN streams
-  const coRtSans = new Array(games.length); // co round-trip SAN streams
-  const coGamesArr = new Array(games.length);
   for (let i = 0; i < games.length; i++) {
     const g = games[i];
     const pcR = pcParsePgn(g);
@@ -63,8 +59,6 @@ export async function run(opts) {
       continue;
     }
     if (!pcR.ok) continue; // both reject → agreed (illegal/unsupported game)
-    pcTrees[i] = pcR.value;
-    coGamesArr[i] = coGame;
     const pcSans = pcR.value.moves.map((m) => m.san);
     const coS = coSans(coGame);
     if (pcSans.length !== coS.length || pcSans.some((s, j) => s !== coS[j])) {
@@ -75,12 +69,12 @@ export async function run(opts) {
     }
     // makePgn(parsePgn(g)) round-trip on both libs: re-parsed SAN stream must equal the original
     const pcRt = pcParsePgn(pcMakePgn(pcR.value));
-    pcRtSans[i] = pcRt.ok ? pcRt.value.moves.map((m) => m.san) : null;
+    const pcRtSans = pcRt.ok ? pcRt.value.moves.map((m) => m.san) : null;
     const coRt = coParsePgn(coMakePgn(coGame));
-    coRtSans[i] = coRt.length > 0 ? coSans(coRt[0]) : null;
+    const coRtSans = coRt.length > 0 ? coSans(coRt[0]) : null;
     const rtBad =
-      !pcRtSans[i] || pcRtSans[i].length !== pcSans.length || pcRtSans[i].some((s, j) => s !== pcSans[j]) ||
-      !coRtSans[i] || coRtSans[i].length !== coS.length || coRtSans[i].some((s, j) => s !== coS[j]);
+      !pcRtSans || pcRtSans.length !== pcSans.length || pcRtSans.some((s, j) => s !== pcSans[j]) ||
+      !coRtSans || coRtSans.length !== coS.length || coRtSans.some((s, j) => s !== coS[j]);
     if (rtBad && parityFailures.length < 10) {
       parityFailures.push(`game ${i}: makePgn(parsePgn(g)) round-trip not stable-equal vs chessops`);
     }

@@ -1,0 +1,13 @@
+PASS ordered pawn/standard legal moves against frozen preoptimization reference: 380
+PASS independent, caller-owned and reentrant legal move lists
+PASS perft internal state restoration and frozen standard/Chess960 fixtures 114
+{ exhaustiveRelevantOccupancies: 107648 }
+{ exhaustiveRelevantOccupancies: 107648 }
+{
+  fens: 571,
+  randomPositions: 295,
+  active: 571,
+  fallback: 0,
+  checked: 1142
+}
+{ positions: 10178, active: 10178, checks: 360, ep: 43, castles: 369 }

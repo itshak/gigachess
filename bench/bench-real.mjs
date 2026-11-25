@@ -100,7 +100,8 @@ async function main() {
     }
   }
   const total = results.reduce((s, r) => s + r.gates.length, 0);
-  console.log(`\n${total - failed}/${total} gates passed${failed ? ` — ${failed} suite(s) with unmet gates` : " — all gates met"}.`);
+  const passed = results.reduce((s,r)=>s+r.gates.filter(g=>g.pass).length,0);
+  console.log(`\n${passed}/${total} gates passed${failed ? ` — ${failed} suite(s) with unmet gates` : " — all gates met"}.`);
 
   if (args.json) {
     console.log(JSON.stringify(results, null, 2));

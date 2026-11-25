@@ -1,0 +1,4 @@
+
+bench/data/*.epd -text
+bench/data/*.pgn -text
+bench/data/*.zst -text
