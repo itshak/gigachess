@@ -1,0 +1,5 @@
+parity 4000 positions 7207 replayed plies 12 invalid FEN cases [ 'baseline', 'targetflat' ]
+fen-roundtrip {"baseline":[1,1],"targetflat":[0.969,0.97]}
+movegen-fresh {"baseline":[1,1],"targetflat":[0.79,0.791]}
+validated-replay {"baseline":[1,1],"targetflat":[1.92,1.918]}
+perft-mixed {"baseline":[1,1],"targetflat":[1.043,1.043]}

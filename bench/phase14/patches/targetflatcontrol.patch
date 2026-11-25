@@ -1,0 +1,550 @@
+--- a/src/board.ts
++++ b/src/board.ts
+@@ -146,6 +146,38 @@
+   _zobristHi: number;
+ 
+   constructor(input?: string | Position | Board | BoardLike) {
++    // String construction owns the newly parsed board. Unlike loadFen on an
++    // existing Board, there are no prior public bitboard references to retain.
++    // Subclass initialization keeps the original virtual loadFen behavior.
++    if (new.target === Board && (input === undefined || typeof input === "string")) {
++      const fen = input ?? INITIAL_FEN;
++      const parsed = parseFen(fen);
++      if (!parsed.ok) throw new Error(`Invalid FEN: ${fen}`);
++      const pos = parsed.value, b = pos.board;
++      this.white = b.white as MutableSquareSet;
++      this.black = b.black as MutableSquareSet;
++      this.pawn = b.pawn as MutableSquareSet;
++      this.knight = b.knight as MutableSquareSet;
++      this.bishop = b.bishop as MutableSquareSet;
++      this.rook = b.rook as MutableSquareSet;
++      this.queen = b.queen as MutableSquareSet;
++      this.king = b.king as MutableSquareSet;
++      this.occupied = b.occupied as MutableSquareSet;
++      this.promoted = b.promoted as MutableSquareSet;
++      this.kingSq = b.kingSq as [number,number];
++      this.turn = pos.turn;
++      this.castling = pos.castling;
++      this.castlingMask = pos.castlingMask;
++      this.epSquare = pos.epSquare;
++      this.halfmoves = pos.halfmoves ?? pos.halfmove ?? 0;
++      this.fullmoves = pos.fullmoves ?? pos.fullmove ?? 1;
++      this.checkers = pos.checkers!;
++      this.isChess960 = !!pos.isChess960;
++      this._zobristLo = pos.zobristLo ?? 0;
++      this._zobristHi = pos.zobristHi ?? 0;
++      if (this._zobristLo === 0 && this._zobristHi === 0 && zobristTablesLoaded()) this.refreshZobrist();
++      return;
++    }
+     this.white = { lo: 0, hi: 0 };
+     this.black = { lo: 0, hi: 0 };
+     this.pawn = { lo: 0, hi: 0 };
+--- a/src/chess.ts
++++ b/src/chess.ts
+@@ -790,6 +790,10 @@
+   attacks.bishopAttacksForTest(i, sq.EMPTY));
+ 
+ export function analyzeCheckContext(pos: Position, reuse?: CheckContext, perftOnly = false): CheckContext {
++  return analyzeCheckContextInternal(pos, reuse, perftOnly, false);
++}
++
++function analyzeCheckContextInternal(pos: Position, reuse?: CheckContext, perftOnly = false, nonKingOnly = false): CheckContext {
+   const us = pos.turn;
+   const them = opposite(us);
+   const ksq = board.kingSquare(pos.board, us);
+@@ -809,7 +813,7 @@
+   // Precompute the position's castling plans once (design D2): the hot loops
+   // (destsFast king branch, genLegalMoves) look them up instead of re-running
+   // detectCastling per king move. The plans belong to THIS context only.
+-  if (!pos.isChess960) {
++  if (!nonKingOnly && !pos.isChess960) {
+     const mask = pos.castlingMask ?? getCastlingMask(pos);
+     if (us === Color.White) {
+       if ((mask & CASTLE_WK) !== 0 && ksq === 4) {
+@@ -854,7 +858,7 @@
+         }
+       }
+     }
+-  } else {
++  } else if (!nonKingOnly) {
+     const rights = us === Color.White ? pos.castling.white : pos.castling.black;
+     if (rights.size > 0) {
+       for (const rs of rights) {
+@@ -935,6 +939,8 @@
+     }
+   }
+   ctx.pinned = { lo: pinnedLo >>> 0, hi: pinnedHi >>> 0 };
++
++  if (nonKingOnly) return ctx;
+ 
+   // Only reachable king destinations require attack checks. King surrounded
+   // by its own pieces is an especially common leaf: no attack map necessary.
+@@ -1086,10 +1092,49 @@
+   return result;
+ }
+ 
++/** For one non-king origin, only that origin's pin can affect its legal
++ * destinations. Use exactly the same check mask as full-context analysis. */
++function singlePieceContext(pos: Position, from: number): CheckContext {
++  const us = pos.turn, them = opposite(us), b = pos.board;
++  const ksq = board.kingSquare(b, us);
++  if (ksq === undefined || ksq > 63 || from < 0 || from > 63 || !Number.isInteger(from))
++    return analyzeCheckContextInternal(pos, undefined, false, true);
++  const ctx: CheckContext = { us, ksq, doubleCheck: false, checkMask: sq.FULL,
++    kingSafe: sq.EMPTY, pinned: sq.EMPTY, castlingPlans: [] };
++  const checkers = pos.checkers ?? attacks.kingAttackers(b, us);
++  if ((checkers.lo | checkers.hi) !== 0) {
++    if (sq.moreThanOne(checkers)) { ctx.doubleCheck = true; return ctx; }
++    const c = sq.first(checkers)!;
++    ctx.checkMask = sq.or(attacks.between(ksq, c), sq.singleton(c));
++  }
++  // A nonaligned origin cannot be the sole blocker on a king-slider line.
++  const i = (ksq << 6) | from;
++  const lineLo = attacks.LINE_RAY_LO[i], lineHi = attacks.LINE_RAY_HI[i];
++  if ((lineLo | lineHi) === 0) return ctx;
++  const diagonal = (ksq & 7) !== (from & 7) && (ksq >> 3) !== (from >> 3);
++  const role = diagonal ? b.bishop : b.rook;
++  const enemy = them === Color.White ? b.white : b.black;
++  let lo = enemy.lo & (role.lo | b.queen.lo) & lineLo;
++  let hi = enemy.hi & (role.hi | b.queen.hi) & lineHi;
++  const fl = from < 32 ? 1 << from : 0, fh = from >= 32 ? 1 << (from - 32) : 0;
++  // Full analysis never marks an enemy square as pinned.
++  if ((enemy.lo & fl) || (enemy.hi & fh)) return ctx;
++  while (lo || hi) {
++    let slider: number;
++    if (lo) { slider = 31 - Math.clz32(lo & -lo); lo &= lo - 1; }
++    else { slider = 63 - Math.clz32(hi & -hi); hi &= hi - 1; }
++    const bt = attacks.between(ksq, slider);
++    if ((bt.lo & b.occupied.lo) === fl && (bt.hi & b.occupied.hi) === fh) {
++      ctx.pinned = { lo: fl >>> 0, hi: fh >>> 0 }; break;
++    }
++  }
++  return ctx;
++}
++
+ export function dests(pos: Position, from: number): SquareSet {
+   const piece = board.pieceAt(pos.board, from);
+   if (!piece) return { lo: 0, hi: 0 };
+-  return destsFast(pos, from, piece, analyzeCheckContext(pos));
++  return destsFast(pos, from, piece, piece.role === Role.King ? analyzeCheckContext(pos) : singlePieceContext(pos, from));
+ }
+ 
+ export function allDests(pos: Position): Map<number, SquareSet> {
+@@ -1137,7 +1182,8 @@
+   }
+   const piece = board.pieceAt(pos.board, move.from);
+   const to = move.to;
+-  const d = dests(pos, move.from);
++  if (!piece) return false;
++  const d = destsFast(pos, move.from, piece, piece.role === Role.King ? analyzeCheckContext(pos) : singlePieceContext(pos, move.from));
+   if (!sq.has(d, to)) return false;
+   if (piece && piece.role === Role.Pawn) {
+     const destRank = squareRank(to);
+--- a/src/fen.ts
++++ b/src/fen.ts
+@@ -126,43 +126,52 @@
+   // per-piece `setPiece`. The scanner walks the raw string with charCodeAt:
+   // '/' drops a rank, '1'..'8' skips empty squares, anything else must be a
+   // piece letter (color = uppercase ⇒ white).
+-  const scratch = board.newScratchBoard();
+-  let r = 7;
+-  let file = 0;
+-  for (let k = fs[0]; k < fe[0]; k++) {
+-    const c = fen.charCodeAt(k);
+-    if (c === 47) {
+-      // '/': next rank down
+-      if (file !== 8 || r === 0) return Err({ code: "fen/invalidPiecePlacement" });
+-      r--;
+-      file = 0;
+-      continue;
+-    }
+-    if (c >= 49 && c <= 56) {
+-      // '1'..'8': consecutive empty squares
+-      file += c - 48;
+-      if (file > 8) return Err({ code: "fen/invalidPiecePlacement" });
+-      continue;
+-    }
+-    if (file >= 8) return Err({ code: "fen/invalidPiecePlacement" });
+-    // inline role/color decode (no per-piece object allocation)
+-    let role: Role;
+-    switch (c | 32) {
+-      case 112: role = Role.Pawn; break;   // p
+-      case 110: role = Role.Knight; break; // n
+-      case 98: role = Role.Bishop; break;  // b
+-      case 114: role = Role.Rook; break;   // r
+-      case 113: role = Role.Queen; break;  // q
+-      case 107: role = Role.King; break;   // k
+-      default: return Err({ code: "fen/invalidPiecePlacement" });
+-    }
+-    const color = c >= 97 ? Color.Black : Color.White; // lowercase ⇒ black
+-    const sqIdx = r * 8 + file;
+-    board.putPieceInPlace(scratch, sqIdx, { color, role });
++  // Build locally owned words, then materialize the public board once.
++  let scratch: board.WritableBoard;
++  {
++  let wl=0,wh=0,bl=0,bh=0,pl=0,ph=0,nl=0,nh=0,il=0,ih=0,rl=0,rh=0,ql=0,qh=0,kl=0,kh=0;
++  let wk=-1,bk=-1,r=7,file=0;
++  for(let k=fs[0];k<fe[0];k++){
++    const c=fen.charCodeAt(k);
++    if(c===47){
++      if(file!==8||r===0)return Err({code:"fen/invalidPiecePlacement"});
++      r--;file=0;continue;
++    }
++    if(c>=49&&c<=56){
++      file+=c-48;if(file>8)return Err({code:"fen/invalidPiecePlacement"});continue;
++    }
++    if(file>=8)return Err({code:"fen/invalidPiecePlacement"});
++    const index=r*8+file, bit=1<<(index&31), high=index>=32, white=c<97;
++    if(high){
++      switch(c|32){
++        case 112: ph|=bit;break; case 110: nh|=bit;break;
++        case 98: ih|=bit;break; case 114: rh|=bit;break;
++        case 113: qh|=bit;break; case 107: kh|=bit;if(white)wk=index;else bk=index;break;
++        default:return Err({code:"fen/invalidPiecePlacement"});
++      }
++      if(white)wh|=bit;else bh|=bit;
++    }else{
++      switch(c|32){
++        case 112: pl|=bit;break; case 110: nl|=bit;break;
++        case 98: il|=bit;break; case 114: rl|=bit;break;
++        case 113: ql|=bit;break; case 107: kl|=bit;if(white)wk=index;else bk=index;break;
++        default:return Err({code:"fen/invalidPiecePlacement"});
++      }
++      if(white)wl|=bit;else bl|=bit;
++    }
+     file++;
+   }
+-  if (file !== 8 || r !== 0) return Err({ code: "fen/invalidPiecePlacement" });
+-  const curBoard: BoardLike = board.cloneBoard(scratch);
++  if(file!==8||r!==0)return Err({code:"fen/invalidPiecePlacement"});
++  scratch = {
++    white:{lo:wl>>>0,hi:wh>>>0},black:{lo:bl>>>0,hi:bh>>>0},
++    pawn:{lo:pl>>>0,hi:ph>>>0},knight:{lo:nl>>>0,hi:nh>>>0},
++    bishop:{lo:il>>>0,hi:ih>>>0},rook:{lo:rl>>>0,hi:rh>>>0},
++    queen:{lo:ql>>>0,hi:qh>>>0},king:{lo:kl>>>0,hi:kh>>>0},
++    occupied:{lo:(wl|bl)>>>0,hi:(wh|bh)>>>0},promoted:{lo:0,hi:0},
++    kingSq:[wk,bk]
++  };
++  }
++  const curBoard: BoardLike = scratch;
+ 
+   // ----- active color -----
+   let turn: Color;
+@@ -178,8 +187,9 @@
+   }
+ 
+   // ----- castling -----
+-  let whiteSet = new Set<number>();
+-  let blackSet = new Set<number>();
++  let standardMask = 0;
++  const whiteSet = opts?.chess960 ? new Set<number>() : undefined;
++  const blackSet = opts?.chess960 ? new Set<number>() : undefined;
+   const castlingStart = fieldCount > 2 ? fs[2] : -1;
+   const castlingIsDash = castlingStart === -1 || (fe[2] - fs[2] === 1 && fen.charCodeAt(fs[2]) === 45);
+   if (!castlingIsDash) {
+@@ -198,10 +208,10 @@
+         if (ch !== "K" && ch !== "Q" && ch !== "k" && ch !== "q") {
+           return Err({ code: "fen/invalidCastling" });
+         }
+-        if (ch === "K") whiteSet.add(7);
+-        else if (ch === "Q") whiteSet.add(0);
+-        else if (ch === "k") blackSet.add(63);
+-        else if (ch === "q") blackSet.add(56);
++        if (ch === "K") standardMask |= CASTLE_WK;
++        else if (ch === "Q") standardMask |= CASTLE_WQ;
++        else if (ch === "k") standardMask |= CASTLE_BK;
++        else if (ch === "q") standardMask |= CASTLE_BQ;
+       } else {
+         // chess960 tolerant
+         if (ch === "K") {
+@@ -216,8 +226,8 @@
+             if (p && p.color === Color.White && p.role === Role.Rook) { best = sqIdx; break; }
+             // if no rook found, still add H1 as fallback for standard
+           }
+-          if (best !== undefined) whiteSet.add(best);
+-          else whiteSet.add(7); // fallback to H1
++          if (best !== undefined) whiteSet!.add(best);
++          else whiteSet!.add(7); // fallback to H1
+         } else if (ch === "Q") {
+           if (wk === undefined) return Err({ code: "fen/invalidCastling" });
+           const kf = squareFile(wk);
+@@ -227,8 +237,8 @@
+             const p = board.pieceAt(curBoard, sqIdx);
+             if (p && p.color === Color.White && p.role === Role.Rook) { best = sqIdx; break; }
+           }
+-          if (best !== undefined) whiteSet.add(best);
+-          else whiteSet.add(0);
++          if (best !== undefined) whiteSet!.add(best);
++          else whiteSet!.add(0);
+         } else if (ch === "k") {
+           if (bk === undefined) return Err({ code: "fen/invalidCastling" });
+           const kf = squareFile(bk);
+@@ -238,8 +248,8 @@
+             const p = board.pieceAt(curBoard, sqIdx);
+             if (p && p.color === Color.Black && p.role === Role.Rook) { best = sqIdx; break; }
+           }
+-          if (best !== undefined) blackSet.add(best);
+-          else blackSet.add(63);
++          if (best !== undefined) blackSet!.add(best);
++          else blackSet!.add(63);
+         } else if (ch === "q") {
+           if (bk === undefined) return Err({ code: "fen/invalidCastling" });
+           const kf = squareFile(bk);
+@@ -249,16 +259,16 @@
+             const p = board.pieceAt(curBoard, sqIdx);
+             if (p && p.color === Color.Black && p.role === Role.Rook) { best = sqIdx; break; }
+           }
+-          if (best !== undefined) blackSet.add(best);
+-          else blackSet.add(56);
++          if (best !== undefined) blackSet!.add(best);
++          else blackSet!.add(56);
+         } else if (ch >= "A" && ch <= "H") {
+           const file = ch.charCodeAt(0) - 65;
+           const sqIdx = file; // rank 0
+-          whiteSet.add(sqIdx);
++          whiteSet!.add(sqIdx);
+         } else if (ch >= "a" && ch <= "h") {
+           const file = ch.charCodeAt(0) - 97;
+           const sqIdx = 56 + file;
+-          blackSet.add(sqIdx);
++          blackSet!.add(sqIdx);
+         } else {
+           return Err({ code: "fen/invalidCastling" });
+         }
+@@ -268,7 +278,7 @@
+     // For non-960, ensure no duplicate file letters etc already handled
+   }
+ 
+-  const castling = makeCastling(whiteSet, blackSet);
++  const castling = opts?.chess960 ? makeCastling(whiteSet!, blackSet!) : CASTLING_RIGHTS_TABLE[standardMask];
+ 
+   // ----- en passant -----
+   // Structural validation (square name + rank for the side to move) stays
+@@ -320,46 +330,29 @@
+ 
+   // ----- validations per purechess-rules -----
+   // pawn on back rank
+-  for (let f = 0; f < 8; f++) {
+-    const sq1 = f; // rank 1
+-    const sq8 = 56 + f; // rank 8
+-    const p1 = board.pieceAt(curBoard, sq1);
+-    const p8 = board.pieceAt(curBoard, sq8);
+-    if (p1 && p1.role === Role.Pawn) return Err({ code: "fen/pawnOnBackRank" });
+-    if (p8 && p8.role === Role.Pawn) return Err({ code: "fen/pawnOnBackRank" });
+-  }
+-
+-  // kings count
+-  const whiteKings = sq.popcnt(sq.and(curBoard.white, curBoard.king));
+-  const blackKings = sq.popcnt(sq.and(curBoard.black, curBoard.king));
+-  const totalKings = sq.popcnt(curBoard.king);
+-  if (totalKings !== 2 || whiteKings !== 1 || blackKings !== 1) {
+-    return Err({ code: "fen/kingsCount" });
+-  }
++  if ((curBoard.pawn.lo & 255) || (curBoard.pawn.hi & 0xff000000)) return Err({ code: "fen/pawnOnBackRank" });
++  const wl = curBoard.white.lo & curBoard.king.lo, wh = curBoard.white.hi & curBoard.king.hi;
++  const bl = curBoard.black.lo & curBoard.king.lo, bh = curBoard.black.hi & curBoard.king.hi;
++  const w = wl | wh, b = bl | bh;
++  if (!w || !b || (wl && wh) || (bl && bh) || (w & (w-1)) || (b & (b-1))) return Err({ code: "fen/kingsCount" });
+ 
+   // kings adjacent
+-  const wkSq = board.kingSquare(curBoard, Color.White);
+-  const bkSq = board.kingSquare(curBoard, Color.Black);
++  const wkSq = scratch.kingSq[Color.White];
++  const bkSq = scratch.kingSq[Color.Black];
+   if (wkSq !== undefined && bkSq !== undefined) {
+     const wAtt = attacks.kingAttacks(wkSq);
+     if (sq.has(wAtt, bkSq)) return Err({ code: "fen/kingsAdjacent" });
+   }
+ 
+-  // oppositeCheck: side not to move king attacked
+-  if (wkSq !== undefined && bkSq !== undefined) {
+-    const whiteAttacked = attacks.isAttacked(curBoard, wkSq, Color.Black);
+-    const blackAttacked = attacks.isAttacked(curBoard, bkSq, Color.White);
+-    // illegal if both in check
+-    if (whiteAttacked && blackAttacked) return Err({ code: "fen/oppositeCheck" });
+-    // illegal if opponent king is in check (side not to move)
+-    if (turn === Color.White && blackAttacked) return Err({ code: "fen/oppositeCheck" });
+-    if (turn === Color.Black && whiteAttacked) return Err({ code: "fen/oppositeCheck" });
+-  }
++  // Only the non-moving king must not be attacked; double check of
++  // both kings necessarily violates that condition as well.
++  if (turn === Color.White ? attacks.isAttacked(curBoard, bkSq, Color.White) : attacks.isAttacked(curBoard, wkSq, Color.Black))
++    return Err({ code: "fen/oppositeCheck" });
+ 
+   const is960 = !!opts?.chess960;
+   const kingSqPair: [number, number] = [wkSq ?? -1, bkSq ?? -1];
+   (curBoard as { kingSq?: [number, number] }).kingSq = kingSqPair;
+-  const chk = attacks.kingAttackers(curBoard, turn);
++  const chk = attacks.attackersTo(curBoard, kingSqPair[turn], turn === Color.White ? Color.Black : Color.White);
+   const setup: Setup = {
+     board: curBoard,
+     turn,
+@@ -387,33 +380,28 @@
+ 
+ export function makeFen(setup: Setup, opts?: { shredder?: boolean; chess960?: boolean }): string {
+   const boardVal = setup.board;
+-  // piece placement
+   let placement = "";
+   for (let r = 7; r >= 0; r--) {
+-    let empty = 0;
+-    let rankStr = "";
+-    for (let f = 0; f < 8; f++) {
+-      const sqIdx = r * 8 + f;
+-      // occupancy + role/color via direct bit tests (no per-square pieceAt
+-      // allocation — task 5.1)
+-      if (!sq.has(boardVal.occupied, sqIdx)) {
+-        empty++;
+-      } else {
+-        if (empty > 0) { rankStr += String(empty); empty = 0; }
+-        const isWhite = sq.has(boardVal.white, sqIdx);
+-        let ch: string;
+-        if (sq.has(boardVal.pawn, sqIdx)) ch = isWhite ? "P" : "p";
+-        else if (sq.has(boardVal.knight, sqIdx)) ch = isWhite ? "N" : "n";
+-        else if (sq.has(boardVal.bishop, sqIdx)) ch = isWhite ? "B" : "b";
+-        else if (sq.has(boardVal.rook, sqIdx)) ch = isWhite ? "R" : "r";
+-        else if (sq.has(boardVal.queen, sqIdx)) ch = isWhite ? "Q" : "q";
+-        else ch = isWhite ? "K" : "k";
+-        rankStr += ch;
+-      }
+-    }
+-    if (empty > 0) rankStr += String(empty);
+-    placement += rankStr;
+-    if (r > 0) placement += "/";
++    const high = r >= 4, shift = (r & 3) * 8;
++    const occupied = high ? boardVal.occupied.hi : boardVal.occupied.lo;
++    const white = high ? boardVal.white.hi : boardVal.white.lo;
++    const pawn = high ? boardVal.pawn.hi : boardVal.pawn.lo;
++    const knight = high ? boardVal.knight.hi : boardVal.knight.lo;
++    const bishop = high ? boardVal.bishop.hi : boardVal.bishop.lo;
++    const rook = high ? boardVal.rook.hi : boardVal.rook.lo;
++    const queen = high ? boardVal.queen.hi : boardVal.queen.lo;
++    let bits = (occupied >>> shift) & 255, prev = 0;
++    while (bits) {
++      const bit = bits & -bits, f = 31 - Math.clz32(bit), mask = bit << shift;
++      if (f > prev) placement += String(f - prev);
++      const w = (white & mask) !== 0;
++      placement += pawn & mask ? (w?"P":"p") : knight & mask ? (w?"N":"n") :
++        bishop & mask ? (w?"B":"b") : rook & mask ? (w?"R":"r") :
++        queen & mask ? (w?"Q":"q") : (w?"K":"k");
++      prev = f + 1; bits &= bits - 1;
++    }
++    if (prev < 8) placement += String(8 - prev);
++    if (r) placement += "/";
+   }
+ 
+   const active = setup.turn === Color.White ? "w" : "b";
+--- a/src/standardMovegen.ts
++++ b/src/standardMovegen.ts
+@@ -8,6 +8,12 @@
+ const bitHi = Int32Array.from({ length: 64 }, (_, s) => s >= 32 ? 1 << (s - 32) : 0);
+ const rr = Array.from({ length: 64 }, (_, s) => a.rookAttacks(s, { lo: 0, hi: 0 }));
+ const br = Array.from({ length: 64 }, (_, s) => a.bishopAttacks(s, { lo: 0, hi: 0 }));
++const KLO=new Int32Array(64),KHI=new Int32Array(64),NLO=new Int32Array(64),NHI=new Int32Array(64),PLO=new Int32Array(128),PHI=new Int32Array(128);
++for(let i=0;i<64;i++){
++ const k=a.kingAttacks(i),n=a.knightAttacks(i);
++ KLO[i]=k.lo;KHI[i]=k.hi;NLO[i]=n.lo;NHI[i]=n.hi;
++ for(let c=0;c<2;c++){const p=a.pawnAttacks(c as Color,i);PLO[(c<<6)|i]=p.lo;PHI[(c<<6)|i]=p.hi;}
++}
+ type AttackMasks = {
+     pLo: number;
+     pHi: number;
+@@ -24,8 +30,8 @@
+     lo: number;
+     hi: number;
+ }, removedLo = 0, removedHi = 0) {
+-    const p = a.pawnAttacks(us, target), n = a.knightAttacks(target), k = a.kingAttacks(target);
+-    if (((p.lo & m.pLo & ~removedLo) | (p.hi & m.pHi & ~removedHi) | (n.lo & m.nLo) | (n.hi & m.nHi) | (k.lo & m.kLo) | (k.hi & m.kHi)) !== 0)
++    const p=(us<<6)|target;
++    if (((PLO[p] & m.pLo & ~removedLo) | (PHI[p] & m.pHi & ~removedHi) | (NLO[target] & m.nLo) | (NHI[target] & m.nHi) | (KLO[target] & m.kLo) | (KHI[target] & m.kHi)) !== 0)
+         return true;
+     const b = br[target];
+     if (((b.lo & m.bLo) | (b.hi & m.bHi)) !== 0) {
+@@ -85,9 +91,8 @@
+         rLo: enemyLo & (b.rook.lo | b.queen.lo), rHi: enemyHi & (b.rook.hi | b.queen.hi) };
+     if ((m.kLo | m.kHi) === 0 || (m.kLo !== 0 && m.kHi !== 0) || ((m.kLo | m.kHi) & ((m.kLo | m.kHi) - 1)) !== 0)
+         return undefined;
+-    const ka = a.kingAttacks(ks);
+-    const pa = a.pawnAttacks(us, ks), na = a.knightAttacks(ks);
+-    let cl = (pa.lo & m.pLo) | (na.lo & m.nLo) | (ka.lo & m.kLo), ch = (pa.hi & m.pHi) | (na.hi & m.nHi) | (ka.hi & m.kHi);
++    const pidx=(us<<6)|ks;
++    let cl = (PLO[pidx] & m.pLo) | (NLO[ks] & m.nLo) | (KLO[ks] & m.kLo), ch = (PHI[pidx] & m.pHi) | (NHI[ks] & m.nHi) | (KHI[ks] & m.kHi);
+     // Direct slider checks and pins from the same empty-board ray candidates.
+     const sl = (rr[ks].lo & m.rLo) | (br[ks].lo & m.bLo), sh = (rr[ks].hi & m.rHi) | (br[ks].hi & m.bHi);
+     let pinLo = 0, pinHi = 0;
+@@ -114,7 +119,7 @@
+     if (pos.checkers && ((cl >>> 0) !== (pos.checkers.lo >>> 0) || (ch >>> 0) !== (pos.checkers.hi >>> 0)))
+         return undefined;
+     const ko = { lo: occ.lo & ~bitLo[ks], hi: occ.hi & ~bitHi[ks] };
+-    let kl = ka.lo & ~ownLo, kh = ka.hi & ~ownHi;
++    let kl = KLO[ks] & ~ownLo, kh = KHI[ks] & ~ownHi;
+     for (let h = 0; h < 2; h++) {
+         let bits = h === 0 ? kl : kh;
+         while (bits) {
+@@ -153,8 +158,8 @@
+         while (bits) {
+             const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
+             bits &= bits - 1;
+-            const pa = a.pawnAttacks(us, from);
+-            let dl = pa.lo & enemyLo, dh = pa.hi & enemyHi;
++            const pidx=(us<<6)|from;
++            let dl = PLO[pidx] & enemyLo, dh = PHI[pidx] & enemyHi;
+             const one = from + step;
+             if (((bitLo[one] & occ.lo) | (bitHi[one] & occ.hi)) === 0) {
+                 dl |= bitLo[one];
+@@ -174,7 +179,7 @@
+                 dl &= a.LINE_RAY_LO[i];
+                 dh &= a.LINE_RAY_HI[i];
+             }
+-            if (ep >= 0 && ((pa.lo & bitLo[ep]) | (pa.hi & bitHi[ep])) !== 0) {
++            if (ep >= 0 && ((PLO[pidx] & bitLo[ep]) | (PHI[pidx] & bitHi[ep])) !== 0) {
+                 const eo = { lo: (occ.lo & ~(bitLo[from] | bitLo[cap])) | bitLo[ep], hi: (occ.hi & ~(bitHi[from] | bitHi[cap])) | bitHi[ep] };
+                 if (!threatened(m, us, ks, eo, bitLo[cap], bitHi[cap])) {
+                     dl |= bitLo[ep];
+@@ -191,8 +196,7 @@
+             while (bits) {
+                 const bit = bits & -bits, from = h * 32 + 31 - Math.clz32(bit);
+                 bits &= bits - 1;
+-                const at = a.knightAttacks(from);
+-                let dl = at.lo & maskLo, dh = at.hi & maskHi;
++                let dl = NLO[from] & maskLo, dh = NHI[from] & maskHi;
+                 if (bit & (h === 0 ? pinLo : pinHi)) {
+                     const i = ks * 64 + from;
+                     dl &= a.LINE_RAY_LO[i];
+--- a/src/zobrist.ts
++++ b/src/zobrist.ts
+@@ -221,22 +221,20 @@
+ export function calculateZobrist(pos: Position): ZobristKey {
+   if (!zobristTablesLoaded()) throw new Error("zobrist tables not loaded — call ensureZobristLoaded() first");
+   let lo = 0, hi = 0;
+-  const b = pos.board;
+-  for (let color = 0; color <= 1; color++) {
+-    const colorOcc = color === Color.White ? b.white : b.black;
+-    const roleSets = [b.pawn, b.knight, b.bishop, b.rook, b.queen, b.king];
++  const b = pos.board, kl = keyLo!, kh = keyHi!;
++  const roleSets = [b.pawn,b.knight,b.bishop,b.rook,b.queen,b.king];
++  for (let color = 0; color < 2; color++) {
++    const c = color === Color.White ? b.white : b.black;
+     for (let role = 0; role < 6; role++) {
+-      const set = roleSets[role];
+-      const halves = [((colorOcc.lo & set.lo) >>> 0), ((colorOcc.hi & set.hi) >>> 0)];
+-      for (let half = 0; half < 2; half++) {
+-        let cur = halves[half];
+-        const offset = half === 0 ? 0 : 32;
+-        while (cur !== 0) {
+-          const lsb = (cur & -cur) >>> 0;
+-          const sqIdx = offset + (31 - Math.clz32(lsb));
+-          [lo, hi] = xorInto(lo, hi, pieceKeyIdx(color as Color, role as Role, sqIdx));
+-          cur ^= lsb;
+-        }
++      const set = roleSets[role], base = pieceKeyIdx(color as Color,role as Role,0);
++      let l = c.lo & set.lo, h = c.hi & set.hi;
++      while (l) {
++        const idx = base + 31 - Math.clz32(l & -l);
++        lo ^= kl[idx]; hi ^= kh[idx]; l &= l - 1;
++      }
++      while (h) {
++        const idx = base + 63 - Math.clz32(h & -h);
++        lo ^= kl[idx]; hi ^= kh[idx]; h &= h - 1;
+       }
+     }
+   }

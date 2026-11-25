@@ -18,24 +18,24 @@ jobs:
       - run: node bench/matrix/prepare-corpus.mjs 20000 1000
       - uses: actions/upload-artifact@v4
         with:
-          name: phase13-corpus
+          name: phase14-corpus
           path: |
             ci-benchmark/corpus.json
             ci-benchmark/corpus.sha256
   direct:
     needs: corpus
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 75
+    timeout-minutes: 100
     strategy:
       fail-fast: false
       max-parallel: 8
       matrix:
-        variant: [split, flat, both, localout, targethalf]
+        variant: [targetflat, targetflatlocal, safeflat, targetflatcontrol]
         runner: [ubuntu-24.04, ubuntu-24.04-arm, windows-2025, macos-15]
         node: ['24.19.0']
         include:
-          - {variant: both, runner: ubuntu-24.04, node: '22.5.0'}
-          - {variant: targethalf, runner: ubuntu-24.04, node: '22.5.0'}
+          - {variant: targetflat, runner: ubuntu-24.04, node: '22.5.0'}
+          - {variant: safeflat, runner: ubuntu-24.04, node: '22.5.0'}
     defaults:
       run:
         shell: bash
@@ -49,13 +49,13 @@ jobs:
           node-version: ${{ matrix.node }}
       - uses: actions/download-artifact@v4
         with:
-          name: phase13-corpus
+          name: phase14-corpus
           path: ci-benchmark
       - name: Build independent candidate and pinned references
         run: |
           set -euo pipefail
-          git apply --check "bench/phase13/patches/${{ matrix.variant }}.patch"
-          git apply "bench/phase13/patches/${{ matrix.variant }}.patch"
+          git apply --check "bench/phase14/patches/${{ matrix.variant }}.patch"
+          git apply "bench/phase14/patches/${{ matrix.variant }}.patch"
           bash bench/matrix/setup.sh
       - name: Verify move ordering, ownership, differential and perft
         run: |
@@ -65,19 +65,23 @@ jobs:
         run: |
           set -o pipefail
           node --expose-gc --import ./ci-benchmark/tools/node_modules/tsx/dist/loader.mjs bench/bench-competitive-movegen-direct.mjs --baseline ci-benchmark/baseline/dist/fast/index.js --drumevp ci-benchmark/drumevp --published ci-benchmark/package/dist/index.js --warmups 12 --runs 25 | tee benchmark-results/direct-movegen.json
+      - name: Separate-process direct comparison
+        run: node bench/phase14/isolated.mjs
       - name: Independent real-game paired measurement
         run: |
           set -o pipefail
           mkdir -p ci-benchmark/corpus
           cp ci-benchmark/corpus.json ci-benchmark/corpus/
           cp bench/phase9/paired.mjs ci-benchmark/paired.mjs
+          cp bench/phase12/legality.mjs ci-benchmark/legality.mjs
           cd ci-benchmark
           mkdir -p candidate
           cp -R ../dist candidate/dist
+          node legality.mjs 2>&1 | tee ../benchmark-results/legality.log
           export BENCH_POSITIONS=20000 BENCH_GAMES=300 BENCH_RUNS=15 BENCH_WARMUPS=8 BENCH_OUT=../benchmark-results/paired
           node --expose-gc paired.mjs baseline candidate 2>&1 | tee ../benchmark-results/paired.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: phase13-${{ matrix.variant }}-${{ matrix.runner }}-${{ matrix.node }}
+          name: phase14-${{ matrix.variant }}-${{ matrix.runner }}-${{ matrix.node }}
           path: benchmark-results/
