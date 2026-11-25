@@ -171,3 +171,13 @@ Run test:perft:extended and both benchmark harnesses. Deep perft
 now wins all five lanes across Node and Bun on one CPU, but the new
 fair uncached public movegen lane still loses. No universal fastest
 claim, no merge or npm publication yet.
+
+### Phase 8 continuation
+Read bench/results/js-phase8-2026-11-25.md and raw JSON. The draft now
+includes the split-32 perfect-hash tables, cold nearest-blocker rays and
+direct ordered standard legalMovesInto with guarded private output scratch.
+Run test:movegen:extended, test:perft:extended, npm test, the official
+pinned-runtime gates and both competitive harnesses. The main nine-round
+comparison wins all comparable lanes, but the independent 4,000-position
+uncached lane still trails and A/B regression measurements vary. Do not
+claim unconditional superiority or merge/publish until resolved.

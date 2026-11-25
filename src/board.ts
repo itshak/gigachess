@@ -116,6 +116,10 @@ type PerftUndo = {
   checkers: SquareSet;
 };
 
+// Internal synchronous move generation has no user callbacks. Scratch does
+// not escape: each public result is an independently owned typed array.
+const ownedMoveScratch = new Uint16Array(256);
+let ownedMoveScratchBusy = false;
 export class Board implements BoardLike {
   white: MutableSquareSet;
   black: MutableSquareSet;
@@ -883,9 +887,23 @@ export class Board implements BoardLike {
   }
 
   legalMoves(outBuffer?: Uint16Array): Uint16Array {
-    const buf = outBuffer ?? new Uint16Array(256);
-    const count = legalMovesInto(this, buf);
-    return buf.subarray(0, count);
+    if (outBuffer) {
+      const count = legalMovesInto(this, outBuffer);
+      return outBuffer.subarray(0, count);
+    }
+    // Reentrant calls (e.g. through custom property accessors) must not
+    // overwrite an in-flight list. Caller-owned buffer contract unchanged.
+    if (ownedMoveScratchBusy) {
+      const local = new Uint16Array(256);
+      return local.subarray(0, legalMovesInto(this, local));
+    }
+    ownedMoveScratchBusy = true;
+    try {
+      const count = legalMovesInto(this, ownedMoveScratch);
+      return ownedMoveScratch.slice(0, count);
+    } finally {
+      ownedMoveScratchBusy = false;
+    }
   }
 
   forEachLegalMove(fn: (moveWord: number) => void): void {

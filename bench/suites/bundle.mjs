@@ -92,9 +92,11 @@ export async function run(opts) {
 
   // Magic-table bytes (the base64 blobs) must load lazily outside the static entry chunk
   const fullText = (await bundleSplit(ENTRIES["gigachess (full)"], dir, "full-deadcode")).entry.toString("utf8");
-  const blobSrc = readFileSync(join(REPO, "src", "rookMagicBlob.ts"), "utf8");
-  const blobNeedle = blobSrc.slice(blobSrc.indexOf('"') + 1, blobSrc.indexOf('"') + 96);
-  const hasMagicBytes = fullText.includes(blobNeedle);
+  const hasMagicBytes = ["rookSplit32Blob.ts", "bishopSplit32Blob.ts"].some(file => {
+    const blobSrc = readFileSync(join(REPO, "src", file), "utf8");
+    const start = blobSrc.indexOf('"') + 1;
+    return fullText.includes(blobSrc.slice(start, start + 95));
+  });
   console.log(`  lazy table check: static entry ${hasMagicBytes ? "INCLUDES magic-table bytes ✗" : "excludes magic-table bytes ✓"}`);
 
   const gates = [

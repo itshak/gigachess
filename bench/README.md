@@ -331,7 +331,7 @@ defaults (`0 1` counters).
   `bench/magic-tables/*.json` (MIT RecklessMagics pipeline unchanged):
   little-endian uint32 words (6 meta words per square, then the attack table
   as lo/hi pairs), gzip level 9, base64-embedded.
-- The table modules (`src/rookMagicBlob.ts`, `src/bishopMagicBlob.ts`) are
+- The table modules (`src/rookSplit32Blob.ts`, `src/bishopSplit32Blob.ts`) are
   **never in the static import graph** — they load via dynamic `import()`
   behind `ensureMagicTablesLoaded()` (idempotent, concurrency-safe, returns
   the in-flight promise). Until loaded — or if `DecompressionStream` is
@@ -345,3 +345,7 @@ defaults (`0 1` counters).
   aliasing hazard of the old object table (ADR-012 §4) is gone.
 - Bundle: the core static graph carries **zero** table bytes; see the bundle
   gate below for before/after sizes.
+
+### Split-32 attack tables
+
+Run `npm run build && node bench/make-split32-tables.mjs` to regenerate the checked-in split-half perfect-hash tables from board geometry and the independent ray-walk oracle. The legacy Black Magic generator is retained for historical A/B reproduction, but its old blobs are excluded from the npm package. Run `node tests/split32-exhaustive.mjs --cold` and `node tests/split32-exhaustive.mjs` to verify every relevant occupancy in both paths.

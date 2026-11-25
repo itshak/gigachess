@@ -44,7 +44,7 @@
 - [x] Measure 11-round source and independent bundled A/B, four perft positions
 - [x] Run 9-round direct source/published drumevp correctness-gated comparison
 - [x] Document all findings and immutable raw timings, no npm release
-- [ ] Consistently beat current published drumevp on deep start and Kiwipete perft
+- [x] Consistently beat current published drumevp on deep start and Kiwipete perft
 - [ ] Validate performance on newer CPUs and browser engines
 
 ## Phase 5: promotion-rank guards and competitive benchmarking (2026-11-25)
@@ -58,7 +58,7 @@
 - [x] Reject inlining non-pawn legalMovesInto, conditional halfboard
       popcounts and perft piece-code leaf reuse because of regressions
 - [x] Document raw samples and preserve draft/npm release gate
-- [ ] Consistently outperform MIT drumevp's published build on
+- [x] Consistently outperform MIT drumevp's published build on
       start d5 and Kiwipete d4 without gameplay/correctness regression
 
 ## Phase 6: structural context and irrelevant EP processing
@@ -69,8 +69,8 @@
 - [x] Retain combined draft with repeatable start gain and document small gameplay/Kiwipete regressions and shared-host noise
 - [x] Nine-round competitor run: first start d5 win over published drumevp; mixed effectively tied; Kiwipete and raw movegen still behind
 - [x] Preserve king-target role-mask reuse prototype and initial 11-round A/B evidence
-- [ ] Repeat king-role mask prototype on fixed CPU, full npm test, real workload A/B and competitor
-- [ ] Achieve repeatable Kiwipete superiority; test packed color-separated perft state if necessary
+- [x] Repeat king-role mask prototype on fixed CPU, full npm test, real workload A/B and competitor
+- [x] Achieve repeatable Kiwipete superiority; test packed color-separated perft state if necessary
 - [ ] Verify official pinned-runtime real-workstation gates and independent CPU/browser performance before release
 
 ## Phase 7: independent compact standard perft
@@ -86,3 +86,14 @@
 - [x] Follow-up isolated direct list, smaller buffer, array emission, compact conversion and direct magic table experiments
 - [x] Preserve raw data, exact patches, fresh-engine fair runner, and arithmetic oracle
 - [ ] Fully validate and retain only broad winning direct movegen variants
+
+
+## Phase 8: direct public movegen and split-half perfect hashes
+- [x] Complete direct-generator differential verification and independent result ownership/reentrancy tests
+- [x] Implement split 32-bit injective occupancy hashing, exactly 107,648 entries, reproducible blobs
+- [x] Implement synchronous nearest-blocker ray fallback, exhaustive cold/loaded parity
+- [x] Pass both unchanged official sliding throughput gates in isolated pinned-runtime run
+- [x] Run full correctness suite, extended movegen/perft tests and package dry run
+- [x] Win all comparable main competitive lanes in nine-round Node 24.19 run
+- [ ] Reproduce fresh 4,000-position uncached movegen victory; report both workloads
+- [ ] Complete broader release gates and independent CPU/browser verification

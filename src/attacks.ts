@@ -1,41 +1,11 @@
-// src/attacks.ts — leaper tables + fancy per-square Black Magic sliding
-// (lazily loaded from generated base64 blobs) via bench/magic-tables
+// src/attacks.ts — leaper tables, nearest-blocker rays and split-32 perfect hashes
+// (lazily loaded from reproducible compressed tables)
 // MIT gigachess, clean-room from specs + FIDE notes (no G P L)
 
 import * as sq from "./squareSet.js";
 import type { SquareSet } from "./squareSet.js";
 import { Color } from "./types.js";
 import { squareFile, squareRank } from "./util.js";
-
-// Fast 64-bit magic indexing for the high-half-only shifts used by the
-// shipped black-magic lookup tables (shift >= 52). 16-bit cross-products
-// preserve *exact* unsigned 32-bit high multiplication, without allocating
-// three intermediate 64-bit objects per sliding attack.
-// Technique independently verified against BigInt and the previous code.
-// Algorithmic reference: MIT-licensed @drumevp/chess-engine, calculateMagicIndex.
-function mulHighUnsigned32(a: number, b: number): number {
-  const aLow = a & 0xffff;
-  const aHigh = a >>> 16;
-  const bLow = b & 0xffff;
-  const bHigh = b >>> 16;
-  const low = Math.imul(aLow, bLow);
-  let mid = ((low >>> 16) + Math.imul(aHigh, bLow)) >>> 0;
-  let hi = mid >>> 16;
-  mid = ((mid & 0xffff) + Math.imul(aLow, bHigh)) >>> 0;
-  hi = (hi + (mid >>> 16) + Math.imul(aHigh, bHigh)) >>> 0;
-  return hi;
-}
-
-function mul64Shift(occLo: number, occHi: number, magLo: number, magHi: number, shift: number): number {
-  // All generated magic shifts are >= 52; lower 32 product bits are unused.
-  // high32(a*b) = high32(aLo*bLo) + low32(aLo*bHi) + low32(aHi*bLo).
-  const hi = (
-    mulHighUnsigned32(occLo >>> 0, magLo >>> 0) +
-    Math.imul(occLo >>> 0, magHi >>> 0) +
-    Math.imul(occHi >>> 0, magLo >>> 0)
-  ) >>> 0;
-  return hi >>> (shift - 32);
-}
 
 // ---------- Leaper tables ----------
 const KNIGHT_DELTAS: [number, number][] = [
@@ -125,32 +95,16 @@ export function pawnAttacks(color: Color, sqIdx: number): SquareSet {
   return pawnTable[color][sqIdx];
 }
 
-// ---------- Black Magic sliding (fancy per-square, lazily loaded) ----------
-// The shipped tables are FANCY per-square variable-shift Black Magic
-// (measured per-square shifts: rook 52–54, bishop 55–59; flat tables
-// rook 102,400 + bishop 5,248 = 107,648 entries — the classic fancy totals;
-// the earlier "plain fixed-shift uniform 11" comment was stale). They are
-// stored as base64 Uint8Array blobs decoded into Uint32Array lo/hi views at
-// load time (task 3.1/3.2, change purechess-gates-green):
-//   - size: ~841 KB raw / ~26 KB gz binary vs 3,373 KB of object-literal text
-//   - load: ~0.1 ms typed-array decode vs 82 ms materializing 107,648 objects
-//   - speed: 35.1 vs 30.0 MAttacks/s (indexed typed-array reads beat object
-//     property loads) — see bench/results/real-2026-08-30.md appendix.
-//
-// The table modules are NEVER in the static import graph of `gigachess/core`
-// (bundle gate): they load via dynamic `import()` behind
-// `ensureMagicTablesLoaded()`. Until loaded — or if loading fails — the naive
-// ray-walk fallback serves; it is measured at 1.66× baseline, so a
-// baseline-beating guarantee holds from the very first call. Each attack call
-// returns a FRESH `{lo, hi}` object: typed-array storage removes the
-// shared-mutable-entry aliasing hazard of the old object table (ADR-012 §4)
-// and is measured faster despite the per-call allocation.
-//
-// Endianness: the blob is emitted/decoded as native little-endian uint32
-// words (all supported platforms: x86-64 and arm64 are little-endian).
-
-type MagicViews = { meta: Uint32Array; attacks: Uint32Array };
-const MAGIC_META_STRIDE = 6; // per square: maskLo, maskHi, magicLo, magicHi, shift, offset
+// ---------- Split-32 perfect-hash sliding tables ----------
+// Each halfboard's relevant occupancy subsets are independently mapped
+// injectively by a 32-bit multiplication and unsigned shift. Concatenating
+// the two indices addresses the exact Cartesian product of the halfboards.
+// Generated with a deterministic search (bench/make-split32-tables.mjs).
+// 102,400 rook and 5,248 bishop entries; no collisions, no padding.
+// Compressed blobs load lazily; a small nearest-blocker ray fallback is
+// available synchronously. Every returned attack set is independently owned.
+type MagicViews = { meta: Int32Array; attacks: Uint32Array };
+const MAGIC_META_STRIDE = 8; // maskLo, maskHi, multiplierLo, multiplierHi, shiftLo, shiftHi, hiBits, offset
 const MAGIC_META_WORDS = 64 * MAGIC_META_STRIDE;
 
 let rookViews: MagicViews | null = null;
@@ -163,15 +117,14 @@ function decodeMagicViews(b64: string): Promise<MagicViews> {
   for (let i = 0; i < bin.length; i++) gzBytes[i] = bin.charCodeAt(i);
   // gzip-decompress via DecompressionStream (Node 18+/all modern browsers —
   // the package requires Node ≥22.5). On the rare platform without it, the
-  // load fails and the naive fallback keeps serving (never slower than
-  // baseline), so no hard dependency is introduced.
+  // load fails and the synchronous ray fallback keeps serving, so no hard dependency is introduced.
   const DS = (globalThis as { DecompressionStream?: typeof DecompressionStream }).DecompressionStream;
   if (!DS) return Promise.reject(new Error("DecompressionStream unavailable"));
   const stream = new Blob([gzBytes]).stream().pipeThrough(new DS("gzip"));
   return new Response(stream).arrayBuffer().then((buf) => {
     const words = new Uint32Array(buf);
     return {
-      meta: words.subarray(0, MAGIC_META_WORDS),
+      meta: new Int32Array(buf,0,MAGIC_META_WORDS),
       attacks: words.subarray(MAGIC_META_WORDS),
     };
   });
@@ -180,18 +133,18 @@ function decodeMagicViews(b64: string): Promise<MagicViews> {
 /**
  * Lazy-load hook (task 3.3): dynamically imports the generated blob modules,
  * decodes them into Uint32Array views, and swaps the sliding-attack path from
- * the naive fallback to the magic tables. Idempotent and concurrency-safe:
+ * the synchronous ray fallback to the perfect-hash tables. Idempotent and concurrency-safe:
  * concurrent callers share one in-flight load. Callers may `await` it or
  * fire-and-forget (pre-warm at app startup, non-blocking); until it resolves,
- * the naive ray-walk fallback serves and stays ≥1.5× baseline.
+ * the synchronous nearest-blocker fallback serves.
  */
 export function ensureMagicTablesLoaded(): Promise<void> {
   if (tablesLoadPromise === null) {
     tablesLoadPromise = Promise.all([
-      import("./rookMagicBlob.js"),
-      import("./bishopMagicBlob.js"),
+      import("./rookSplit32Blob.js"),
+      import("./bishopSplit32Blob.js"),
     ])
-      .then(([r, b]) => Promise.all([decodeMagicViews(r.rookMagicBlob), decodeMagicViews(b.bishopMagicBlob)]))
+      .then(([r, b]) => Promise.all([decodeMagicViews(r.rookSplit32Blob), decodeMagicViews(b.bishopSplit32Blob)]))
       .then(([rv, bv]) => {
         rookViews = rv;
         bishopViews = bv;
@@ -204,41 +157,75 @@ export function ensureMagicTablesLoaded(): Promise<void> {
   return tablesLoadPromise;
 }
 
-/** Whether the magic tables are loaded (false ⇒ naive fallback in use). */
+/** Whether the magic tables are loaded (false ⇒ synchronous fallback in use). */
 export function magicTablesLoaded(): boolean {
   return rookViews !== null && bishopViews !== null;
 }
 
-// ---------- sliding attacks via magic (blob views) or naive fallback ----------
+// Small synchronous fallback: truncate each directional ray at its nearest
+// occupied square, retaining the blocker. No large tables or async work.
+const COLD_LO = new Int32Array(8*64), COLD_HI = new Int32Array(8*64);
+const COLD_DIRS = [[1,0], [0,1], [1,1], [-1,1], [-1,0], [0,-1], [-1,-1], [1,-1]];
+for(let d=0;d<8;d++)for(let s=0;s<64;s++){
+  const [df,dr]=COLD_DIRS[d];
+  let f=(s&7)+df,r=(s>>3)+dr,lo=0,hi=0;
+  while(f>=0&&f<8&&r>=0&&r<8){
+    const t=r*8+f;if(t<32)lo|=1<<t;else hi|=1<<(t-32);f+=df;r+=dr;
+  }
+  COLD_LO[d*64+s]=lo;COLD_HI[d*64+s]=hi;
+}
+function coldSliding(s:number,occ:SquareSet,role:number):SquareSet {
+  let lo=0,hi=0;
+  const ol=occ.lo|0,oh=occ.hi|0;
+  for(let d=0;d<8;d++){
+    if(role===1&&(d&2)!==0||role===2&&(d&2)===0)continue;
+    const base=d*64,i=base+s,rl=COLD_LO[i],rh=COLD_HI[i];
+    const bl=rl&ol,bh=rh&oh;
+    let l=rl,h=rh;
+    if((bl|bh)!==0){
+      const blocker=d<4?(bl!==0?31-Math.clz32(bl&-bl):63-Math.clz32(bh&-bh)):
+        (bh!==0?63-Math.clz32(bh):31-Math.clz32(bl));
+      l&=~COLD_LO[base+blocker];h&=~COLD_HI[base+blocker];
+    }
+    lo|=l;hi|=h;
+  }
+  return {lo:lo>>>0,hi:hi>>>0};
+}
+
+// ---------- sliding attacks via perfect-hash tables or nearest-blocker fallback ----------
 export function bishopAttacks(sqIdx: number, occupied: SquareSet): SquareSet {
-  // Until the blob tables load (ensureMagicTablesLoaded), the naive ray-walk
-  // fallback serves — measured 1.66× baseline, never slower than baseline.
+  // The synchronous nearest-blocker fallback serves until the tables load.
   const v = bishopViews;
-  if (v === null) return bishopAttacksNaive(sqIdx, occupied);
+  if (v === null) return coldSliding(sqIdx,occupied,2);
   const b = sqIdx * MAGIC_META_STRIDE;
   // inline mask intersection (no intermediate SquareSet allocation)
   const occLo = occupied.lo & v.meta[b];
   const occHi = occupied.hi & v.meta[b + 1];
-  const idx = (mul64Shift(occLo, occHi, v.meta[b + 2], v.meta[b + 3], v.meta[b + 4]) + v.meta[b + 5]) >>> 0;
-  // fresh {lo, hi} per call — no shared mutable table entries (ADR-012 §4)
+  const idx = (((Math.imul(occLo,v.meta[b+2])>>>v.meta[b+4])<<v.meta[b+6]) | (Math.imul(occHi,v.meta[b+3])>>>v.meta[b+5])) + v.meta[b+7];
+  // Fresh result; no shared mutable table entries (ADR-012 §4).
   return { lo: v.attacks[idx * 2], hi: v.attacks[idx * 2 + 1] };
 }
 
 export function rookAttacks(sqIdx: number, occupied: SquareSet): SquareSet {
   const v = rookViews;
-  if (v === null) return rookAttacksNaive(sqIdx, occupied);
+  if (v === null) return coldSliding(sqIdx,occupied,1);
   const b = sqIdx * MAGIC_META_STRIDE;
   const occLo = occupied.lo & v.meta[b];
   const occHi = occupied.hi & v.meta[b + 1];
-  const idx = (mul64Shift(occLo, occHi, v.meta[b + 2], v.meta[b + 3], v.meta[b + 4]) + v.meta[b + 5]) >>> 0;
+  const idx = (((Math.imul(occLo,v.meta[b+2])>>>v.meta[b+4])<<v.meta[b+6]) | (Math.imul(occHi,v.meta[b+3])>>>v.meta[b+5])) + v.meta[b+7];
   return { lo: v.attacks[idx * 2], hi: v.attacks[idx * 2 + 1] };
 }
 
 export function queenAttacks(sqIdx: number, occupied: SquareSet): SquareSet {
-  return sq.or(bishopAttacks(sqIdx, occupied), rookAttacks(sqIdx, occupied));
+  const bv=bishopViews,rv=rookViews;
+  if(bv===null||rv===null)return coldSliding(sqIdx,occupied,0);
+  const b=sqIdx*8,lo=occupied.lo|0,hi=occupied.hi|0,bm=bv.meta,rm=rv.meta;
+  const bi=((((Math.imul(lo&bm[b],bm[b+2])>>>bm[b+4])<<bm[b+6])|(Math.imul(hi&bm[b+1],bm[b+3])>>>bm[b+5]))+bm[b+7])*2;
+  const ri=((((Math.imul(lo&rm[b],rm[b+2])>>>rm[b+4])<<rm[b+6])|(Math.imul(hi&rm[b+1],rm[b+3])>>>rm[b+5]))+rm[b+7])*2;
+  return {lo:(bv.attacks[bi]|rv.attacks[ri])>>>0,hi:(bv.attacks[bi+1]|rv.attacks[ri+1])>>>0};
 }
 
-// Naive fallback for correctness verification and when tables missing
+// Independent naive ray walk for correctness verification.
 function slidingNaive(sqIdx: number, occupied: SquareSet, deltas: [number, number][]): SquareSet {
   const f0 = squareFile(sqIdx);
   const r0 = squareRank(sqIdx);

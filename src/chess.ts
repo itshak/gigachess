@@ -1,3 +1,4 @@
+import { standardMovesInto } from "./standardMovegen.js";
 // src/chess.ts — core chess rules, Position/Setup, dests, isLegal, isCheck, perft etc
 // MIT gigachess, clean-room from specs + FIDE notes (no G P L)
 
@@ -1359,6 +1360,10 @@ export function countLegalMoves(pos: Position, existingContext?: CheckContext): 
 
 
 export function legalMovesInto(pos: Position, out: Uint16Array | Uint32Array, existingContext?: CheckContext): number {
+  if (existingContext === undefined) {
+    const direct = standardMovesInto(pos, out);
+    if (direct !== undefined) return direct;
+  }
   let count = 0;
   const ctx = existingContext ?? analyzeCheckContext(pos);
   const us = pos.turn;
