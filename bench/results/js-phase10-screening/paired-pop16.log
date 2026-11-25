@@ -1,0 +1,4 @@
+parity 4000 positions [ 'baseline', 'pop16' ]
+movegen-fresh {"baseline":[1,1],"pop16":[1.182,0.81]}
+validated-replay {"baseline":[1,1],"pop16":[1.263,1.263]}
+perft-mixed {"baseline":[1,1],"pop16":[0.945,0.945]}

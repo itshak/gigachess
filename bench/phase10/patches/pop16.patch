@@ -1,0 +1,15 @@
+--- a/src/squareSet.ts
++++ b/src/squareSet.ts
+@@ -99,9 +99,11 @@
+   return Math.imul((x + (x >>> 4)) & 0x0f0f0f0f, 0x01010101) >>> 24;
+ }
+ 
++const POP16 = new Uint8Array(65536);
++for(let i=1;i<POP16.length;i++)POP16[i]=POP16[i>>>1]+(i&1);
+ /** Count a transient bitboard without allocating a SquareSet wrapper. */
+ export function popcountParts(lo: number, hi: number): number {
+-  return popcnt32(lo >>> 0) + popcnt32(hi >>> 0);
++  return POP16[lo&65535]+POP16[lo>>>16]+POP16[hi&65535]+POP16[hi>>>16];
+ }
+ 
+ export function popcount(set: SquareSet): number {

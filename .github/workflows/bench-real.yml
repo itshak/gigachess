@@ -18,7 +18,7 @@ jobs:
       - run: node bench/matrix/prepare-corpus.mjs 20000 1000
       - uses: actions/upload-artifact@v4
         with:
-          name: phase9-corpus
+          name: phase10-corpus
           path: |
             ci-benchmark/corpus.json
             ci-benchmark/corpus.sha256
@@ -31,22 +31,15 @@ jobs:
       fail-fast: false
       max-parallel: 12
       matrix:
-        variant: [fen, hash, attack, write, movegen, combined, replay, leaf, copy, leafcopy, replaytarget, uci, replayuci, leafnopin, ctor, parsewords, fenowned, fenall, leafmasks, fenreplay, fenreplaytarget]
+        variant: [half, byte, halffused, halfrook, linefast, halfblob, poppair, pop16, halfpop]
         runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2025]
         runtime: [node24]
         include:
-          - {variant: replay, runner: ubuntu-24.04, runtime: node22}
-          - {variant: replay, runner: macos-15, runtime: node22}
-          - {variant: replay, runner: macos-15, runtime: bun}
-          - {variant: write, runner: macos-15, runtime: bun}
-          - {variant: movegen, runner: macos-15, runtime: bun}
-          - {variant: leafcopy, runner: macos-15, runtime: bun}
-          - {variant: combined, runner: macos-15, runtime: bun}
-          - {variant: fenall, runner: macos-15, runtime: bun}
-          - {variant: fenreplay, runner: macos-15, runtime: bun}
-          - {variant: fenreplaytarget, runner: macos-15, runtime: bun}
-          - {variant: fenreplay, runner: ubuntu-24.04, runtime: node22}
-          - {variant: fenall, runner: ubuntu-24.04, runtime: node22}
+          - {variant: halfblob, runner: macos-15, runtime: bun}
+          - {variant: halfpop, runner: macos-15, runtime: bun}
+          - {variant: byte, runner: macos-15, runtime: bun}
+          - {variant: halfblob, runner: ubuntu-24.04, runtime: node22}
+          - {variant: halfpop, runner: ubuntu-24.04, runtime: node22}
     defaults:
       run:
         shell: bash
@@ -64,43 +57,50 @@ jobs:
           bun-version: '1.4.0'
       - uses: actions/download-artifact@v4
         with:
-          name: phase9-corpus
-          path: ci-phase9/corpus
+          name: phase10-corpus
+          path: ci-phase10/corpus
       - name: Build same-commit baseline and independent patch
         run: |
           set -euo pipefail
           mkdir -p benchmark-results
           node bench/matrix/machine.mjs
-          git worktree add --detach ci-phase9/baseline 4fef578b5282eb64ab8d6193b429761333731149
-          git worktree add --detach ci-phase9/candidate 4fef578b5282eb64ab8d6193b429761333731149
-          git -C ci-phase9/candidate apply --check "../../bench/phase9/patches/${{ matrix.variant }}.patch"
-          git -C ci-phase9/candidate apply "../../bench/phase9/patches/${{ matrix.variant }}.patch"
-          (cd ci-phase9/baseline && npm ci && npm run build)
-          (cd ci-phase9/candidate && npm ci && npm run build)
-          cp bench/phase9/paired.mjs ci-phase9/paired.mjs
+          git worktree add --detach ci-phase10/baseline 4fef578b5282eb64ab8d6193b429761333731149
+          git worktree add --detach ci-phase10/candidate 4fef578b5282eb64ab8d6193b429761333731149
+          git -C ci-phase10/candidate apply --check "../../bench/phase10/patches/${{ matrix.variant }}.patch"
+          git -C ci-phase10/candidate apply "../../bench/phase10/patches/${{ matrix.variant }}.patch"
+          (cd ci-phase10/baseline && npm ci && npm run build)
+          (cd ci-phase10/candidate && npm ci && npm run build)
+          cp bench/phase9/paired.mjs ci-phase10/paired.mjs
+          cp bench/phase10/slider-paired.mjs ci-phase10/slider-paired.mjs
       - name: Correctness before timing
         run: |
           set -o pipefail
-          cd ci-phase9/candidate
-          (node tests/pawn-list-order.mjs && node tests/move-list-ownership.mjs && node tests/maintenance-regression.mjs && node tests/castling.mjs && node tests/zobrist-parity.mjs && node tests/perft-specialized-parity.mjs && node tests/perft-compact-differential.mjs && node tests/standard-movegen-differential.mjs && node tests/attacked-squares.mjs) 2>&1 | tee ../../benchmark-results/correctness.log
+          cd ci-phase10/candidate
+          (node tests/pawn-list-order.mjs && node tests/move-list-ownership.mjs && node tests/maintenance-regression.mjs && node tests/castling.mjs && node tests/zobrist-parity.mjs && node tests/perft-specialized-parity.mjs && node tests/perft-compact-differential.mjs && node tests/standard-movegen-differential.mjs && node tests/attacked-squares.mjs && node tests/split32-exhaustive.mjs && node tests/split32-exhaustive.mjs --cold) 2>&1 | tee ../../benchmark-results/correctness.log
       - name: Paired real-corpus measurements
         run: |
           set -o pipefail
-          cd ci-phase9
+          cd ci-phase10
           node --input-type=module -e 'import fs from "node:fs";import crypto from "node:crypto";const h=crypto.createHash("sha256").update(fs.readFileSync("corpus/corpus.json")).digest("hex");if(h!==fs.readFileSync("corpus/corpus.sha256","utf8").trim())throw Error("corpus checksum");'
           export BENCH_POSITIONS=20000 BENCH_GAMES=300 BENCH_RUNS=15 BENCH_WARMUPS=8 BENCH_OUT=../benchmark-results/paired
-          case "${{ matrix.variant }}" in
-            leaf|copy|leafcopy|leafnopin|leafmasks|combined|fenreplay|fenreplaytarget) ;;
-            *) export BENCH_LANES=fen-parse,fen-write,fen-roundtrip,movegen-fresh,validated-replay,perft-mixed ;;
-          esac
           if [ "${{ matrix.runtime }}" = bun ]; then
             bun paired.mjs baseline candidate 2>&1 | tee ../benchmark-results/paired.log
           else
             node --expose-gc paired.mjs baseline candidate 2>&1 | tee ../benchmark-results/paired.log
           fi
+      - name: Paired cold and loaded sliding attacks
+        run: |
+          set -o pipefail
+          cd ci-phase10
+          export BENCH_WARMUPS=8 BENCH_RUNS=15
+          if [ "${{ matrix.runtime }}" = bun ]; then
+            bun slider-paired.mjs 2>&1 | tee ../benchmark-results/sliders.log
+          else
+            node --expose-gc slider-paired.mjs 2>&1 | tee ../benchmark-results/sliders.log
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: phase9-${{ matrix.variant }}-${{ matrix.runner }}-${{ matrix.runtime }}
+          name: phase10-${{ matrix.variant }}-${{ matrix.runner }}-${{ matrix.runtime }}
           path: benchmark-results/
           retention-days: 30

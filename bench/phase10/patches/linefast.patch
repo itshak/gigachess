@@ -1,0 +1,83 @@
+--- a/src/attacks.ts
++++ b/src/attacks.ts
+@@ -192,37 +192,49 @@
+   return {lo:lo>>>0,hi:hi>>>0};
+ }
+ 
+-// ---------- sliding attacks via perfect-hash tables or nearest-blocker fallback ----------
+-export function bishopAttacks(sqIdx: number, occupied: SquareSet): SquareSet {
+-  // The synchronous nearest-blocker fallback serves until the tables load.
+-  const v = bishopViews;
+-  if (v === null) return coldSliding(sqIdx,occupied,2);
+-  const b = sqIdx * MAGIC_META_STRIDE;
+-  // inline mask intersection (no intermediate SquareSet allocation)
+-  const occLo = occupied.lo & v.meta[b];
+-  const occHi = occupied.hi & v.meta[b + 1];
+-  const idx = (((Math.imul(occLo,v.meta[b+2])>>>v.meta[b+4])<<v.meta[b+6]) | (Math.imul(occHi,v.meta[b+3])>>>v.meta[b+5])) + v.meta[b+7];
+-  // Fresh result; no shared mutable table entries (ADR-012 §4).
+-  return { lo: v.attacks[idx * 2], hi: v.attacks[idx * 2 + 1] };
+-}
+-
+-export function rookAttacks(sqIdx: number, occupied: SquareSet): SquareSet {
+-  const v = rookViews;
+-  if (v === null) return coldSliding(sqIdx,occupied,1);
+-  const b = sqIdx * MAGIC_META_STRIDE;
+-  const occLo = occupied.lo & v.meta[b];
+-  const occHi = occupied.hi & v.meta[b + 1];
+-  const idx = (((Math.imul(occLo,v.meta[b+2])>>>v.meta[b+4])<<v.meta[b+6]) | (Math.imul(occHi,v.meta[b+3])>>>v.meta[b+5])) + v.meta[b+7];
+-  return { lo: v.attacks[idx * 2], hi: v.attacks[idx * 2 + 1] };
+-}
+-
+-export function queenAttacks(sqIdx: number, occupied: SquareSet): SquareSet {
+-  const bv=bishopViews,rv=rookViews;
+-  if(bv===null||rv===null)return coldSliding(sqIdx,occupied,0);
+-  const b=sqIdx*8,lo=occupied.lo|0,hi=occupied.hi|0,bm=bv.meta,rm=rv.meta;
+-  const bi=((((Math.imul(lo&bm[b],bm[b+2])>>>bm[b+4])<<bm[b+6])|(Math.imul(hi&bm[b+1],bm[b+3])>>>bm[b+5]))+bm[b+7])*2;
+-  const ri=((((Math.imul(lo&rm[b],rm[b+2])>>>rm[b+4])<<rm[b+6])|(Math.imul(hi&rm[b+1],rm[b+3])>>>rm[b+5]))+rm[b+7])*2;
+-  return {lo:(bv.attacks[bi]|rv.attacks[ri])>>>0,hi:(bv.attacks[bi+1]|rv.attacks[ri+1])>>>0};
++// Horizontal and vertical occupancy are 8-bit lines. For diagonals
++// fold masked rank bytes together: each file appears at most once.
++const LDIR=[[1,0],[0,1],[1,1],[1,-1]];
++const LLO=new Int32Array(4*64),LHI=new Int32Array(4*64);
++const LT=new Uint32Array(4*64*256*2);
++for(let d=0;d<4;d++)for(let s=0;s<64;s++){
++  const [df,dr]=LDIR[d],rays:number[][]=[[],[]];
++  for(let sign=0;sign<2;sign++){
++    const k=sign?1:-1;let f=(s&7)+df*k,r=(s>>3)+dr*k;
++    while(f>=0&&f<8&&r>=0&&r<8){const q=r*8+f;rays[sign].push(q);if(q<32)LLO[d*64+s]|=1<<q;else LHI[d*64+s]|=1<<(q-32);f+=df*k;r+=dr*k}
++  }
++  const t=(d*64+s)*512;
++  for(let x=0;x<256;x++){
++    let lo=0,hi=0;
++    for(const ray of rays)for(const q of ray){
++      if(q<32)lo|=1<<q;else hi|=1<<(q-32);
++      if(x&(1<<(d===1?q>>3:q&7)))break;
++    }
++    LT[t+x*2]=lo;LT[t+x*2+1]=hi;
++  }
++}
++function rookIndex(s:number,l:number,h:number):[number,number] {
++  const f=s&7,r=s>>3;
++  const row=((r<4?l:h)>>>((r&3)*8))&255;
++  const file=(Math.imul((l>>>f)&0x01010101,0x01020408)>>>24)|((Math.imul((h>>>f)&0x01010101,0x01020408)>>>24)<<4);
++  return [s*512+row*2,(64+s)*512+file*2];
++}
++function bishopIndex(d:number,s:number,l:number,h:number):number{
++  const i=d*64+s;
++  let x=(l&LLO[i])|(h&LHI[i]);x|=x>>>16;x|=x>>>8;
++  return i*512+(x&255)*2;
++}
++export function rookAttacks(s:number,o:SquareSet):SquareSet {
++  const [a,b]=rookIndex(s,o.lo,o.hi);
++  return {lo:(LT[a]|LT[b])>>>0,hi:(LT[a+1]|LT[b+1])>>>0};
++}
++export function bishopAttacks(s:number,o:SquareSet):SquareSet {
++  const a=bishopIndex(2,s,o.lo,o.hi),b=bishopIndex(3,s,o.lo,o.hi);
++  return {lo:(LT[a]|LT[b])>>>0,hi:(LT[a+1]|LT[b+1])>>>0};
++}
++export function queenAttacks(s:number,o:SquareSet):SquareSet {
++  const l=o.lo,h=o.hi,[a,b]=rookIndex(s,l,h),c=bishopIndex(2,s,l,h),d=bishopIndex(3,s,l,h);
++  return {lo:(LT[a]|LT[b]|LT[c]|LT[d])>>>0,hi:(LT[a+1]|LT[b+1]|LT[c+1]|LT[d+1])>>>0};
+ }
+ 
+ // Independent naive ray walk for correctness verification.

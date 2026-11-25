@@ -1,0 +1,4 @@
+parity 4000 positions [ 'baseline', 'halfpop' ]
+movegen-fresh {"baseline":[1,1],"halfpop":[0.932,1.015]}
+validated-replay {"baseline":[1,1],"halfpop":[0.941,0.942]}
+perft-mixed {"baseline":[1,1],"halfpop":[0.971,0.971]}

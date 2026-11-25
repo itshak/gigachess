@@ -1,0 +1,89 @@
+--- a/src/attacks.ts
++++ b/src/attacks.ts
+@@ -111,6 +111,25 @@
+ let bishopViews: MagicViews | null = null;
+ let tablesLoadPromise: Promise<void> | null = null;
+ 
++// Independent half occupancies restrict the same ray, so intersection
++// recovers the exact nearest blocker across both halves.
++function shrinkHalf(v:MagicViews):MagicViews {
++  const meta=new Int32Array(v.meta), words:number[]=[];
++  for(let s=0;s<64;s++){
++    const b=s*8,loCount=1<<(meta[b]===0?0:32-meta[b+4]),hiCount=1<<meta[b+6],old=meta[b+7];
++    meta[b+7]=words.length/2;
++    for(let l=0;l<loCount;l++){const i=(old+(l<<meta[b+6]))*2;words.push(v.attacks[i],v.attacks[i+1]);}
++    meta[b+6]=words.length/2;
++    for(let h=0;h<hiCount;h++){const i=(old+h)*2;words.push(v.attacks[i],v.attacks[i+1]);}
++  }
++  return {meta,attacks:Uint32Array.from(words)};
++}
++function lookupHalf(v:MagicViews,s:number,occ:SquareSet):SquareSet {
++  const b=s*8,m=v.meta,t=v.attacks;
++  const l=(m[b+7]+(Math.imul(occ.lo&m[b],m[b+2])>>>m[b+4]))*2;
++  const h=(m[b+6]+(Math.imul(occ.hi&m[b+1],m[b+3])>>>m[b+5]))*2;
++  return {lo:(t[l]&t[h])>>>0,hi:(t[l+1]&t[h+1])>>>0};
++}
+ function decodeMagicViews(b64: string): Promise<MagicViews> {
+   const bin = atob(b64);
+   const gzBytes = new Uint8Array(bin.length);
+@@ -146,8 +165,8 @@
+     ])
+       .then(([r, b]) => Promise.all([decodeMagicViews(r.rookSplit32Blob), decodeMagicViews(b.bishopSplit32Blob)]))
+       .then(([rv, bv]) => {
+-        rookViews = rv;
+-        bishopViews = bv;
++        rookViews = shrinkHalf(rv);
++        bishopViews = shrinkHalf(bv);
+       });
+     // fire-and-forget callers must not trigger an unhandled-rejection warning;
+     // awaiting callers still observe the original rejection via the returned
+@@ -193,36 +212,19 @@
+ }
+ 
+ // ---------- sliding attacks via perfect-hash tables or nearest-blocker fallback ----------
+-export function bishopAttacks(sqIdx: number, occupied: SquareSet): SquareSet {
+-  // The synchronous nearest-blocker fallback serves until the tables load.
+-  const v = bishopViews;
+-  if (v === null) return coldSliding(sqIdx,occupied,2);
+-  const b = sqIdx * MAGIC_META_STRIDE;
+-  // inline mask intersection (no intermediate SquareSet allocation)
+-  const occLo = occupied.lo & v.meta[b];
+-  const occHi = occupied.hi & v.meta[b + 1];
+-  const idx = (((Math.imul(occLo,v.meta[b+2])>>>v.meta[b+4])<<v.meta[b+6]) | (Math.imul(occHi,v.meta[b+3])>>>v.meta[b+5])) + v.meta[b+7];
+-  // Fresh result; no shared mutable table entries (ADR-012 §4).
+-  return { lo: v.attacks[idx * 2], hi: v.attacks[idx * 2 + 1] };
+-}
+-
+-export function rookAttacks(sqIdx: number, occupied: SquareSet): SquareSet {
+-  const v = rookViews;
+-  if (v === null) return coldSliding(sqIdx,occupied,1);
+-  const b = sqIdx * MAGIC_META_STRIDE;
+-  const occLo = occupied.lo & v.meta[b];
+-  const occHi = occupied.hi & v.meta[b + 1];
+-  const idx = (((Math.imul(occLo,v.meta[b+2])>>>v.meta[b+4])<<v.meta[b+6]) | (Math.imul(occHi,v.meta[b+3])>>>v.meta[b+5])) + v.meta[b+7];
+-  return { lo: v.attacks[idx * 2], hi: v.attacks[idx * 2 + 1] };
+-}
+-
+-export function queenAttacks(sqIdx: number, occupied: SquareSet): SquareSet {
+-  const bv=bishopViews,rv=rookViews;
+-  if(bv===null||rv===null)return coldSliding(sqIdx,occupied,0);
+-  const b=sqIdx*8,lo=occupied.lo|0,hi=occupied.hi|0,bm=bv.meta,rm=rv.meta;
+-  const bi=((((Math.imul(lo&bm[b],bm[b+2])>>>bm[b+4])<<bm[b+6])|(Math.imul(hi&bm[b+1],bm[b+3])>>>bm[b+5]))+bm[b+7])*2;
+-  const ri=((((Math.imul(lo&rm[b],rm[b+2])>>>rm[b+4])<<rm[b+6])|(Math.imul(hi&rm[b+1],rm[b+3])>>>rm[b+5]))+rm[b+7])*2;
+-  return {lo:(bv.attacks[bi]|rv.attacks[ri])>>>0,hi:(bv.attacks[bi+1]|rv.attacks[ri+1])>>>0};
++export function bishopAttacks(sqIdx:number,occupied:SquareSet):SquareSet {
++  const v=bishopViews;
++  return v===null?coldSliding(sqIdx,occupied,2):lookupHalf(v,sqIdx,occupied);
++}
++
++export function rookAttacks(sqIdx:number,occupied:SquareSet):SquareSet {
++  const v=rookViews;
++  return v===null?coldSliding(sqIdx,occupied,1):lookupHalf(v,sqIdx,occupied);
++}
++
++export function queenAttacks(sqIdx:number,occupied:SquareSet):SquareSet {
++  const b=bishopAttacks(sqIdx,occupied),r=rookAttacks(sqIdx,occupied);
++  return {lo:(b.lo|r.lo)>>>0,hi:(b.hi|r.hi)>>>0};
+ }
+ 
+ // Independent naive ray walk for correctness verification.

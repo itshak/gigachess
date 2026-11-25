@@ -1,0 +1,4 @@
+parity 4000 positions [ 'baseline', 'byte' ]
+movegen-fresh {"baseline":[1,1],"byte":[1.187,1.187]}
+validated-replay {"baseline":[1,1],"byte":[1.012,1.012]}
+perft-mixed {"baseline":[1,1],"byte":[1.021,1.021]}
