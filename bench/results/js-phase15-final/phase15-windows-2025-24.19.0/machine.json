@@ -1,0 +1,28 @@
+{
+  "node": "v24.19.0",
+  "v8": "13.6.233.17-node.51",
+  "platform": "win32",
+  "arch": "x64",
+  "cpu": [
+    {
+      "model": "INTEL(R) XEON(R) PLATINUM 8573C",
+      "speed": 2300
+    },
+    {
+      "model": "INTEL(R) XEON(R) PLATINUM 8573C",
+      "speed": 2300
+    },
+    {
+      "model": "INTEL(R) XEON(R) PLATINUM 8573C",
+      "speed": 2300
+    },
+    {
+      "model": "INTEL(R) XEON(R) PLATINUM 8573C",
+      "speed": 2300
+    }
+  ],
+  "memory": 17174360064,
+  "release": "10.0.26100",
+  "runner": "GitHub Actions 1000021890",
+  "sha": "6ee2ebefcfd6dec722f6acd24ec9bd8be1d44b08"
+}

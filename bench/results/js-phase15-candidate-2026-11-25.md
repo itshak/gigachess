@@ -38,3 +38,41 @@ Release gate: npm test, official 24-gate quick suite, exact candidate
 against pinned published/source rivals, validated ordered moves/SAN/FEN
 and replay, deep perft vs Phase 8, and isolated timing with lifecycle cost.
 Mac validation deferred; no release or unqualified performance claim.
+
+## Final validation (22:18 Israel time, 25 November)
+
+[Corrected run 45683312594](https://github.com/itshak/gigachess/actions/runs/45683312594)
+passed all six jobs, five independent platform/runtime configurations.
+Exact engine candidate cc375b0, CI 6ee2ebe. Raw timings, correctness and
+machine metadata: `js-phase15-final/`. The earlier failures were
+Windows URL conversion, legacy chesstree's mutation of the modern
+chessops package metadata, and the gzip OS header byte. Fixes leave
+chess behavior and decoded attack tables unchanged. All full npm tests
+and expanded legality tests pass; local official quick suite 24/24.
+Each paired job includes 257280 destination comparisons and 1048916 UCI
+checks. All-library matrix: 20k positions, 300 games, 21046 plies;
+all five matrices complete with no recorded mismatches or failures.
+
+| Platform | FEN | Replay | Fresh movegen | Start d6 | Kiwi d5 | Direct 4k vs drumevp |
+|---|---:|---:|---:|---:|---:|---:|
+| Linux x64 Node22 | 1.602 | 1.366 | 1.090 | .982 | .966 | .870 |
+| Linux x64 Node24 | 1.555 | 1.437 | 1.025 | .982 | 1.004 | .817 |
+| Linux ARM Node24 | 1.505 | 1.328 | 1.070 | .989 | .982 | 1.018 |
+| Windows ARM Node24 | 1.475 | 1.357 | 1.086 | .986 | .976 | .882 |
+| Windows x64 Node24 | 1.532 | 1.444 | 1.079 | .982 | 1.027 | .768 |
+
+Ratios relative to Phase 8 except last column (published drumevp).
+All-library matrix wins against tested pure-JS competitors on all
+supported lanes across all five configurations, including perft d5/d4
+and normalized UCI. Published drumevp ratios: native 1.582–2.332,
+UCI 1.277–1.524, FEN 1.514–1.810, replay 1.454–2.267, start d5
+1.864–1.923, Kiwi d4 1.729–1.996. Source competitor also loses
+all supported matrix lanes. WASM is faster; distinct backend category.
+
+Independent native generation median candidate/published ratios
+3.106–9.967; complete lifecycle 2.077–2.917. Do not generalize
+these unusually high native ratios: forced GC, JIT feedback and
+workload distribution change the timings substantially. Mixed-engine
+4k direct loses four of five. This remains an open measurement and
+performance question. Keep the selected engine as draft; no main merge,
+npm tag or universal fastest claim. Apple Silicon postponed by user.

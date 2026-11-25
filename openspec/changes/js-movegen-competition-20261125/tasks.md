@@ -97,3 +97,13 @@
 - [x] Win all comparable main competitive lanes in nine-round Node 24.19 run
 - [ ] Reproduce fresh 4,000-position uncached movegen victory; report both workloads
 - [ ] Complete broader release gates and independent CPU/browser verification
+
+## Phase 15: selected pure-JS candidate
+- [x] Consolidate TargetFlat and keep public analyzer signature unchanged
+- [x] Reproduce table generation across platforms; fix Windows paths and isolate legacy oracle CJS scope
+- [x] Pass official 24-gate local suite and five independent Linux/Windows full validation jobs
+- [x] Preserve raw paired, isolated, lifecycle and full competitor matrix results
+- [x] Beat tested pure-JS competitors across supported 20k matrix lanes on all five configurations
+- [ ] Resolve mixed-engine 4k direct-generation gap (four losses against published drumevp)
+- [ ] Verify final Apple Silicon/browser performance; user deferred Mac testing
+- [ ] Decide release after remaining gates; no main merge/tag/publish yet

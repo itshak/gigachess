@@ -107,8 +107,10 @@ plus a paired old/new bundle A/B on start d5, Kiwipete d4,
 promotion d4, endgame d5 and mixed corpus. A cached drumevp
 move-list result is not comparable to freshly generated GigaChess moves.
 
-The current draft does not consistently beat published MIT
-@drumevp/chess-engine on deep starting-position and Kiwipete perft.
+Phase 15 beats published @drumevp/chess-engine in the five-platform
+real-game matrix (including start and Kiwipete perft), but still loses
+four of five mixed-engine 4k fresh move-list comparisons. See the
+final Phase 15 results. Apple Silicon validation remains outstanding.
 Do NOT merge, tag or publish a new npm version or claim unqualified
 "fastest chess library in JS/TS" until this is independently established
 on multiple CPUs and JS engines without other API regressions.

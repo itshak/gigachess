@@ -1,0 +1,28 @@
+{
+  "node": "v24.19.0",
+  "v8": "13.6.233.17-node.51",
+  "platform": "linux",
+  "arch": "x64",
+  "cpu": [
+    {
+      "model": "INTEL(R) XEON(R) PLATINUM 8573C",
+      "speed": 3202
+    },
+    {
+      "model": "INTEL(R) XEON(R) PLATINUM 8573C",
+      "speed": 3100
+    },
+    {
+      "model": "INTEL(R) XEON(R) PLATINUM 8573C",
+      "speed": 3137
+    },
+    {
+      "model": "INTEL(R) XEON(R) PLATINUM 8573C",
+      "speed": 2998
+    }
+  ],
+  "memory": 16759279616,
+  "release": "7.0.0-1020-azure",
+  "runner": "GitHub Actions 1000021894",
+  "sha": "6ee2ebefcfd6dec722f6acd24ec9bd8be1d44b08"
+}
