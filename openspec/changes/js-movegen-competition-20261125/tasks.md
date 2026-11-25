@@ -83,3 +83,6 @@
 - [x] Add uncached preconstructed equal-work movegen lane; identify remaining deficit
 - [ ] Close uncached movegen deficit, pinned general-gate failures and repeat on another CPU/browser
 - [ ] Release only after all gates and independent validation
+- [x] Follow-up isolated direct list, smaller buffer, array emission, compact conversion and direct magic table experiments
+- [x] Preserve raw data, exact patches, fresh-engine fair runner, and arithmetic oracle
+- [ ] Fully validate and retain only broad winning direct movegen variants

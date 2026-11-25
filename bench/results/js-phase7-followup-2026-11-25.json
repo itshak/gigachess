@@ -1,0 +1,1051 @@
+{
+  "phase7Baseline": "dc3bc8fd72488b7a8133b0e76d0317ab2fbbb9a5",
+  "movegen": {
+    "direct-movegen": {
+      "runtime": "v24.13.0",
+      "positions": 4000,
+      "rounds": 11,
+      "expected": 112712,
+      "results": {
+        "phase7-compact": {
+          "rate": 48937.436729247565,
+          "cpuRate": 48934.45230114261,
+          "wallMs": [
+            83.91121800000019,
+            101.41971399999966,
+            81.73701499999879,
+            73.30555399999866,
+            79.48237499999959,
+            185.8289139999997,
+            62.512502000001405,
+            82.87372300000061,
+            58.62857900000017,
+            83.48973400000068,
+            66.15225199999986
+          ],
+          "cpuMs": [
+            83.935,
+            101.389,
+            81.742,
+            73.326,
+            79.505,
+            185.837,
+            62.533,
+            82.898,
+            58.637,
+            83.503,
+            66.172
+          ]
+        },
+        "direct": {
+          "rate": 108597.74894242056,
+          "cpuRate": 105859.31297305881,
+          "wallMs": [
+            37.76119199999994,
+            34.031199999999444,
+            48.3734940000013,
+            24.73663199999828,
+            61.12486100000024,
+            36.035257999999885,
+            39.08875600000101,
+            32.27853900000082,
+            36.810253999999986,
+            36.833176000000094,
+            49.981182999999874
+          ],
+          "cpuMs": [
+            37.786,
+            34.055,
+            48.394,
+            24.758,
+            61.132,
+            42.106,
+            39.11,
+            32.303,
+            36.83,
+            36.858,
+            50.002
+          ]
+        },
+        "published": {
+          "rate": 177109.97869942302,
+          "cpuRate": 177022.48185519563,
+          "wallMs": [
+            51.86412999999993,
+            37.585956999999325,
+            25.28638300000057,
+            37.9077529999995,
+            21.089647000000696,
+            27.34330299999965,
+            20.228687999999238,
+            22.584837000000334,
+            19.928829999998925,
+            21.880731999999625,
+            21.941023999999743
+          ],
+          "cpuMs": [
+            51.887,
+            37.612,
+            25.309,
+            37.929,
+            21.111,
+            27.363,
+            20.251,
+            22.596,
+            19.95,
+            21.902,
+            21.963
+          ]
+        },
+        "source": {
+          "rate": 163566.43526786254,
+          "cpuRate": 163512.24297919305,
+          "wallMs": [
+            48.36841800000002,
+            32.18037000000004,
+            27.761516000000483,
+            20.191635999999562,
+            24.767648000000918,
+            22.01274800000101,
+            31.195966000001135,
+            18.983572000001004,
+            24.45489500000076,
+            19.609848000000056,
+            19.094535000000178
+          ],
+          "cpuMs": [
+            48.39,
+            37.87,
+            27.782,
+            20.215,
+            29.656,
+            22.035,
+            31.217,
+            19.007,
+            24.463,
+            19.633,
+            24.182
+          ]
+        }
+      }
+    },
+    "direct2-movegen": {
+      "runtime": "v24.13.0",
+      "positions": 4000,
+      "rounds": 11,
+      "expected": 112712,
+      "results": {
+        "phase7-compact": {
+          "rate": 118209.0350061574,
+          "cpuRate": 107270.24055351444,
+          "wallMs": [
+            56.31425599999966,
+            42.07386999999926,
+            31.386461999999483,
+            49.04577900000004,
+            24.346036999999342,
+            56.9582819999996,
+            28.478423000000475,
+            33.83836100000008,
+            26.073585000000094,
+            44.18952100000024,
+            26.9527020000005
+          ],
+          "cpuMs": [
+            56.339,
+            42.1,
+            37.289,
+            49.07,
+            24.368,
+            56.98,
+            28.5,
+            33.862,
+            26.099,
+            44.213,
+            26.965
+          ]
+        },
+        "direct": {
+          "rate": 105236.61334371376,
+          "cpuRate": 105301.95335123467,
+          "wallMs": [
+            58.14297699999952,
+            53.461717999999564,
+            38.00958499999979,
+            28.187126999999236,
+            46.30946500000027,
+            34.522485000001325,
+            41.3214939999998,
+            28.5737539999991,
+            27.469723000000158,
+            40.524718999999095,
+            34.69654899999841
+          ],
+          "cpuMs": [
+            58.168,
+            53.491,
+            37.986,
+            28.209,
+            46.332,
+            34.546,
+            41.346,
+            28.594,
+            27.493,
+            40.549,
+            34.717
+          ]
+        },
+        "published": {
+          "rate": 214194.65860636786,
+          "cpuRate": 213903.74331550804,
+          "wallMs": [
+            68.78958000000057,
+            30.872011999999813,
+            18.922236999999768,
+            29.911244000000806,
+            18.190378000001147,
+            18.6227119999985,
+            18.256138999999166,
+            17.739197999999305,
+            18.67460200000096,
+            18.282156000001123,
+            18.70984199999839
+          ],
+          "cpuMs": [
+            68.811,
+            30.897,
+            18.943,
+            29.934,
+            18.214,
+            18.645,
+            18.28,
+            17.761,
+            18.7,
+            18.305,
+            18.734
+          ]
+        },
+        "source": {
+          "rate": 200214.65012639348,
+          "cpuRate": 192150.64610654753,
+          "wallMs": [
+            93.88450999999986,
+            30.70306299999993,
+            22.408325000000332,
+            18.129119999999602,
+            19.970094000000245,
+            19.497439999999187,
+            19.978558000000703,
+            17.945592000000033,
+            24.98603700000058,
+            19.302295999999842,
+            20.433595999998943
+          ],
+          "cpuMs": [
+            92.357,
+            30.725,
+            22.432,
+            20.817,
+            19.993,
+            19.52,
+            20.001,
+            17.961,
+            25.011,
+            19.326,
+            26.058
+          ]
+        }
+      }
+    },
+    "direct3-movegen": {
+      "runtime": "v24.19.0",
+      "positions": 4000,
+      "rounds": 11,
+      "expected": 112712,
+      "results": {
+        "phase7-compact": {
+          "rate": 105999.68836091628,
+          "cpuRate": 105923.78783465298,
+          "wallMs": [
+            49.62000999999873,
+            52.98500400000012,
+            37.73595999999998,
+            53.090110999999524,
+            32.65774000000056,
+            53.32271799999944,
+            33.802676999999676,
+            50.45062600000165,
+            27.000577999999223,
+            36.78425099999913,
+            28.86992999999893
+          ],
+          "cpuMs": [
+            49.644,
+            53.002,
+            37.763,
+            53.12,
+            37.665,
+            53.347,
+            33.829,
+            50.478,
+            33.875,
+            36.699,
+            34.182
+          ]
+        },
+        "direct": {
+          "rate": 117952.5698562285,
+          "cpuRate": 100112.62670504318,
+          "wallMs": [
+            72.6055720000004,
+            33.61621500000001,
+            69.93632799999978,
+            33.91193600000042,
+            40.86685600000055,
+            27.23324599999978,
+            50.511295999998765,
+            24.357011000000057,
+            22.824264999999286,
+            30.787490000000616,
+            45.18382500000007
+          ],
+          "cpuMs": [
+            72.631,
+            39.955,
+            69.963,
+            33.937,
+            40.887,
+            27.26,
+            50.538,
+            24.381,
+            28.706,
+            30.814,
+            45.201
+          ]
+        },
+        "published": {
+          "rate": 200290.0199488824,
+          "cpuRate": 200030.0045006751,
+          "wallMs": [
+            47.52198599999974,
+            28.046417999999903,
+            29.872357000000193,
+            31.0328959999988,
+            19.971040000000357,
+            19.97943000000123,
+            18.501564000000144,
+            19.79217400000016,
+            19.53845099999853,
+            18.755404999999882,
+            19.357600999999704
+          ],
+          "cpuMs": [
+            47.537,
+            28.071,
+            29.889,
+            31.058,
+            19.997,
+            20.003,
+            18.527,
+            19.815,
+            19.563,
+            18.78,
+            19.382
+          ]
+        },
+        "source": {
+          "rate": 195410.59650109892,
+          "cpuRate": 168897.52142887303,
+          "wallMs": [
+            72.03584600000067,
+            37.49769800000104,
+            20.469719000000623,
+            18.132776000000376,
+            23.56355099999928,
+            20.100900999999794,
+            19.158087000001615,
+            18.781671000000642,
+            25.156880999998975,
+            17.658916000000318,
+            23.91259700000046
+          ],
+          "cpuMs": [
+            72.059,
+            37.513,
+            20.497,
+            18.159,
+            23.593,
+            25.601,
+            23.683,
+            18.807,
+            25.183,
+            17.686,
+            23.924
+          ]
+        }
+      }
+    },
+    "unified-movegen": {
+      "runtime": "v24.19.0",
+      "positions": 4000,
+      "rounds": 11,
+      "expected": 112712,
+      "results": {
+        "phase7-compact": {
+          "rate": 54998.71419881232,
+          "cpuRate": 58975.30409141172,
+          "wallMs": [
+            88.58633999999984,
+            73.07080999999926,
+            33.16304299999865,
+            80.00782900000013,
+            40.81462999999894,
+            87.60139600000002,
+            48.264570999999705,
+            70.88272399999914,
+            44.35183900000084,
+            76.26516899999842,
+            72.7289729999975
+          ],
+          "cpuMs": [
+            88.578,
+            72.958,
+            32.535,
+            79.819,
+            38.961,
+            87.233,
+            48.293,
+            70.87,
+            43.866,
+            67.825,
+            51.432
+          ]
+        },
+        "direct": {
+          "rate": 55171.56757540497,
+          "cpuRate": 55364.854390432956,
+          "wallMs": [
+            72.50111199999992,
+            58.308069000000614,
+            83.05571699999928,
+            40.64719200000036,
+            75.99243999999999,
+            53.057027999999264,
+            89.09443000000101,
+            49.912686000001486,
+            75.26947699999982,
+            39.28679000000011,
+            96.16615000000093
+          ],
+          "cpuMs": [
+            72.248,
+            57.354,
+            83.045,
+            40.463,
+            75.963,
+            53.084,
+            88.197,
+            48.379,
+            75.251,
+            35.249,
+            89.836
+          ]
+        },
+        "published": {
+          "rate": 92725.68829814809,
+          "cpuRate": 102501.0250102501,
+          "wallMs": [
+            48.892509000001155,
+            53.91993100000036,
+            39.20510699999977,
+            51.05234500000006,
+            20.086357999998654,
+            36.32532600000013,
+            43.13799199999994,
+            42.27517500000067,
+            45.27144700000099,
+            38.88678299999992,
+            57.634415000000445
+          ],
+          "cpuMs": [
+            48.468,
+            53.742,
+            39.024,
+            50.816,
+            20.113,
+            36.313,
+            40.023,
+            39.894,
+            35.898,
+            38.707,
+            37.491
+          ]
+        },
+        "source": {
+          "rate": 109646.96172792221,
+          "cpuRate": 107901.05473281002,
+          "wallMs": [
+            85.81793900000048,
+            39.439956000000166,
+            29.064392999998745,
+            23.774935999999798,
+            32.90384300000005,
+            35.64940800000113,
+            36.430069,
+            36.480718999999226,
+            45.83218599999964,
+            45.68666800000028,
+            37.61593999999968
+          ],
+          "cpuMs": [
+            85.463,
+            39.469,
+            28.964,
+            23.802,
+            37.071,
+            35.684,
+            36.46,
+            36.514,
+            39.246,
+            38.269,
+            37.644
+          ]
+        }
+      }
+    },
+    "directflat-movegen": {
+      "runtime": "v24.19.0",
+      "positions": 4000,
+      "rounds": 11,
+      "expected": 112712,
+      "results": {
+        "phase7-compact": {
+          "rate": 96306.6681677684,
+          "cpuRate": 96248.70665800429,
+          "wallMs": [
+            84.11916000000019,
+            33.956098000000566,
+            44.80511200000001,
+            41.533987999999226,
+            27.079069999999774,
+            49.36332199999924,
+            37.95477700000083,
+            54.13890900000115,
+            33.89861100000053,
+            41.76747400000022,
+            23.064769000000524
+          ],
+          "cpuMs": [
+            84.146,
+            33.985,
+            44.817,
+            41.559,
+            27.105,
+            49.388,
+            37.937,
+            54.166,
+            33.924,
+            41.792,
+            29.429
+          ]
+        },
+        "direct": {
+          "rate": 110266.35748348063,
+          "cpuRate": 110192.83746556475,
+          "wallMs": [
+            89.8163370000002,
+            31.956436000000394,
+            80.40445699999873,
+            23.478338000000804,
+            21.77853800000048,
+            36.27579699999842,
+            87.03721799999948,
+            44.508395000000746,
+            25.84918899999866,
+            33.42237399999976,
+            39.840761000001294
+          ],
+          "cpuMs": [
+            89.843,
+            31.982,
+            79.739,
+            23.507,
+            21.804,
+            36.3,
+            86.885,
+            44.083,
+            25.873,
+            33.436,
+            39.866
+          ]
+        },
+        "published": {
+          "rate": 187530.97191207026,
+          "cpuRate": 187309.76352142353,
+          "wallMs": [
+            37.39089000000058,
+            38.42292599999928,
+            22.171229999999923,
+            41.18537800000013,
+            21.32981000000109,
+            19.386986999999863,
+            18.469254999999976,
+            29.50540700000056,
+            18.663908999998966,
+            19.349076000000423,
+            18.021554000000833
+          ],
+          "cpuMs": [
+            37.416,
+            38.449,
+            22.195,
+            41.211,
+            21.355,
+            19.41,
+            18.492,
+            29.532,
+            18.688,
+            19.372,
+            18.045
+          ]
+        },
+        "source": {
+          "rate": 165024.48736484358,
+          "cpuRate": 164955.2558868407,
+          "wallMs": [
+            45.48493299999973,
+            36.17250100000092,
+            33.959593000001405,
+            19.92065999999977,
+            38.38539200000014,
+            19.521499000000404,
+            23.4552249999997,
+            38.386615999999776,
+            21.345509000000675,
+            19.822335999999268,
+            24.23882699999922
+          ],
+          "cpuMs": [
+            51.268,
+            36.198,
+            33.988,
+            19.929,
+            38.412,
+            19.548,
+            23.48,
+            34.708,
+            21.369,
+            19.847,
+            24.249
+          ]
+        }
+      }
+    },
+    "magic-sliding": {
+      "checks": 400000,
+      "rate": [
+        14319964.251999233,
+        16380339.609997928
+      ],
+      "ratio": 1.1438813199349323,
+      "cpuRatio": 1.144023547478884,
+      "ms": [
+        [
+          46.10527000000002,
+          44.07853499999999,
+          43.895830000000046,
+          47.348438999999985,
+          43.90787499999999,
+          44.60508200000004,
+          44.81745500000011,
+          45.65177500000004,
+          44.692849000000024,
+          43.96394800000007,
+          44.980972000000065
+        ],
+        [
+          39.10308699999996,
+          38.87671200000011,
+          39.07122900000002,
+          43.18885799999998,
+          38.88835599999993,
+          38.806252000000086,
+          39.18149100000005,
+          39.190067,
+          38.98862199999985,
+          38.775236999999834,
+          43.72109299999988
+        ]
+      ],
+      "cpu": [
+        [
+          46.112,
+          44.092,
+          43.92,
+          47.353,
+          43.914,
+          44.61,
+          44.823,
+          45.656,
+          44.697,
+          43.969,
+          44.987
+        ],
+        [
+          39.112,
+          38.883,
+          39.07,
+          43.194,
+          38.894,
+          38.81,
+          39.186,
+          39.195,
+          38.993,
+          38.765,
+          43.727
+        ]
+      ]
+    }
+  },
+  "tests": {
+    "direct-random": "{ positions: 10178, active: 10178, checks: 360, ep: 43, castles: 369 }\n",
+    "directflat-order": "PASS ordered pawn/standard legal moves against frozen preoptimization reference: 380\n",
+    "unified-order": "PASS ordered pawn/standard legal moves against frozen preoptimization reference: 380\n",
+    "magic-exact": "{ exactProducts: 1049296 }\n",
+    "magic-attacks": "Attack-map parity PASS: random legal positions, all 64 squares, both sides, kingless occupancy\n",
+    "magic-parity": "PASS perft internal state restoration and frozen standard/Chess960 fixtures 114\n",
+    "direct3-order": "PASS ordered pawn/standard legal moves against frozen preoptimization reference: 380\n",
+    "direct3-zero-copy": "== Phase 5: MoveSink & Zero-Copy Moves ==\n  PASS countLegalMoves matches perft(1) for rnbqkbnr/pppppppp/8/8/8/8/PPPP... got 20 expected 20\n  PASS legalMovesInto count matches countLegalMoves got 20 expected 20\n  PASS forEachLegalMove count matches countLegalMoves got 20 expected 20\n  PASS legalMovesInto buffer words round-trip match forEachLegalMove \n  PASS countLegalMoves matches perft(1) for r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p... got 48 expected 48\n  PASS legalMovesInto count matches countLegalMoves got 48 expected 48\n  PASS forEachLegalMove count matches countLegalMoves got 48 expected 48\n  PASS legalMovesInto buffer words round-trip match forEachLegalMove \n  PASS countLegalMoves matches perft(1) for 8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/... got 14 expected 14\n  PASS legalMovesInto count matches countLegalMoves got 14 expected 14\n  PASS forEachLegalMove count matches countLegalMoves got 14 expected 14\n  PASS legalMovesInto buffer words round-trip match forEachLegalMove \n  PASS countLegalMoves matches perft(1) for rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/... got 44 expected 44\n  PASS legalMovesInto count matches countLegalMoves got 44 expected 44\n  PASS forEachLegalMove count matches countLegalMoves got 44 expected 44\n  PASS legalMovesInto buffer words round-trip match forEachLegalMove \n  PASS countLegalMoves matches perft(1) for r4rk1/1pp1qppp/p1np1n2/2b1p1B1... got 46 expected 46\n  PASS legalMovesInto count matches countLegalMoves got 46 expected 46\n  PASS forEachLegalMove count matches countLegalMoves got 46 expected 46\n  PASS legalMovesInto buffer words round-trip match forEachLegalMove \n  PASS MoveCounter.add popcount \n  PASS MoveCounter.addPawns white promo \n  PASS MoveCounter.reset \n\n==== RESULT: 23 passed, 0 failed ====\n",
+    "direct3-full-test-tail": [
+      "  [progress] 1000/1000 games played (118,380 plies, 11684 undos verified) in 82.3s",
+      "",
+      "==== FUZZ DIFFERENTIAL RESULT ====",
+      "Games: 1000",
+      "Total Plies: 118,380",
+      "Undos Verified: 11,684",
+      "Mismatches: 0",
+      "Elapsed Time: 82.25s (1439 plies/s)",
+      "PASS: 1,000 random games matched 100% with chess.js!",
+      "PASS late Zobrist initialization, increment and undo",
+      "PASS repetition with phantom, pinned and legal en-passant",
+      "PASS immutable castling rights, clone and Chess960 constructor",
+      "PASS checked/untrusted moves2 and unaligned little-endian bytes",
+      "PASS halfmove FEN acceptance agrees with chess.js",
+      "PASS shared JS/Rust golden FEN, Polyglot, repetition and moves2 vectors",
+      "PASS reentrant caller-owned check/pin contexts across standard and Chess960",
+      "PASS specialized perft skips hash only transiently; board state and hash survive including Chess960",
+      "Attack-map parity PASS: random legal positions, all 64 squares, both sides, kingless occupancy",
+      "PASS ordered pawn/standard legal moves against frozen preoptimization reference: 380",
+      "PASS perft internal state restoration and frozen standard/Chess960 fixtures 114"
+    ]
+  },
+  "magicPerft": {
+    "start": {
+      "oldM": 34.653,
+      "newM": 36.83,
+      "ratio": 1.0628,
+      "oldMs": [
+        146.75111700000002,
+        202.97815599999967,
+        170.05922599999985,
+        140.41004900000007,
+        122.01820700000007,
+        122.228298,
+        124.50875399999995,
+        122.71336100000008,
+        122.56652399999984,
+        141.22185700000045,
+        187.17562799999996
+      ],
+      "newMs": [
+        131.3036259999999,
+        208.10558600000013,
+        180.1069510000002,
+        192.56565999999975,
+        132.06100199999992,
+        132.1095909999999,
+        127.39403099999981,
+        127.51151299999992,
+        127.2485999999999,
+        132.9739950000003,
+        177.07016000000021
+      ],
+      "oldCpuMs": [
+        146.754,
+        202.896,
+        170.068,
+        140.416,
+        122.027,
+        122.237,
+        124.517,
+        122.721,
+        122.562,
+        141.154,
+        184.951
+      ],
+      "newCpuMs": [
+        131.314,
+        208.114,
+        180.117,
+        192.574,
+        132.05,
+        132.117,
+        127.401,
+        127.519,
+        127.256,
+        132.97,
+        177.076
+      ],
+      "cpuRatio": 1.0628
+    },
+    "kiwipete": {
+      "oldM": 37.428,
+      "newM": 41.744,
+      "ratio": 1.1153,
+      "oldMs": [
+        83.96236099999987,
+        83.88268400000015,
+        85.866172,
+        83.54129600000033,
+        83.5044939999998,
+        109.15889299999981,
+        177.845284,
+        179.75998400000026,
+        172.48705599999994,
+        163.90000300000065,
+        167.56428700000015
+      ],
+      "newMs": [
+        91.96640899999966,
+        97.31090199999926,
+        92.12745899999936,
+        93.25911400000041,
+        97.87327600000026,
+        91.88839000000007,
+        187.81810499999938,
+        183.73054200000024,
+        172.19476000000031,
+        175.89377100000002,
+        177.69107299999996
+      ],
+      "oldCpuMs": [
+        83.974,
+        83.845,
+        85.874,
+        83.537,
+        83.511,
+        109.166,
+        177.214,
+        179.766,
+        172.494,
+        163.898,
+        167.384
+      ],
+      "newCpuMs": [
+        91.978,
+        97.318,
+        92.134,
+        93.267,
+        97.881,
+        91.869,
+        187.823,
+        183.719,
+        169.541,
+        175.9,
+        177.678
+      ],
+      "cpuRatio": 1.1153
+    },
+    "endgame": {
+      "oldM": 12.365,
+      "newM": 12.59,
+      "ratio": 1.0182,
+      "oldMs": [
+        54.77929199999926,
+        55.526058999999805,
+        54.29097900000124,
+        54.55761299999904,
+        54.75752900000043,
+        54.51948999999877,
+        54.71540399999867,
+        54.328125,
+        54.792598,
+        54.55618900000081,
+        54.264782000000196
+      ],
+      "newMs": [
+        56.11122400000022,
+        53.10263399999894,
+        53.88873899999999,
+        53.49342400000023,
+        53.64573599999858,
+        53.47442299999966,
+        53.996994000000996,
+        53.01646299999993,
+        53.695638000001054,
+        53.58404999999948,
+        53.33627400000114
+      ],
+      "oldCpuMs": [
+        54.787,
+        55.492,
+        54.296,
+        54.562,
+        54.753,
+        54.524,
+        54.721,
+        54.335,
+        54.799,
+        54.563,
+        54.27
+      ],
+      "newCpuMs": [
+        56.121,
+        53.107,
+        53.885,
+        53.499,
+        53.635,
+        53.479,
+        54.002,
+        53.022,
+        53.702,
+        53.59,
+        53.342
+      ],
+      "cpuRatio": 1.0182
+    },
+    "promotion": {
+      "oldM": 43.586,
+      "newM": 38.754,
+      "ratio": 0.8891,
+      "oldMs": [
+        88.40512599999965,
+        48.26025200000004,
+        49.41193999999996,
+        48.750936999998885,
+        46.900808999998844,
+        47.18446199999926,
+        47.17712399999982,
+        46.64157199999863,
+        49.534835999998904,
+        49.65284400000019,
+        48.159827999999834
+      ],
+      "newMs": [
+        96.87535000000025,
+        54.37922100000105,
+        51.46330399999897,
+        51.50090099999943,
+        61.078919000001406,
+        54.998115999998845,
+        51.585313000001406,
+        51.92390200000045,
+        54.27815399999963,
+        52.320112999999765,
+        95.90224800000033
+      ],
+      "oldCpuMs": [
+        88.398,
+        48.265,
+        49.416,
+        48.754,
+        46.893,
+        47.187,
+        47.181,
+        46.645,
+        49.538,
+        49.658,
+        48.164
+      ],
+      "newCpuMs": [
+        96.884,
+        54.382,
+        51.467,
+        51.493,
+        61.084,
+        55.002,
+        51.591,
+        51.928,
+        54.282,
+        52.322,
+        95.91
+      ],
+      "cpuRatio": 0.8892
+    }
+  },
+  "pinnedRealQuick": {
+    "logTail": [
+      "    gigachess run 18/20 \u2014 1263 ms   ",
+      "    gigachess run 19/20 \u2014 1142 ms   ",
+      "    gigachess run 20/20 \u2014 1157 ms   ",
+      "                                                            ",
+      "",
+      "    chessops run  1/20 \u2014 3866 ms   ",
+      "    chessops run  2/20 \u2014 3972 ms   ",
+      "    chessops run  3/20 \u2014 2915 ms   ",
+      "    chessops run  4/20 \u2014 2977 ms   ",
+      "    chessops run  5/20 \u2014 3486 ms   ",
+      "    chessops run  6/20 \u2014 3103 ms   ",
+      "    chessops run  7/20 \u2014 2968 ms   ",
+      "    chessops run  8/20 \u2014 3985 ms   ",
+      "    chessops run  9/20 \u2014 4004 ms   ",
+      "    chessops run 10/20 \u2014 3234 ms   ",
+      "    chessops run 11/20 \u2014 3166 ms   ",
+      "    chessops run 12/20 \u2014 3723 ms   ",
+      "    chessops run 13/20 \u2014 3332 ms   ",
+      "    chessops run 14/20 \u2014 3705 ms   ",
+      "    chessops run 15/20 \u2014 4134 ms   ",
+      "    chessops run 16/20 \u2014 3931 ms   ",
+      "    chessops run 17/20 \u2014 3508 ms   ",
+      "    chessops run 18/20 \u2014 3596 ms   ",
+      "    chessops run 19/20 \u2014 3945 ms   ",
+      "    chessops run 20/20 \u2014 3168 ms   ",
+      "                                                            ",
+      "  corpus: 276 FENs, 12,420,039 nodes per run at cap depth",
+      "  gigachess : 10,675,940 nodes/s (median 1163 ms, p10 1139 / p90 1263, 20 runs, 3 warmups excluded)",
+      "  chessops  : 3,453,962 nodes/s (median 3596 ms, p10 2977 / p90 4004)",
+      "  speedup   : 209.1%",
+      "",
+      "=== suite: pgn-stream (1,000 games, 0.7 MB, chunks 4k/16k/64k) ===",
+      "  corpus: lichess_db_standard_rated_2013-01.pgn.zst (first 1000 games, sha256-pinned)",
+      "  parity: gigachess parsed 1000/1000, chessops parsed 1000/1000, SAN streams + round-trips compared per legal game",
+      "  chunk 4096: gigachess 31,524 games/s (22.0 MB/s) vs chessops 10,007 games/s \u2192 215.0% (median of 20, p10 25 / p90 33 vs 88/145, 3 warmups excluded)",
+      "  chunk 16384: gigachess 31,102 games/s (21.7 MB/s) vs chessops 8,795 games/s \u2192 253.6% (median of 20, p10 29 / p90 48 vs 94/159, 3 warmups excluded)",
+      "  chunk 65536: gigachess 24,492 games/s (17.1 MB/s) vs chessops 7,503 games/s \u2192 226.4% (median of 20, p10 27 / p90 52 vs 95/155, 3 warmups excluded)",
+      "  peak heap (post-GC checkpoints, 16k chunks): gigachess 134 MB vs chessops 134 MB \u2192 100.0%",
+      "",
+      "=== suite: fen-san-uci (1,202 FENs incl. 3 Chess960/X-FEN samples) ===",
+      "  corpus: lichess_db_standard_rated_2013-01.pgn.zst (first 1000 games, sha256-pinned)",
+      "  FEN round-trip: 1202 compared, makeFen byte-identical (failures: 3)",
+      "  SAN make: 8689/8689 identical | SAN parse: 8689/8689 | UCI (ADR-013 normalized): 8689/8689",
+      "  parse agreement: 1202/1202 (gigachess rejects 0 FENs chessops accepts)",
+      "    rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1: makeFen differs | gigachess: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w HAha - 0 1 | chessops: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "    bbqnnrkr/pppppppp/8/8/8/8/PPPPPPPP/BBQNNRKR w HAha - 0 1: makeFen differs | gigachess: bbqnnrkr/pppppppp/8/8/8/8/PPPPPPPP/BBQNNRKR w HAha - 0 1 | chessops: bbqnnrkr/pppppppp/8/8/8/8/PPPPPPPP/BBQNNRKR w KAka - 0 1",
+      "    bbnrkqnr/pppppppp/8/8/8/8/PPPPPPPP/BBNRKQNR w DHdh - 0 1: makeFen differs | gigachess: bbnrkqnr/pppppppp/8/8/8/8/PPPPPPPP/BBNRKQNR w HDhd - 0 1 | chessops: bbnrkqnr/pppppppp/8/8/8/8/PPPPPPPP/BBNRKQNR w KQkq - 0 1",
+      "  FEN parse+make throughput: gigachess 98,027/s vs chessops 36,160/s \u2192 171.1% (median of 20, 3 warmups excluded)",
+      "",
+      "=== suite: dests-terminal (target 1,200 unique positions from real games) ===",
+      "  corpus: lichess_db_standard_rated_2013-01.pgn.zst (first 1000 games, sha256-pinned)",
+      "  replayed 1,200 unique positions",
+      "  parity: 100% \u2014 dests, isLegal, and all terminal predicates identical across 1200 positions (34,143 moves)",
+      "  dests throughput (allDests per position): gigachess 84,303/s vs chessops 37,008/s \u2192 127.8% (median of 20, 3 warmups excluded)",
+      "",
+      "=== suite: bundle (esbuild minified + gzip, splitting; unified package gate) ===",
+      "  gigachess (full)                 static 75,757 B raw \u2192 23,946 B gz | lazy chunks 46,468 B gz | total 70,414 B gz",
+      "  chess.js (1.4.0)                 static 36,604 B raw \u2192 12,822 B gz",
+      "  chessops (core bare)             static 17,008 B raw \u2192 5,345 B gz",
+      "  chessops (full: chess+fen+san)   static 23,208 B raw \u2192 7,445 B gz",
+      "  gigachess vs chess.js: 186.8% of size (23,946 B vs 12,822 B gz)",
+      "  full (incl. lazy table chunks) total: 70,414 B gz",
+      "  lazy table check: static entry excludes magic-table bytes \u2713",
+      "",
+      "=== suite: chessjs (1000 corpus FENs, 1000 games) ===",
+      "  corpus: lichess_db_standard_rated_2013-01.pgn.zst (first 1000 games, sha256-pinned)",
+      "  parity: fen 1000/1000, SAN 1000/1000, verbose 1000/1000, replay clean on 3 streams",
+      "  PARITY OK \u2014 100.000% (\u226599.9%); perft vs chess.js: N/A (chess.js has no perft API)",
+      "  FEN parse+make: gigachess 51,134/s vs chess.js 18,240/s \u2192 2.80x (median of 20, 3 warmups excluded)",
+      "  SAN make + dests: gigachess 8,219/s vs chess.js 1,695/s \u2192 4.85x"
+    ],
+    "exitCode": null
+  }
+}
