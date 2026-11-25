@@ -1,0 +1,28 @@
+{
+  "node": "v24.19.0",
+  "v8": "13.6.233.17-node.51",
+  "platform": "win32",
+  "arch": "arm64",
+  "cpu": [
+    {
+      "model": "Cobalt 100",
+      "speed": 3397
+    },
+    {
+      "model": "Cobalt 100",
+      "speed": 3399
+    },
+    {
+      "model": "Cobalt 100",
+      "speed": 3394
+    },
+    {
+      "model": "Cobalt 100",
+      "speed": 3398
+    }
+  ],
+  "memory": 17169387520,
+  "release": "10.0.26200",
+  "runner": "GitHub Actions 1000022102",
+  "sha": "74823a9e95037638aee8ed8d7972f28895d8c5c2"
+}

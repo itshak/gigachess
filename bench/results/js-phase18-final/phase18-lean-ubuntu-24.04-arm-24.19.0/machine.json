@@ -1,0 +1,28 @@
+{
+  "node": "v24.19.0",
+  "v8": "13.6.233.17-node.51",
+  "platform": "linux",
+  "arch": "arm64",
+  "cpu": [
+    {
+      "model": "unknown",
+      "speed": 0
+    },
+    {
+      "model": "unknown",
+      "speed": 0
+    },
+    {
+      "model": "unknown",
+      "speed": 0
+    },
+    {
+      "model": "unknown",
+      "speed": 0
+    }
+  ],
+  "memory": 16715862016,
+  "release": "7.0.0-1020-azure",
+  "runner": "GitHub Actions 1000022118",
+  "sha": "74823a9e95037638aee8ed8d7972f28895d8c5c2"
+}

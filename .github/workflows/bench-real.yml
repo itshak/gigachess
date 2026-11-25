@@ -18,26 +18,24 @@ jobs:
       - run: node bench/matrix/prepare-corpus.mjs 20000 1000
       - uses: actions/upload-artifact@v4
         with:
-          name: phase18-corpus
+          name: phase19-corpus
           path: |
             ci-benchmark/corpus.json
             ci-benchmark/corpus.sha256
   diagnose:
     needs: corpus
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 120
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       max-parallel: 8
       matrix:
-        variant: [rays, between, shared, geocopy, lean]
-        runner: [ubuntu-24.04, windows-11-arm]
+        variant: [rays, lean]
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, windows-2025, windows-11-arm]
         node: ['24.19.0']
         include:
-          - {variant: shared, runner: ubuntu-24.04-arm, node: '24.19.0'}
-          - {variant: shared, runner: windows-2025, node: '24.19.0'}
-          - {variant: lean, runner: ubuntu-24.04-arm, node: '24.19.0'}
-          - {variant: lean, runner: windows-2025, node: '24.19.0'}
+          - {variant: rays, runner: ubuntu-24.04, node: '22.5.0'}
+          - {variant: lean, runner: ubuntu-24.04, node: '22.5.0'}
     defaults:
       run:
         shell: bash
@@ -51,25 +49,28 @@ jobs:
           node-version: ${{ matrix.node }}
       - uses: actions/download-artifact@v4
         with:
-          name: phase18-corpus
+          name: phase19-corpus
           path: ci-benchmark
       - name: Build isolated candidate and pinned references
         run: |
           git apply --check "bench/phase18/patches/${{ matrix.variant }}.patch"
           git apply "bench/phase18/patches/${{ matrix.variant }}.patch"
           bash bench/matrix/setup.sh
-      - name: Correctness before timing
+      - name: Full correctness and reproducible tables
         run: |
           set -euo pipefail
-          (node tests/move-list-ownership.mjs && node tests/pawn-list-order.mjs && node tests/split32-exhaustive.mjs --cold && node tests/split32-exhaustive.mjs && node tests/perft-specialized-parity.mjs && node tests/standard-movegen-differential.mjs) 2>&1 | tee benchmark-results/correctness.log
+          sha256sum node_modules/chessops/package.json node_modules/@itshak/chesstree/node_modules/chessops/package.json > benchmark-results/oracle-before.sha
+          npm test 2>&1 | tee benchmark-results/correctness.log
+          sha256sum -c benchmark-results/oracle-before.sha
+          node bench/make-split32-tables.mjs
+          git diff --exit-code -- src/rookSplit32Blob.ts src/bishopSplit32Blob.ts
+          node tests/standard-movegen-differential.mjs 2>&1 | tee benchmark-results/movegen-parity.log
       - name: Reproduce original four-engine direct comparison
         run: |
           set -o pipefail
           node --expose-gc --import ./ci-benchmark/tools/node_modules/tsx/dist/loader.mjs bench/bench-competitive-movegen-direct.mjs --baseline ci-benchmark/baseline/dist/fast/index.js --drumevp ci-benchmark/drumevp --published ci-benchmark/package/dist/index.js --warmups 12 --runs 25 | tee benchmark-results/direct-movegen.json
-      - name: Counterbalanced independent-process GC and call-site controls
-        run: |
-          set -o pipefail
-          node bench/phase16/run.mjs 2>&1 | tee benchmark-results/callsite.log
+      - name: Separate process complete GC accounting
+        run: node bench/phase19/run.mjs
       - name: Paired full real-game workloads
         run: |
           set -euo pipefail
@@ -80,8 +81,12 @@ jobs:
           cd ci-benchmark
           export BENCH_POSITIONS=20000 BENCH_GAMES=300 BENCH_RUNS=15 BENCH_WARMUPS=8 BENCH_BATCHES=4 BENCH_OUT=../benchmark-results/paired
           node --expose-gc paired.mjs baseline candidate 2>&1 | tee ../benchmark-results/paired.log
+      - name: Real-game all-library comparison
+        run: |
+          set -o pipefail
+          node --expose-gc bench/matrix/cli.mjs --no-deep --runs 9 --warmups 5 --games 300 2>&1 | tee benchmark-results/matrix.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: phase18-${{ matrix.variant }}-${{ matrix.runner }}-${{ matrix.node }}
+          name: phase19-${{ matrix.variant }}-${{ matrix.runner }}-${{ matrix.node }}
           path: benchmark-results/

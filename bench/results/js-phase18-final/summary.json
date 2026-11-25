@@ -1,0 +1,198 @@
+{
+  "phase18-between-ubuntu-24.04-24.19.0": {
+    "directBase": 1.1599410456046875,
+    "directPublished": 0.7327087148988047,
+    "paired": {
+      "fen-parse": 0.9929365566437799,
+      "fen-write": 1.0133554384006063,
+      "fen-roundtrip": 0.9960536703357755,
+      "movegen-fresh": 1.008634698283529,
+      "validated-replay": 1.035527009234703,
+      "perft-mixed": 0.9569061277952524,
+      "perft-start-d6": 0.9844685671715936,
+      "perft-kiwi-d5": 0.9887091894158093
+    }
+  },
+  "phase18-between-windows-11-arm-24.19.0": {
+    "directBase": 1.0024577264356038,
+    "directPublished": 0.919859367152161,
+    "paired": {
+      "fen-parse": 0.9676051306366122,
+      "fen-write": 1.1280050766262135,
+      "fen-roundtrip": 1.0183128877422536,
+      "movegen-fresh": 0.9866572477603486,
+      "validated-replay": 0.9984462172167976,
+      "perft-mixed": 1.0000048606571663,
+      "perft-start-d6": 1.004792777395926,
+      "perft-kiwi-d5": 0.9966500583123736
+    }
+  },
+  "phase18-geocopy-ubuntu-24.04-24.19.0": {
+    "directBase": 1.1733265452831203,
+    "directPublished": 0.724413639466741,
+    "paired": {
+      "fen-parse": 0.9880316283255192,
+      "fen-write": 1.0332007076999992,
+      "fen-roundtrip": 1.0119859131345763,
+      "movegen-fresh": 0.9942254559983289,
+      "validated-replay": 1.0190706353667591,
+      "perft-mixed": 1.0078351869554325,
+      "perft-start-d6": 1.0081108448051919,
+      "perft-kiwi-d5": 0.9797294241995648
+    }
+  },
+  "phase18-geocopy-windows-11-arm-24.19.0": {
+    "directBase": 1.0123227302157933,
+    "directPublished": 0.8967257739997293,
+    "paired": {
+      "fen-parse": 0.9540359527463056,
+      "fen-write": 1.0315097490155085,
+      "fen-roundtrip": 0.897386408406951,
+      "movegen-fresh": 1.033079991885875,
+      "validated-replay": 1.0207185590653496,
+      "perft-mixed": 0.990881723025873,
+      "perft-start-d6": 0.9903843900557995,
+      "perft-kiwi-d5": 0.9955568530938829
+    }
+  },
+  "phase18-lean-ubuntu-24.04-24.19.0": {
+    "directBase": 1.162418227828796,
+    "directPublished": 0.7234090634647175,
+    "paired": {
+      "fen-parse": 0.9603390528118915,
+      "fen-write": 1.0431856081896271,
+      "fen-roundtrip": 1.0028691188351768,
+      "movegen-fresh": 1.0451859200896825,
+      "validated-replay": 1.008332070485062,
+      "perft-mixed": 0.9935200274499171,
+      "perft-start-d6": 0.9878873507898995,
+      "perft-kiwi-d5": 1.0011824346506535
+    }
+  },
+  "phase18-lean-ubuntu-24.04-arm-24.19.0": {
+    "directBase": 1.0427032837698167,
+    "directPublished": 0.8506340569290612,
+    "paired": {
+      "fen-parse": 0.9600131697286884,
+      "fen-write": 1.0642164782896943,
+      "fen-roundtrip": 0.9918263416596576,
+      "movegen-fresh": 1.078438097282316,
+      "validated-replay": 1.0347893431952402,
+      "perft-mixed": 0.9978470431069122,
+      "perft-start-d6": 1.0033838836305053,
+      "perft-kiwi-d5": 0.9969829600953976
+    }
+  },
+  "phase18-lean-windows-11-arm-24.19.0": {
+    "directBase": 1.0275512769855177,
+    "directPublished": 0.8858076798735554,
+    "paired": {
+      "fen-parse": 0.9509703413006695,
+      "fen-write": 1.0630056259956322,
+      "fen-roundtrip": 0.9990667973734361,
+      "movegen-fresh": 1.0288912220437634,
+      "validated-replay": 1.0121607135814434,
+      "perft-mixed": 1.011034553831191,
+      "perft-start-d6": 1.0067252141463052,
+      "perft-kiwi-d5": 1.0120541972447104
+    }
+  },
+  "phase18-lean-windows-2025-24.19.0": {
+    "directBase": 0.9635224100700779,
+    "directPublished": 0.7897824827513052,
+    "paired": {
+      "fen-parse": 1.0690013161855685,
+      "fen-write": 1.013350541040028,
+      "fen-roundtrip": 0.9885485520491417,
+      "movegen-fresh": 1.003162425449407,
+      "validated-replay": 1.0577687180401258,
+      "perft-mixed": 0.9769641432703,
+      "perft-start-d6": 0.9867312453307124,
+      "perft-kiwi-d5": 0.9825814896886692
+    }
+  },
+  "phase18-rays-ubuntu-24.04-24.19.0": {
+    "directBase": 1.3255531726218652,
+    "directPublished": 0.8401816220196122,
+    "paired": {
+      "fen-parse": 0.9756938957743214,
+      "fen-write": 0.9983885736640952,
+      "fen-roundtrip": 1.0005714880855507,
+      "movegen-fresh": 1.0156330517261232,
+      "validated-replay": 1.0353644962076922,
+      "perft-mixed": 1.0215154068147059,
+      "perft-start-d6": 1.0356784335175453,
+      "perft-kiwi-d5": 0.9975574736483067
+    }
+  },
+  "phase18-rays-windows-11-arm-24.19.0": {
+    "directBase": 1.0089636125781292,
+    "directPublished": 0.9007634644535297,
+    "paired": {
+      "fen-parse": 0.9586067974383091,
+      "fen-write": 1.0179419793609,
+      "fen-roundtrip": 1.0203584647770043,
+      "movegen-fresh": 1.0390898546472171,
+      "validated-replay": 1.0372893999968102,
+      "perft-mixed": 1.0002138019521158,
+      "perft-start-d6": 0.9855995272797631,
+      "perft-kiwi-d5": 1.002779123006169
+    }
+  },
+  "phase18-shared-ubuntu-24.04-24.19.0": {
+    "directBase": 1.0647856702638843,
+    "directPublished": 0.7437098613938825,
+    "paired": {
+      "fen-parse": 0.9474688560018703,
+      "fen-write": 1.0001471028686917,
+      "fen-roundtrip": 0.987223370487051,
+      "movegen-fresh": 1.0211117579897355,
+      "validated-replay": 0.9801543775147517,
+      "perft-mixed": 0.995060229701903,
+      "perft-start-d6": 0.9894045256418087,
+      "perft-kiwi-d5": 1.0130217255094354
+    }
+  },
+  "phase18-shared-ubuntu-24.04-arm-24.19.0": {
+    "directBase": 1.2061067948679358,
+    "directPublished": 0.9752697325260711,
+    "paired": {
+      "fen-parse": 0.9614367031210073,
+      "fen-write": 1.0455291766172965,
+      "fen-roundtrip": 0.994056495423274,
+      "movegen-fresh": 1.0076611524805965,
+      "validated-replay": 1.0372780431736193,
+      "perft-mixed": 1.0001165771786584,
+      "perft-start-d6": 0.9974483484708984,
+      "perft-kiwi-d5": 1.0001665741679673
+    }
+  },
+  "phase18-shared-windows-11-arm-24.19.0": {
+    "directBase": 0.9917849402223105,
+    "directPublished": 0.8513878207368858,
+    "paired": {
+      "fen-parse": 0.9698551431930641,
+      "fen-write": 1.0814364676951913,
+      "fen-roundtrip": 1.1028223344635775,
+      "movegen-fresh": 0.9875408713560658,
+      "validated-replay": 1.0256225443228573,
+      "perft-mixed": 0.9950350030027272,
+      "perft-start-d6": 0.9833097131283549,
+      "perft-kiwi-d5": 0.9929907527525537
+    }
+  },
+  "phase18-shared-windows-2025-24.19.0": {
+    "directBase": 0.961409374146268,
+    "directPublished": 0.8821402089214478,
+    "paired": {
+      "fen-parse": 0.9790983169757396,
+      "fen-write": 1.0354428327632124,
+      "fen-roundtrip": 0.9937868265318018,
+      "movegen-fresh": 1.0286759266712147,
+      "validated-replay": 1.0167273008187554,
+      "perft-mixed": 0.9681536743042287,
+      "perft-start-d6": 0.9725769746155849,
+      "perft-kiwi-d5": 0.9559319691687431
+    }
+  }
+}
