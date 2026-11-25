@@ -4,3 +4,6 @@ bench/data/*.epd -text
 bench/data/*.pgn -text
 bench/data/*.zst -text
 tests/*.tsv -text
+
+# Generated TypeScript blobs must remain byte-reproducible across OSes.
+src/*Split32Blob.ts text eol=lf
