@@ -146,6 +146,38 @@ export class Board implements BoardLike {
   _zobristHi: number;
 
   constructor(input?: string | Position | Board | BoardLike) {
+    // String construction owns the newly parsed board. Unlike loadFen on an
+    // existing Board, there are no prior public bitboard references to retain.
+    // Subclass initialization keeps the original virtual loadFen behavior.
+    if (new.target === Board && (input === undefined || typeof input === "string")) {
+      const fen = input ?? INITIAL_FEN;
+      const parsed = parseFen(fen);
+      if (!parsed.ok) throw new Error(`Invalid FEN: ${fen}`);
+      const pos = parsed.value, b = pos.board;
+      this.white = b.white as MutableSquareSet;
+      this.black = b.black as MutableSquareSet;
+      this.pawn = b.pawn as MutableSquareSet;
+      this.knight = b.knight as MutableSquareSet;
+      this.bishop = b.bishop as MutableSquareSet;
+      this.rook = b.rook as MutableSquareSet;
+      this.queen = b.queen as MutableSquareSet;
+      this.king = b.king as MutableSquareSet;
+      this.occupied = b.occupied as MutableSquareSet;
+      this.promoted = b.promoted as MutableSquareSet;
+      this.kingSq = b.kingSq as [number,number];
+      this.turn = pos.turn;
+      this.castling = pos.castling;
+      this.castlingMask = pos.castlingMask;
+      this.epSquare = pos.epSquare;
+      this.halfmoves = pos.halfmoves ?? pos.halfmove ?? 0;
+      this.fullmoves = pos.fullmoves ?? pos.fullmove ?? 1;
+      this.checkers = pos.checkers!;
+      this.isChess960 = !!pos.isChess960;
+      this._zobristLo = pos.zobristLo ?? 0;
+      this._zobristHi = pos.zobristHi ?? 0;
+      if (this._zobristLo === 0 && this._zobristHi === 0 && zobristTablesLoaded()) this.refreshZobrist();
+      return;
+    }
     this.white = { lo: 0, hi: 0 };
     this.black = { lo: 0, hi: 0 };
     this.pawn = { lo: 0, hi: 0 };

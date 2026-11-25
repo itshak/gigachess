@@ -22,7 +22,7 @@ It unifies native stateful `Board` performance, `chess.js` ergonomics, `chesstre
 |---|---|
 | **Native Board API** | High-performance stateful `Board` with in-place mutation & $O(1)$ `Undo` |
 | **Bitboard Engine** | Zero-BigInt 32-bit integer pairs (`{ lo: uint32, hi: uint32 }`) |
-| **Sliding Attacks** | Black Magic Bitboards with dynamic lazy loading (`Uint32Array`) |
+| **Sliding Attacks** | Split-32 perfect hashes; compact intersected rook tables and Cartesian bishop tables, lazy-loaded `Uint32Array` |
 | **Ray Queries** | Precomputed 4,096-entry $64 \times 64$ flat ray & between tables (`attacks.ts`) |
 | **Move Generation** | Stockfish `CheckContext` (single-pass pin and check analysis) |
 | **Position Hashing**| Incremental $O(1)$ 64-bit Polyglot Zobrist hashing (`zobrist.ts`) |
@@ -70,6 +70,18 @@ node --expose-gc bench/bench-real.mjs           # Full 20-run median verificatio
   installed oracles without copying their runtime implementation.
 
 ---
+
+## Current JS candidate (Phase 15)
+
+Read `bench/results/js-phase15-candidate-2026-11-25.md` before continuing.
+The selected implementation is TargetFlat. Mac runner contention is
+not a correctness failure; Apple Silicon validation is deferred, not
+waived. Regenerate both current sliding blobs using
+`node bench/make-split32-tables.mjs` after building and require byte-exact
+reproduction plus cold/loaded exhaustive parity. Do not restore the old
+Cartesian-product rook blob. Separate native generation, normalized moves,
+full FEN/replay lifecycle and allocation/GC-sensitive benchmarks.
+No cached moves, premature merge, release, or unconditional fastest claim.
 
 ## JS performance release gate (2026-11-25)
 
