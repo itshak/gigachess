@@ -92,3 +92,18 @@ Phase20 benchmark-only branch d635e7f preserves Phase15 unchanged.
 Rejected push-origin pawn mask prototype passed correctness but produced
 0.829x local paired fresh movegen. No release, no new engine behavior,
 no claims that the remaining mixed benchmark gap is closed.
+
+## Phase 21 independent breakthrough
+
+Run 45714146090: all six jobs passed. Candidate 769db80 uses one
+private reusable initial-position Board and independent mutable copies.
+Original direct movegen wins 2.009–3.620x against published drumevp
+on all five tested Linux/Windows configurations; generator weak-object
+invalidations zero. Initial construction 7.262–13.478x, paired replay
+1.090–1.216x vs Phase15. Natural workloads and perft remain competitive.
+One SAN regression .885x and some FEN parse regressions remain.
+The arbitrary-FEN-only control shows initialization dependence;
+Phase22 tests early initialization and SAN simplification, including
+exact ordered SAN parity, before selecting production changes.
+Evidence: https://github.com/itshak/gigachess/tree/bench/phase22-template-finalization-20261126/bench/results/js-phase21-final
+Engine remains Phase15 in this draft until final selection. Mac deferred.
