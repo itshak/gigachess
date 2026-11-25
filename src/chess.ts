@@ -956,13 +956,39 @@ export function analyzeCheckContext(pos: Position, reuse?: CheckContext, perftOn
         hi: (candidate.hi & ~danger.hi) >>> 0,
       };
     } else {
+      // Reuse the enemy slider masks already obtained for pin analysis.
+      // Filter non-sliders before magic probes; never rebuild the enemy
+      // role partition for each target or allocate an attackers bitboard.
+      const b = pos.board;
+      const pLo = themOcc.lo & b.pawn.lo, pHi = themOcc.hi & b.pawn.hi;
+      const nLo = themOcc.lo & b.knight.lo, nHi = themOcc.hi & b.knight.hi;
+      const kLo = themOcc.lo & b.king.lo, kHi = themOcc.hi & b.king.hi;
       let kingLo = 0, kingHi = 0;
-      sq.forEachSquare(candidate, (d) => {
-        if (sq.isEmpty(attacks.attackersTo(pos.board, d, them, occWithoutKing))) {
-          if (d < 32) kingLo |= (1 << d) >>> 0;
-          else kingHi |= (1 << (d - 32)) >>> 0;
+      for (let half = 0; half < 2; half++) {
+        let bits = half === 0 ? candidate.lo : candidate.hi;
+        while (bits !== 0) {
+          const lsb = bits & -bits;
+          const d = (half << 5) + 31 - Math.clz32(lsb);
+          bits = (bits & (bits - 1)) >>> 0;
+          const p = attacks.pawnAttacks(us, d);
+          const n = attacks.knightAttacks(d);
+          const k = attacks.kingAttacks(d);
+          if (((p.lo & pLo) | (p.hi & pHi) | (n.lo & nLo) |
+               (n.hi & nHi) | (k.lo & kLo) | (k.hi & kHi)) !== 0) continue;
+          const br = BISHOP_KING_RAYS[d];
+          if (((br.lo & themBQ.lo) | (br.hi & themBQ.hi)) !== 0) {
+            const at = attacks.bishopAttacks(d, occWithoutKing);
+            if (((at.lo & themBQ.lo) | (at.hi & themBQ.hi)) !== 0) continue;
+          }
+          const rr = ROOK_KING_RAYS[d];
+          if (((rr.lo & themRQ.lo) | (rr.hi & themRQ.hi)) !== 0) {
+            const at = attacks.rookAttacks(d, occWithoutKing);
+            if (((at.lo & themRQ.lo) | (at.hi & themRQ.hi)) !== 0) continue;
+          }
+          if (half === 0) kingLo |= lsb;
+          else kingHi |= lsb;
         }
-      });
+      }
       ctx.kingSafe = { lo: kingLo >>> 0, hi: kingHi >>> 0 };
     }
   }

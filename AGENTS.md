@@ -161,3 +161,13 @@ wall and CPU timing helps distinguish shared server scheduling noise.
 The kingroles prototype is preserved as a patch, not production code:
 targeted tests and one A/B passed, but full repeatability is outstanding.
 Run the new independent leaf oracle and gameplay A/B; do not publish or merge.
+
+### Phase 7 continuation
+Read bench/results/js-phase7-2026-11-25.md and raw JSON. Standard
+perft now uses a separate compact color-role state and per-ply buffers
+when safe; public Board state is never modified by that fast path.
+Do not weaken the fallback, exact castling/EP and independent tests.
+Run test:perft:extended and both benchmark harnesses. Deep perft
+now wins all five lanes across Node and Bun on one CPU, but the new
+fair uncached public movegen lane still loses. No universal fastest
+claim, no merge or npm publication yet.

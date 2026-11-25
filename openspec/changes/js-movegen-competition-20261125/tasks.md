@@ -72,3 +72,14 @@
 - [ ] Repeat king-role mask prototype on fixed CPU, full npm test, real workload A/B and competitor
 - [ ] Achieve repeatable Kiwipete superiority; test packed color-separated perft state if necessary
 - [ ] Verify official pinned-runtime real-workstation gates and independent CPU/browser performance before release
+
+## Phase 7: independent compact standard perft
+- [x] Repeat Phase 6 king-safety prototype, full test and gameplay A/B
+- [x] Implement color/role-separated per-ply compact standard perft state
+- [x] Independent depth-three differential test, 571 positions, two entries
+- [x] Full npm test, independent leaf test, package dry run
+- [x] Same-run nine-round source/npm perft victory in all five measured lanes
+- [x] Reproduce five perft wins on pinned Node 24 and Bun; record Node 22 raw data
+- [x] Add uncached preconstructed equal-work movegen lane; identify remaining deficit
+- [ ] Close uncached movegen deficit, pinned general-gate failures and repeat on another CPU/browser
+- [ ] Release only after all gates and independent validation

@@ -213,15 +213,21 @@ function median(xs){const a=[...xs].sort((a,b)=>a-b);return a[Math.floor(a.lengt
 // Warmup timings discarded. This reduces engine-order/JIT/thermal bias. Perft
 // node counts and move sets have already been checked independently.
 function lane(name,entries,units){
+ // Optional third tuple member is setup: called outside the timed interval
+ // for fresh, preconstructed engines with empty legal-move caches.
+
  const sampleByName=Object.fromEntries(entries.map(([id])=>[id,[]]));
- for(const [id,work]of entries){
-  for(let i=0;i<2;i++){const checksum=work();if(!Number.isFinite(checksum))throw Error(id+" invalid warmup");}
+ const cpuByName=Object.fromEntries(entries.map(([id])=>[id,[]]));
+ for(const [id,work,prepare]of entries){
+  for(let i=0;i<2;i++){const checksum=work(prepare?.());if(!Number.isFinite(checksum))throw Error(id+" invalid warmup");}
  }
  for(let i=0;i<runs;i++){
   const rotated=entries.map((_,j)=>entries[(i+j)%entries.length]);
-  for(const [id,work]of rotated){
+  for(const [id,work,prepare]of rotated){
+   const input=prepare?.();
    global.gc?.();
-   const t=performance.now(),checksum=work(),elapsed=performance.now()-t;
+   const startCpu=process.cpuUsage(),t=performance.now(),checksum=work(input),elapsed=performance.now()-t;
+   const cpu=process.cpuUsage(startCpu);cpuByName[id].push((cpu.user+cpu.system)/1000);
    if(!Number.isFinite(checksum))throw Error(id+" invalid checksum");
    sampleByName[id].push(elapsed);
   }
@@ -235,7 +241,7 @@ function lane(name,entries,units){
    medianMs:+med.toFixed(4),p10Ms:+percentile(.1).toFixed(4),
    p90Ms:+percentile(.9).toFixed(4),
    unitsPerSec:Math.round(units*1000/med),
-   rawMs:samples.map(x=>+x.toFixed(4))
+   rawMs:samples.map(x=>+x.toFixed(4)), rawCpuMs:cpuByName[id], cpuUnitsPerSec:Math.round(units*1000/median(cpuByName[id]))
   };
  }
  console.log("  "+name+" "+Object.entries(result.timings[name]).map(([id,x])=>id+"="+x.unitsPerSec.toLocaleString()+"/s").join(" "));
@@ -251,6 +257,12 @@ if(moveErrors===0&&legal>0){
  ...(Published?[["drumevp-published-fresh-engine",()=>{let n=0;for(const f of ff)n+=new Published(f).generateLegalMoves().length;return n}]]:[]),
  ["chessops-dests",()=>{let n=0;for(const p of ops)n+=Array.from(p.allDests().values()).reduce((a,b)=>a+b.size(),0);return n}],
  ["chess.js-SAN",()=>{let n=0;for(const p of chessjs)n+=p.moves().length;return n}]
+ ],ff.length);
+ // Fair generation: all engines prepared outside timing, no cached move lists.
+ lane("fresh-preconstructed-legal-movegen-positions",[
+  ["gigachess",ps=>{let n=0;for(const p of ps)n+=p.legalMoves().length;return n},()=>ff.map(f=>new Board(f))],
+  ["drumevp-no-cache-source",ps=>{let n=0;for(const p of ps)n+=generateOtherMoves(p).length;return n},()=>ff.map(f=>parseOther(f))],
+  ...(Published?[["drumevp-no-cache-published",ps=>{let n=0;for(const p of ps)n+=p.generateLegalMoves().length;return n},()=>ff.map(f=>new Published(f))]]:[])
  ],ff.length);
  // Cached path is NOT comparable to legal generation. Report separately.
  lane("cached-move-list-positions",[
@@ -285,9 +297,11 @@ if(refErrors===0&&corpusErrors===0&&verified.length){
  ...(Published?[["drumevp-published",()=>verified.reduce((n,p)=>n+p.publishedBoard.perft(p.d),0)]]:[]),
  ["chessops",()=>verified.reduce((n,p)=>n+Number(opsPerft(p.c.clone(),p.d)),0)]
  ],total);
- for(const [id,fen]of reference.slice(0,2)){
-  const d=quick?4:id==="start"?5:4,g=new Board(fen),o=parseOther(fen),
+ for(const [id,fen]of reference.filter(x=>["start","kiwipete","pos3","pos5"].includes(x[0]))){
+  const d=quick?4:id==="start"||id==="pos3"?5:4,g=new Board(fen),o=parseOther(fen),
    c=OpsChess.fromSetup(opsFen(fen).unwrap()).unwrap(),n=g.perft(d);
+  const known=id==="start"?4865609:id==="kiwipete"?4085603:id==="pos3"?674624:2103487;
+  if(!quick&&(n!==known||perftOther(o,d)!==known||Number(opsPerft(c.clone(),d))!==known||(Published&&new Published(fen).perft(d)!==known)))throw Error(id+" deep parity");
   lane("deep-perft-"+id+"-d"+d+"-nodes",[
    ["gigachess",()=>g.perft(d)],["drumevp-no-hash",()=>perftOther(o,d)],["drumevp-full-hash",()=>hashedPerft(o,d)],...(Published?[["drumevp-published",()=>new Published(fen).perft(d)]]:[]),
    ["chessops",()=>Number(opsPerft(c.clone(),d))]

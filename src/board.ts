@@ -1,3 +1,4 @@
+import { compactPerft } from "./perftCompact.js";
 // src/board.ts — stateful high-performance Board class and bitboard operations
 // Mirrors gigachess::Board in Rust (ADR-001, ADR-003).
 
@@ -1105,6 +1106,8 @@ export class Board implements BoardLike {
 
   perft(depth: number): number {
     if (depth <= 0) return 1;
+    const compact = compactPerft(this, depth);
+    if (compact !== undefined) return compact;
     const lists = Array.from({ length: depth }, () => new Uint16Array(256));
     const contexts: (CheckContext | undefined)[] = new Array(depth);
     // Local to this invocation; never observed by public move API.
