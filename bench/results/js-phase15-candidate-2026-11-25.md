@@ -76,3 +76,19 @@ workload distribution change the timings substantially. Mixed-engine
 4k direct loses four of five. This remains an open measurement and
 performance question. Keep the selected engine as draft; no main merge,
 npm tag or universal fastest claim. Apple Silicon postponed by user.
+
+## Subsequent selection, 26 November
+
+Keep Phase15 engine cc375b0. Independent Phase17 17/17, Phase18
+15/15 and Phase19 11/11 completed successfully. Geometry improvements
+do not consistently reproduce across runtimes; Rays and Lean show
+SAN-list regressions on individual Linux configurations and still lose
+the original mixed forced-GC direct benchmark in four of five hosts
+each. Neither selected. Both beat published drumevp for isolated complete
+lifecycle (forced and natural GC) in all five configurations.
+Phase19 evidence and Phase20 ownership/retention diagnostics:
+https://github.com/itshak/gigachess/tree/bench/phase20-retention-20261126/bench/results/js-phase19-final
+Phase20 benchmark-only branch d635e7f preserves Phase15 unchanged.
+Rejected push-origin pawn mask prototype passed correctness but produced
+0.829x local paired fresh movegen. No release, no new engine behavior,
+no claims that the remaining mixed benchmark gap is closed.
