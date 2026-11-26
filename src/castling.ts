@@ -68,22 +68,36 @@ export const CASTLING_FEN_STR: readonly string[] = [
   "q", "Kq", "Qq", "KQq", "kq", "Kkq", "Qkq", "KQkq"
 ];
 
-const S0 = new Set<number>();
-const S7 = new Set<number>([7]);
-const S0_2 = new Set<number>([0]);
-const S0_7 = new Set<number>([0, 7]);
-const WHITE_SETS: readonly ReadonlySet<number>[] = [S0, S7, S0_2, S0_7];
+/** A genuinely immutable ReadonlySet: Object.freeze(new Set()) is NOT safe. */
+export function fixedRookRights(squares: Iterable<number>): ReadonlySet<number> {
+  const entries = Object.freeze(Array.from(squares));
+  const rights: ReadonlySet<number> = Object.freeze({
+    get size() { return entries.length; },
+    has(square: number) { return entries.includes(square); },
+    keys() { return entries.values(); },
+    values() { return entries.values(); },
+    entries() { return entries.map((square): [number, number] => [square, square]).values(); },
+    forEach(callback: (value: number, key: number, set: ReadonlySet<number>) => void, thisArg?: unknown) {
+      for (const square of entries) callback.call(thisArg, square, square, rights);
+    },
+    [Symbol.iterator]() { return entries.values(); },
+    [Symbol.toStringTag]: "Set",
+  });
+  return rights;
+}
 
-const S63 = new Set<number>([63]);
-const S56 = new Set<number>([56]);
-const S56_63 = new Set<number>([56, 63]);
-const BLACK_SETS: readonly ReadonlySet<number>[] = [S0, S63, S56, S56_63];
+const WHITE_SETS: readonly ReadonlySet<number>[] = [
+  fixedRookRights([]), fixedRookRights([7]), fixedRookRights([0]), fixedRookRights([0, 7]),
+];
+const BLACK_SETS: readonly ReadonlySet<number>[] = [
+  fixedRookRights([]), fixedRookRights([63]), fixedRookRights([56]), fixedRookRights([56, 63]),
+];
 
 /** Precomputed 16-entry CastlingRights table for standard chess (zero allocations) */
 export const CASTLING_RIGHTS_TABLE: readonly CastlingRights[] = (() => {
   const table: CastlingRights[] = [];
   for (let mask = 0; mask < 16; mask++) {
-    table.push({
+    table.push(Object.freeze({
       white: WHITE_SETS[mask & 3],
       black: BLACK_SETS[(mask >> 2) & 3],
       whiteKing: (mask & CASTLE_WK) !== 0,
@@ -91,9 +105,9 @@ export const CASTLING_RIGHTS_TABLE: readonly CastlingRights[] = (() => {
       blackKing: (mask & CASTLE_BK) !== 0,
       blackQueen: (mask & CASTLE_BQ) !== 0,
       mask,
-    });
+    }));
   }
-  return table;
+  return Object.freeze(table);
 })();
 
 export function getCastlingMask(pos: Position): number {

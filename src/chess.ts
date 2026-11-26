@@ -1,3 +1,4 @@
+import { standardMovesInto } from "./standardMovegen.js";
 // src/chess.ts — core chess rules, Position/Setup, dests, isLegal, isCheck, perft etc
 // MIT gigachess, clean-room from specs + FIDE notes (no G P L)
 
@@ -9,7 +10,7 @@ import * as attacks from "./attacks.js";
 import { Color, Role } from "./types.js";
 import type { Setup, Move, Result, CastlingRights, Position } from "./types.js";
 import { opposite, squareFile, squareRank, parseSquare, squareName } from "./util.js";
-import { zobristTablesLoaded, zobristAfterMove, zobristAfterNullMove, calculateZobrist, zobristHex } from "./zobrist.js";
+import { zobristTablesLoaded, zobristAfterMove, zobristAfterNullMove, calculateZobrist, zobristHex, epIsHashable, keyLo, keyHi, IDX_EP } from "./zobrist.js";
 import type { ZobristKey } from "./zobrist.js";
 import { parseFen, makeFen } from "./fen.js";
 import { parseSan, makeSan, parseUci, makeUci } from "./san.js";
@@ -159,16 +160,54 @@ export function isFivefoldRepetition(history: Position[]): boolean {
   return count >= 5;
 }
 
+/**
+ * FIDE repetition key, matching gigachess-rs `Board::repetition_key()`.
+ * Polyglot Zobrist hashing deliberately remains pseudo-legal EP-based;
+ * this key excludes the EP contribution when there is no LEGAL EP capture.
+ * Requires `ensureZobristLoaded()` to have completed, like other key APIs.
+ */
+export function repetitionKey(pos: Position): ZobristKey {
+  if (!zobristTablesLoaded() || !keyLo || !keyHi) {
+    throw new Error("zobrist tables not loaded — call ensureZobristLoaded() first");
+  }
+  // Match Rust's cached-hash fast path for stateful Boards, while still
+  // supporting immutable parsed Setups without incremental hash fields.
+  const key = pos.zobristLo !== undefined && pos.zobristHi !== undefined
+    ? { lo: pos.zobristLo, hi: pos.zobristHi }
+    : calculateZobrist(pos);
+  const ep = pos.epSquare;
+  if (ep === null || !epIsHashable(pos, ep, pos.turn) || legalRepetitionEp(pos) !== null) {
+    return key;
+  }
+  const idx = IDX_EP + (ep & 7);
+  return { lo: (key.lo ^ keyLo[idx]) >>> 0, hi: (key.hi ^ keyHi[idx]) >>> 0 };
+}
+
 function positionsEqualForRepetition(a: Position, b: Position): boolean {
   if (a.turn !== b.turn) return false;
-  if (a.epSquare !== b.epSquare) return false;
   if (!board.boardEquals(a.board, b.board)) return false;
   // castling sets equality
   if (a.castling.white.size !== b.castling.white.size) return false;
   if (a.castling.black.size !== b.castling.black.size) return false;
   for (const s of a.castling.white) if (!b.castling.white.has(s)) return false;
   for (const s of a.castling.black) if (!b.castling.black.has(s)) return false;
-  return true;
+  // FIDE repetition requires identical LEGAL moves. Polyglot's hash instead
+  // includes a geometrically capturable EP file, and must stay unchanged.
+  return a.epSquare === b.epSquare || legalRepetitionEp(a) === legalRepetitionEp(b);
+}
+
+function legalRepetitionEp(pos: Position): number | null {
+  const to = pos.epSquare;
+  if (to === null) return null;
+  const white = pos.turn === Color.White;
+  // A white pawn captures from ep-7/ep-9; a black pawn from ep+7/ep+9.
+  const candidates = white ? [to - 9, to - 7] : [to + 7, to + 9];
+  for (const from of candidates) {
+    if (from < 0 || from >= 64 || Math.abs((from & 7) - (to & 7)) !== 1) continue;
+    if (sq.has(pos.board.pawn, from) && sq.has(white ? pos.board.white : pos.board.black, from)
+      && isLegal(pos, { from, to })) return to;
+  }
+  return null;
 }
 
 // ---------- castling: one detect/apply path (ADR-013 as amended) ----------
@@ -735,82 +774,138 @@ type CheckContext = {
 
 export type { CheckContext };
 
-// Reused castling plan scratch (same ownership discipline): avoids allocating
-// two plan objects per analyzed position in the perft/movegen hot loop. The
-// referenced position data is read-only and consumed within the same call.
-const scratchCastlingPlans: CastlingPlan[] = [];
-const scratchCastlingPlanA: CastlingPlan = { side: "king", kingFrom: 0, kingTo: 0, rookFrom: 0, rookTo: 0 };
-const scratchCastlingPlanB: CastlingPlan = { side: "king", kingFrom: 0, kingTo: 0, rookFrom: 0, rookTo: 0 };
+/**
+ * Per-position, caller-owned reusable analysis context. A global scratch
+ * castling-plan array is unsafe: a nested analysis or retained CheckContext
+ * silently changed rights for an earlier position, especially in Chess960.
+ * A caller may pass its OWN context to reuse allocations (e.g. perft ply),
+ * never a shared global singleton.
+ */
+// Precompute empty-board rank/file/diagonal king rays once. If no enemy
+// slider shares a line with the king, there cannot be a pin; skip expensive
+// magic-indexed sniper queries entirely.
+const ROOK_KING_RAYS: SquareSet[] = Array.from({ length: 64 }, (_, i) =>
+  attacks.rookAttacksForTest(i, sq.EMPTY));
+const BISHOP_KING_RAYS: SquareSet[] = Array.from({ length: 64 }, (_, i) =>
+  attacks.bishopAttacksForTest(i, sq.EMPTY));
 
-export function analyzeCheckContext(pos: Position): CheckContext {
+export function analyzeCheckContext(pos: Position, reuse?: CheckContext, perftOnly = false): CheckContext {
+  return analyzeCheckContextInternal(pos, reuse, perftOnly, false);
+}
+
+function analyzeCheckContextInternal(pos: Position, reuse?: CheckContext, perftOnly = false, nonKingOnly = false): CheckContext {
   const us = pos.turn;
   const them = opposite(us);
   const ksq = board.kingSquare(pos.board, us);
-  if (ksq === undefined) {
-    // degenerate (kingless) position: no pins, no masks
-    return { us, ksq: -1, doubleCheck: false, checkMask: sq.FULL, kingSafe: sq.EMPTY, pinned: sq.EMPTY, castlingPlans: [] };
-  }
-  const ctx: CheckContext = { us, ksq, doubleCheck: false, checkMask: sq.FULL, kingSafe: sq.EMPTY, pinned: sq.EMPTY, castlingPlans: [] };
+  const ctx: CheckContext = reuse ?? {
+    us, ksq: -1, doubleCheck: false, checkMask: sq.FULL,
+    kingSafe: sq.EMPTY, pinned: sq.EMPTY, castlingPlans: [],
+  };
+  ctx.us = us;
+  ctx.ksq = ksq ?? -1;
+  ctx.doubleCheck = false;
+  ctx.checkMask = sq.FULL;
+  ctx.kingSafe = sq.EMPTY;
+  ctx.pinned = sq.EMPTY;
+  ctx.castlingPlans.length = 0;
+  if (ksq === undefined) return ctx;
+
   // Precompute the position's castling plans once (design D2): the hot loops
   // (destsFast king branch, genLegalMoves) look them up instead of re-running
-  // the full detectCastling per king move. Plans are written into the reused
-  // scratch array — no allocation in the hot loop.
-  ctx.castlingPlans = scratchCastlingPlans;
-  ctx.castlingPlans.length = 0;
-  if (!pos.isChess960) {
+  // detectCastling per king move. The plans belong to THIS context only.
+  if (!nonKingOnly && !pos.isChess960) {
     const mask = pos.castlingMask ?? getCastlingMask(pos);
     if (us === Color.White) {
       if ((mask & CASTLE_WK) !== 0 && ksq === 4) {
-        const rp = board.pieceAt(pos.board, 7);
-        if (rp && rp.color === Color.White && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_WHITE_K);
+        if (perftOnly) {
+          if ((pos.board.occupied.lo & 0x60) === 0 &&
+              (pos.board.white.lo & pos.board.rook.lo & 0x80) !== 0)
+            ctx.castlingPlans.push(PLAN_WHITE_K);
+        } else {
+          const rp = board.pieceAt(pos.board, 7);
+          if (rp && rp.color === Color.White && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_WHITE_K);
+        }
       }
       if ((mask & CASTLE_WQ) !== 0 && ksq === 4) {
-        const rp = board.pieceAt(pos.board, 0);
-        if (rp && rp.color === Color.White && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_WHITE_Q);
+        if (perftOnly) {
+          if ((pos.board.occupied.lo & 0x0e) === 0 &&
+              (pos.board.white.lo & pos.board.rook.lo & 0x01) !== 0)
+            ctx.castlingPlans.push(PLAN_WHITE_Q);
+        } else {
+          const rp = board.pieceAt(pos.board, 0);
+          if (rp && rp.color === Color.White && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_WHITE_Q);
+        }
       }
     } else {
       if ((mask & CASTLE_BK) !== 0 && ksq === 60) {
-        const rp = board.pieceAt(pos.board, 63);
-        if (rp && rp.color === Color.Black && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_BLACK_K);
+        if (perftOnly) {
+          if ((pos.board.occupied.hi & 0x60000000) === 0 &&
+              (pos.board.black.hi & pos.board.rook.hi & 0x80000000) !== 0)
+            ctx.castlingPlans.push(PLAN_BLACK_K);
+        } else {
+          const rp = board.pieceAt(pos.board, 63);
+          if (rp && rp.color === Color.Black && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_BLACK_K);
+        }
       }
       if ((mask & CASTLE_BQ) !== 0 && ksq === 60) {
-        const rp = board.pieceAt(pos.board, 56);
-        if (rp && rp.color === Color.Black && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_BLACK_Q);
+        if (perftOnly) {
+          if ((pos.board.occupied.hi & 0x0e000000) === 0 &&
+              (pos.board.black.hi & pos.board.rook.hi & 0x01000000) !== 0)
+            ctx.castlingPlans.push(PLAN_BLACK_Q);
+        } else {
+          const rp = board.pieceAt(pos.board, 56);
+          if (rp && rp.color === Color.Black && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_BLACK_Q);
+        }
       }
     }
-  } else {
+  } else if (!nonKingOnly) {
     const rights = us === Color.White ? pos.castling.white : pos.castling.black;
     if (rights.size > 0) {
       for (const rs of rights) {
         const rp = board.pieceAt(pos.board, rs);
         if (rp && rp.color === us && rp.role === Role.Rook) {
-          const slot = ctx.castlingPlans.length === 0 ? scratchCastlingPlanA : scratchCastlingPlanB;
-          const next = castlingPlanFor(us, ksq, rs);
-          slot.side = next.side; slot.kingFrom = next.kingFrom; slot.kingTo = next.kingTo;
-          slot.rookFrom = next.rookFrom; slot.rookTo = next.rookTo;
-          ctx.castlingPlans.push(slot);
+          // Each analysis context owns its plans; the returned object is fresh
+          // and can never overwrite a previously returned context.
+          ctx.castlingPlans.push(castlingPlanFor(us, ksq, rs));
         }
       }
     }
   }
   const checkers = pos.checkers ?? attacks.kingAttackers(pos.board, us);
-  const nCheckers = sq.popcount(checkers);
-  if (nCheckers === 1) {
-    const c = sq.first(checkers)!;
-    ctx.checkMask = sq.or(attacks.between(ksq, c), sq.singleton(c));
-  } else if (nCheckers >= 2) {
-    ctx.doubleCheck = true;
+  // Most positions are not in check. Avoid two popcounts for zero checkers;
+  // distinguish single from double checks with just bit identity tests.
+  if ((checkers.lo | checkers.hi) !== 0) {
+    if (sq.moreThanOne(checkers)) ctx.doubleCheck = true;
+    else {
+      const c = sq.first(checkers)!;
+      ctx.checkMask = sq.or(attacks.between(ksq, c), sq.singleton(c));
+    }
   }
   // Pinned pieces: enemy slider "snipers" x-raying our king with exactly one
   // blocker between; if the blocker is ours, it is pinned to the sniper's ray.
   const themOcc = them === Color.White ? pos.board.white : pos.board.black;
-  const themBQ = sq.or(sq.and(themOcc, pos.board.bishop), sq.and(themOcc, pos.board.queen));
-  const themRQ = sq.or(sq.and(themOcc, pos.board.rook), sq.and(themOcc, pos.board.queen));
-  const noOcc = sq.EMPTY;
-  const snipers = sq.or(
-    sq.and(themRQ, attacks.rookAttacks(ksq, noOcc)),
-    sq.and(themBQ, attacks.bishopAttacks(ksq, noOcc)),
-  );
+  const themBQ = {
+    lo: (themOcc.lo & (pos.board.bishop.lo | pos.board.queen.lo)) >>> 0,
+    hi: (themOcc.hi & (pos.board.bishop.hi | pos.board.queen.hi)) >>> 0,
+  };
+  const themRQ = {
+    lo: (themOcc.lo & (pos.board.rook.lo | pos.board.queen.lo)) >>> 0,
+    hi: (themOcc.hi & (pos.board.rook.hi | pos.board.queen.hi)) >>> 0,
+  };
+  // Enemy occupancy stops sniper rays beyond an intervening enemy piece.
+  // A farther slider behind another opponent piece cannot pin a friendly
+  // blocker, so filtering these rays avoids redundant BETWEEN work.
+  // Mirror gigachess-rs compute_pinned_split's enemy-occupancy geometry.
+  const rRay = ROOK_KING_RAYS[ksq];
+  const bRay = BISHOP_KING_RAYS[ksq];
+  const hasRookLine = (((themRQ.lo & rRay.lo) | (themRQ.hi & rRay.hi)) >>> 0) !== 0;
+  const hasBishopLine = (((themBQ.lo & bRay.lo) | (themBQ.hi & bRay.hi)) >>> 0) !== 0;
+  const rookSniperRays = hasRookLine ? attacks.rookAttacks(ksq, themOcc) : sq.EMPTY;
+  const bishopSniperRays = hasBishopLine ? attacks.bishopAttacks(ksq, themOcc) : sq.EMPTY;
+  const snipers = {
+    lo: ((themRQ.lo & rookSniperRays.lo) | (themBQ.lo & bishopSniperRays.lo)) >>> 0,
+    hi: ((themRQ.hi & rookSniperRays.hi) | (themBQ.hi & bishopSniperRays.hi)) >>> 0,
+  };
   let pinnedLo = 0, pinnedHi = 0;
   let sLo = snipers.lo >>> 0, sHi = snipers.hi >>> 0;
   while (sLo !== 0) {
@@ -820,13 +915,12 @@ export function analyzeCheckContext(pos: Position): CheckContext {
     const b = attacks.between(ksq, sniper);
     const bLo = (b.lo & pos.board.occupied.lo) >>> 0;
     const bHi = (b.hi & pos.board.occupied.hi) >>> 0;
-    const nBlockers = sq.popcount({ lo: bLo, hi: bHi });
-    if (nBlockers === 1) {
-      const blockerSq = bLo !== 0 ? (Math.clz32((bLo & -bLo) >>> 0) ^ 31) : (32 + (Math.clz32((bHi & -bHi) >>> 0) ^ 31));
-      if (!sq.has(themOcc, blockerSq)) {
-        if (blockerSq < 32) pinnedLo |= (1 << blockerSq) >>> 0;
-        else pinnedHi |= (1 << (blockerSq - 32)) >>> 0;
-      }
+    // One blocker iff exactly one halfboard is nonzero and power-of-two.
+    const blockerBits = (bLo | bHi) >>> 0;
+    if (blockerBits !== 0 && (bLo === 0 || bHi === 0)
+        && (blockerBits & (blockerBits - 1)) === 0) {
+      pinnedLo |= bLo & ~themOcc.lo;
+      pinnedHi |= bHi & ~themOcc.hi;
     }
   }
   while (sHi !== 0) {
@@ -836,30 +930,75 @@ export function analyzeCheckContext(pos: Position): CheckContext {
     const b = attacks.between(ksq, sniper);
     const bLo = (b.lo & pos.board.occupied.lo) >>> 0;
     const bHi = (b.hi & pos.board.occupied.hi) >>> 0;
-    const nBlockers = sq.popcount({ lo: bLo, hi: bHi });
-    if (nBlockers === 1) {
-      const blockerSq = bLo !== 0 ? (Math.clz32((bLo & -bLo) >>> 0) ^ 31) : (32 + (Math.clz32((bHi & -bHi) >>> 0) ^ 31));
-      if (!sq.has(themOcc, blockerSq)) {
-        if (blockerSq < 32) pinnedLo |= (1 << blockerSq) >>> 0;
-        else pinnedHi |= (1 << (blockerSq - 32)) >>> 0;
-      }
+    // One blocker iff exactly one halfboard is nonzero and power-of-two.
+    const blockerBits = (bLo | bHi) >>> 0;
+    if (blockerBits !== 0 && (bLo === 0 || bHi === 0)
+        && (blockerBits & (blockerBits - 1)) === 0) {
+      pinnedLo |= bLo & ~themOcc.lo;
+      pinnedHi |= bHi & ~themOcc.hi;
     }
   }
   ctx.pinned = { lo: pinnedLo >>> 0, hi: pinnedHi >>> 0 };
 
-  // King-safe mask: attackedness evaluated with our king removed from the
-  // occupancy, so sliders x-raying the king keep it attacked on the far side.
-  const occWithoutKing = sq.minus(pos.board.occupied, sq.singleton(ksq));
+  if (nonKingOnly) return ctx;
+
+  // Only reachable king destinations require attack checks. King surrounded
+  // by its own pieces is an especially common leaf: no attack map necessary.
   const usOcc = us === Color.White ? pos.board.white : pos.board.black;
-  let kingLo = 0, kingHi = 0;
-  sq.forEachSquare(attacks.kingAttacks(ksq), (d) => {
-    if (sq.has(usOcc, d)) return;
-    if (sq.isEmpty(attacks.attackersTo(pos.board, d, them, occWithoutKing))) {
-      if (d < 32) kingLo |= (1 << d) >>> 0;
-      else kingHi |= (1 << (d - 32)) >>> 0;
+  const adjacent = attacks.kingAttacks(ksq);
+  const candidate = {
+    lo: (adjacent.lo & ~usOcc.lo) >>> 0,
+    hi: (adjacent.hi & ~usOcc.hi) >>> 0,
+  };
+  if ((candidate.lo | candidate.hi) === 0) {
+    ctx.kingSafe = sq.EMPTY;
+  } else {
+    const occWithoutKing = sq.minus(pos.board.occupied, sq.singleton(ksq));
+    // A single-pass attack map is best for sparse material or king mobility.
+    // For cramped kings with many attackers, direct king-target probes win.
+    if (sq.popcount(themOcc) <= 8 || sq.popcount(candidate) >= 4) {
+      const danger = attacks.attackedSquares(pos.board, them, occWithoutKing);
+      ctx.kingSafe = {
+        lo: (candidate.lo & ~danger.lo) >>> 0,
+        hi: (candidate.hi & ~danger.hi) >>> 0,
+      };
+    } else {
+      // Reuse the enemy slider masks already obtained for pin analysis.
+      // Filter non-sliders before magic probes; never rebuild the enemy
+      // role partition for each target or allocate an attackers bitboard.
+      const b = pos.board;
+      const pLo = themOcc.lo & b.pawn.lo, pHi = themOcc.hi & b.pawn.hi;
+      const nLo = themOcc.lo & b.knight.lo, nHi = themOcc.hi & b.knight.hi;
+      const kLo = themOcc.lo & b.king.lo, kHi = themOcc.hi & b.king.hi;
+      let kingLo = 0, kingHi = 0;
+      for (let half = 0; half < 2; half++) {
+        let bits = half === 0 ? candidate.lo : candidate.hi;
+        while (bits !== 0) {
+          const lsb = bits & -bits;
+          const d = (half << 5) + 31 - Math.clz32(lsb);
+          bits = (bits & (bits - 1)) >>> 0;
+          const p = attacks.pawnAttacks(us, d);
+          const n = attacks.knightAttacks(d);
+          const k = attacks.kingAttacks(d);
+          if (((p.lo & pLo) | (p.hi & pHi) | (n.lo & nLo) |
+               (n.hi & nHi) | (k.lo & kLo) | (k.hi & kHi)) !== 0) continue;
+          const br = BISHOP_KING_RAYS[d];
+          if (((br.lo & themBQ.lo) | (br.hi & themBQ.hi)) !== 0) {
+            const at = attacks.bishopAttacks(d, occWithoutKing);
+            if (((at.lo & themBQ.lo) | (at.hi & themBQ.hi)) !== 0) continue;
+          }
+          const rr = ROOK_KING_RAYS[d];
+          if (((rr.lo & themRQ.lo) | (rr.hi & themRQ.hi)) !== 0) {
+            const at = attacks.rookAttacks(d, occWithoutKing);
+            if (((at.lo & themRQ.lo) | (at.hi & themRQ.hi)) !== 0) continue;
+          }
+          if (half === 0) kingLo |= lsb;
+          else kingHi |= lsb;
+        }
+      }
+      ctx.kingSafe = { lo: kingLo >>> 0, hi: kingHi >>> 0 };
     }
-  });
-  ctx.kingSafe = { lo: kingLo >>> 0, hi: kingHi >>> 0 };
+  }
   return ctx;
 }
 /**
@@ -867,7 +1006,44 @@ export function analyzeCheckContext(pos: Position): CheckContext {
  * pure set intersection for all cases except the trap cases listed above.
  */
 export function destsFast(pos: Position, from: number, piece: { color: Color; role: Role }, ctx: CheckContext): SquareSet {
-  const pseudo = genPseudoDests(pos, from, piece);
+  // Piece-specialized hot path: retain exact check/pin constraints while
+  // avoiding generic pseudo generation, own-occupancy subtraction and
+  // temporary SquareSet objects for every non-pawn non-king piece.
+  if (piece.role !== Role.Pawn && piece.role !== Role.King) {
+    if (piece.color !== ctx.us || ctx.doubleCheck) return sq.EMPTY;
+    const own = piece.color === Color.White ? pos.board.white : pos.board.black;
+    let attacksBB: SquareSet;
+    switch (piece.role) {
+      case Role.Knight: attacksBB = attacks.knightAttacks(from); break;
+      case Role.Bishop: attacksBB = attacks.bishopAttacks(from, pos.board.occupied); break;
+      case Role.Rook: attacksBB = attacks.rookAttacks(from, pos.board.occupied); break;
+      case Role.Queen: attacksBB = attacks.queenAttacks(from, pos.board.occupied); break;
+      default: return sq.EMPTY;
+    }
+    let lo = (attacksBB.lo & ~own.lo & ctx.checkMask.lo) >>> 0;
+    let hi = (attacksBB.hi & ~own.hi & ctx.checkMask.hi) >>> 0;
+    if (sq.has(ctx.pinned, from)) {
+      const idx = (ctx.ksq << 6) | from;
+      lo = (lo & attacks.LINE_RAY_LO[idx]) >>> 0;
+      hi = (hi & attacks.LINE_RAY_HI[idx]) >>> 0;
+    }
+    return { lo, hi };
+  }
+  // In most positions there are no usable castling rights. Normal king
+  // destinations are already masked by the per-position kingSafe bitboard;
+  // bypass the king's castling/check/traversal and per-destination callbacks.
+  if (piece.role === Role.King && ctx.castlingPlans.length === 0) {
+    const adjacent = attacks.kingAttacks(from);
+    const own = piece.color === Color.White ? pos.board.white : pos.board.black;
+    return {
+      lo: (adjacent.lo & ctx.kingSafe.lo & ~own.lo) >>> 0,
+      hi: (adjacent.hi & ctx.kingSafe.hi & ~own.hi) >>> 0,
+    };
+  }
+  const pseudo = piece.role === Role.Pawn
+    ? (piece.color !== pos.turn ? sq.EMPTY : (piece.color === Color.White
+      ? whitePawnPseudoDests(pos, from) : blackPawnPseudoDests(pos, from)))
+    : genPseudoDests(pos, from, piece);
   if (sq.isEmpty(pseudo)) return pseudo;
   if (piece.role === Role.King) {
     // Castling dests (detected by the shared detectCastling path — fixes the
@@ -916,10 +1092,51 @@ export function destsFast(pos: Position, from: number, piece: { color: Color; ro
   return result;
 }
 
+/** For one non-king origin, only that origin's pin can affect its legal
+ * destinations. Use exactly the same check mask as full-context analysis. */
+function singlePieceContext(pos: Position, from: number): CheckContext {
+  const us = pos.turn, them = opposite(us), b = pos.board;
+  const ksq = board.kingSquare(b, us);
+  if (ksq === undefined || ksq > 63 || from < 0 || from > 63 || !Number.isInteger(from))
+    return analyzeCheckContextInternal(pos, undefined, false, true);
+  const ctx: CheckContext = { us, ksq, doubleCheck: false, checkMask: sq.FULL,
+    kingSafe: sq.EMPTY, pinned: sq.EMPTY, castlingPlans: [] };
+  const checkers = pos.checkers ?? attacks.kingAttackers(b, us);
+  if ((checkers.lo | checkers.hi) !== 0) {
+    if (sq.moreThanOne(checkers)) { ctx.doubleCheck = true; return ctx; }
+    const c = sq.first(checkers)!;
+    ctx.checkMask = sq.or(attacks.between(ksq, c), sq.singleton(c));
+  }
+  // A nonaligned origin cannot be the sole blocker on a king-slider line.
+  const i = (ksq << 6) | from;
+  const lineLo = attacks.LINE_RAY_LO[i], lineHi = attacks.LINE_RAY_HI[i];
+  if ((lineLo | lineHi) === 0) return ctx;
+  const diagonal = (ksq & 7) !== (from & 7) && (ksq >> 3) !== (from >> 3);
+  const role = diagonal ? b.bishop : b.rook;
+  const enemy = them === Color.White ? b.white : b.black;
+  if ((enemy.lo & ~b.occupied.lo) || (enemy.hi & ~b.occupied.hi))
+    return analyzeCheckContextInternal(pos, undefined, false, true);
+  let lo = enemy.lo & (role.lo | b.queen.lo) & lineLo;
+  let hi = enemy.hi & (role.hi | b.queen.hi) & lineHi;
+  const fl = from < 32 ? 1 << from : 0, fh = from >= 32 ? 1 << (from - 32) : 0;
+  // Full analysis never marks an enemy square as pinned.
+  if ((enemy.lo & fl) || (enemy.hi & fh)) return ctx;
+  while (lo || hi) {
+    let slider: number;
+    if (lo) { slider = 31 - Math.clz32(lo & -lo); lo &= lo - 1; }
+    else { slider = 63 - Math.clz32(hi & -hi); hi &= hi - 1; }
+    const bt = attacks.between(ksq, slider);
+    if ((bt.lo & b.occupied.lo) === fl && (bt.hi & b.occupied.hi) === fh) {
+      ctx.pinned = { lo: fl >>> 0, hi: fh >>> 0 }; break;
+    }
+  }
+  return ctx;
+}
+
 export function dests(pos: Position, from: number): SquareSet {
   const piece = board.pieceAt(pos.board, from);
   if (!piece) return { lo: 0, hi: 0 };
-  return destsFast(pos, from, piece, analyzeCheckContext(pos));
+  return destsFast(pos, from, piece, piece.role === Role.King ? analyzeCheckContext(pos) : singlePieceContext(pos, from));
 }
 
 export function allDests(pos: Position): Map<number, SquareSet> {
@@ -967,7 +1184,8 @@ export function isLegal(pos: Position, move: Move): boolean {
   }
   const piece = board.pieceAt(pos.board, move.from);
   const to = move.to;
-  const d = dests(pos, move.from);
+  if (!piece) return false;
+  const d = destsFast(pos, move.from, piece, piece.role === Role.King ? analyzeCheckContext(pos) : singlePieceContext(pos, move.from));
   if (!sq.has(d, to)) return false;
   if (piece && piece.role === Role.Pawn) {
     const destRank = squareRank(to);
@@ -1048,8 +1266,8 @@ export class MoveCounter {
   }
 }
 
-export function countLegalMoves(pos: Position): number {
-  const ctx = analyzeCheckContext(pos);
+export function countLegalMoves(pos: Position, existingContext?: CheckContext): number {
+  const ctx = existingContext ?? analyzeCheckContext(pos);
   const us = pos.turn;
   const isWhite = us === Color.White;
   const own = isWhite ? pos.board.white : pos.board.black;
@@ -1063,62 +1281,139 @@ export function countLegalMoves(pos: Position): number {
   }
   if (ctx.doubleCheck) return count;
 
-  // 2. Pawns (bulk popcount without inner destination loops)
+  // 2. Pawn mobility in parallel by 32-bit halfboard shifts.
+  // When not in check, no pawn pinned, and no EP square, each pawn move is
+  // independently legal. Popcount the four pawn categories directly; this
+  // avoids 8–16 separate per-pawn destination and safety operations.
   const pawnPiece = isWhite ? P_W_P : P_B_P;
   let pLo = (own.lo & pos.board.pawn.lo) >>> 0;
   let pHi = (own.hi & pos.board.pawn.hi) >>> 0;
-  while (pLo !== 0) {
-    const lsb = (pLo & -pLo) >>> 0;
-    const from = Math.clz32(lsb) ^ 31;
-    pLo = (pLo ^ lsb) >>> 0;
-    const legal = destsFast(pos, from, pawnPiece, ctx);
-    const total = sq.popcount(legal);
-    const promos = isWhite
-      ? sq.popcount({ lo: 0, hi: (legal.hi & 0xff000000) >>> 0 })
-      : sq.popcount({ lo: (legal.lo & 0x000000ff) >>> 0, hi: 0 });
-    count += total + promos * 3;
-  }
-  while (pHi !== 0) {
-    const lsb = (pHi & -pHi) >>> 0;
-    const from = 32 + (Math.clz32(lsb) ^ 31);
-    pHi = (pHi ^ lsb) >>> 0;
-    const legal = destsFast(pos, from, pawnPiece, ctx);
-    const total = sq.popcount(legal);
-    const promos = isWhite
-      ? sq.popcount({ lo: 0, hi: (legal.hi & 0xff000000) >>> 0 })
-      : sq.popcount({ lo: (legal.lo & 0x000000ff) >>> 0, hi: 0 });
-    count += total + promos * 3;
-  }
-
-  // 3. Knights, Bishops, Rooks, Queens (bulk popcount on legal dests)
-  const countPieces = (roleBB: SquareSet, piece: { color: Color; role: Role }) => {
-    let rLo = (own.lo & roleBB.lo) >>> 0;
-    let rHi = (own.hi & roleBB.hi) >>> 0;
-    while (rLo !== 0) {
-      const lsb = (rLo & -rLo) >>> 0;
+  if (pos.epSquare === null && ctx.checkMask === sq.FULL
+      && (((ctx.pinned.lo & pLo) | (ctx.pinned.hi & pHi)) === 0)) {
+    const occ = pos.board.occupied;
+    const them = isWhite ? pos.board.black : pos.board.white;
+    const emptyLo = ~occ.lo, emptyHi = ~occ.hi;
+    let oneLo: number, oneHi: number, twoLo: number, twoHi: number;
+    let leftLo: number, leftHi: number, rightLo: number, rightHi: number;
+    const westLo = (pLo & 0xfefefefe) >>> 0;
+    const westHi = (pHi & 0xfefefefe) >>> 0;
+    const eastLo = (pLo & 0x7f7f7f7f) >>> 0;
+    const eastHi = (pHi & 0x7f7f7f7f) >>> 0;
+    if (isWhite) {
+      oneLo = ((pLo << 8) & emptyLo) >>> 0;
+      oneHi = (((pHi << 8) | (pLo >>> 24)) & emptyHi) >>> 0;
+      twoLo = (((oneLo & 0x00ff0000) << 8) & emptyLo) >>> 0;
+      twoHi = 0;
+      leftLo = ((westLo << 7) & them.lo) >>> 0;
+      leftHi = (((westHi << 7) | (westLo >>> 25)) & them.hi) >>> 0;
+      rightLo = ((eastLo << 9) & them.lo) >>> 0;
+      rightHi = (((eastHi << 9) | (eastLo >>> 23)) & them.hi) >>> 0;
+      // Only white pawns on rank 7 can promote in one move. Avoid three
+      // expensive popcounts in almost every ordinary leaf position.
+      if ((pHi & 0x00ff0000) !== 0) {
+        count += 3 * (
+          sq.popcountParts(oneHi & 0xff000000, 0) +
+          sq.popcountParts(leftHi & 0xff000000, 0) +
+          sq.popcountParts(rightHi & 0xff000000, 0)
+        );
+      }
+    } else {
+      oneLo = (((pLo >>> 8) | (pHi << 24)) & emptyLo) >>> 0;
+      oneHi = ((pHi >>> 8) & emptyHi) >>> 0;
+      twoLo = 0;
+      twoHi = (((oneHi & 0x0000ff00) >>> 8) & emptyHi) >>> 0;
+      leftLo = (((westLo >>> 9) | (westHi << 23)) & them.lo) >>> 0;
+      leftHi = ((westHi >>> 9) & them.hi) >>> 0;
+      rightLo = (((eastLo >>> 7) | (eastHi << 25)) & them.lo) >>> 0;
+      rightHi = ((eastHi >>> 7) & them.hi) >>> 0;
+      if ((pLo & 0x0000ff00) !== 0) {
+        count += 3 * (
+          sq.popcountParts(oneLo & 0x000000ff, 0) +
+          sq.popcountParts(leftLo & 0x000000ff, 0) +
+          sq.popcountParts(rightLo & 0x000000ff, 0)
+        );
+      }
+    }
+    count += sq.popcountParts(oneLo, oneHi);
+    count += sq.popcountParts(twoLo, twoHi);
+    count += sq.popcountParts(leftLo, leftHi);
+    count += sq.popcountParts(rightLo, rightHi);
+  } else {
+    // Fallback handles checks, pins and en-passant discovered-check traps.
+    while (pLo !== 0) {
+      const lsb = (pLo & -pLo) >>> 0;
       const from = Math.clz32(lsb) ^ 31;
-      rLo = (rLo ^ lsb) >>> 0;
-      count += sq.popcount(destsFast(pos, from, piece, ctx));
+      pLo = (pLo ^ lsb) >>> 0;
+      const legal = destsFast(pos, from, pawnPiece, ctx);
+      const total = sq.popcountParts(legal.lo, legal.hi);
+      const promos = isWhite
+        ? ((from >= 48 && from < 56) ? sq.popcountParts(legal.hi & 0xff000000, 0) : 0)
+        : ((from >= 8 && from < 16) ? sq.popcountParts(legal.lo & 0x000000ff, 0) : 0);
+      count += total + promos * 3;
     }
-    while (rHi !== 0) {
-      const lsb = (rHi & -rHi) >>> 0;
+    while (pHi !== 0) {
+      const lsb = (pHi & -pHi) >>> 0;
       const from = 32 + (Math.clz32(lsb) ^ 31);
-      rHi = (rHi ^ lsb) >>> 0;
-      count += sq.popcount(destsFast(pos, from, piece, ctx));
+      pHi = (pHi ^ lsb) >>> 0;
+      const legal = destsFast(pos, from, pawnPiece, ctx);
+      const total = sq.popcountParts(legal.lo, legal.hi);
+      const promos = isWhite
+        ? ((from >= 48 && from < 56) ? sq.popcountParts(legal.hi & 0xff000000, 0) : 0)
+        : ((from >= 8 && from < 16) ? sq.popcountParts(legal.lo & 0x000000ff, 0) : 0);
+      count += total + promos * 3;
     }
-  };
+  }
 
-  countPieces(pos.board.knight, isWhite ? P_W_N : P_B_N);
-  countPieces(pos.board.bishop, isWhite ? P_W_B : P_B_B);
-  countPieces(pos.board.rook, isWhite ? P_W_R : P_B_R);
-  countPieces(pos.board.queen, isWhite ? P_W_Q : P_B_Q);
+  // 3. All non-pawn, non-king pieces in one bit traversal. Unlike four
+  // per-role calls this performs one two-half scan and chooses role from
+  // disjoint piece role bitboards. Still applies the same pin and check masks.
+  const allRoles = pos.board;
+  let piecesLo = (own.lo & (allRoles.knight.lo | allRoles.bishop.lo
+    | allRoles.rook.lo | allRoles.queen.lo)) >>> 0;
+  let piecesHi = (own.hi & (allRoles.knight.hi | allRoles.bishop.hi
+    | allRoles.rook.hi | allRoles.queen.hi)) >>> 0;
+  const pinnedLo = ctx.pinned.lo;
+  const pinnedHi = ctx.pinned.hi;
+  const occ = allRoles.occupied;
+  const cLo = (ctx.checkMask.lo & ~own.lo) >>> 0;
+  const cHi = (ctx.checkMask.hi & ~own.hi) >>> 0;
+  for (let half = 0; half < 2; half++) {
+    let bits = half === 0 ? piecesLo : piecesHi;
+    const knightBits = half === 0 ? allRoles.knight.lo : allRoles.knight.hi;
+    const bishopBits = half === 0 ? allRoles.bishop.lo : allRoles.bishop.hi;
+    const rookBits = half === 0 ? allRoles.rook.lo : allRoles.rook.hi;
+    const pins = half === 0 ? pinnedLo : pinnedHi;
+    while (bits !== 0) {
+      const lsb = (bits & -bits) >>> 0;
+      const from = (half << 5) + (31 - Math.clz32(lsb));
+      bits = (bits ^ lsb) >>> 0;
+      let target: SquareSet;
+      if ((lsb & knightBits) !== 0) target = attacks.knightAttacks(from);
+      else if ((lsb & bishopBits) !== 0) target = attacks.bishopAttacks(from, occ);
+      else if ((lsb & rookBits) !== 0) target = attacks.rookAttacks(from, occ);
+      else target = attacks.queenAttacks(from, occ);
+      let lo = (target.lo & cLo) >>> 0;
+      let hi = (target.hi & cHi) >>> 0;
+      if ((lsb & pins) !== 0) {
+        const idx = (ctx.ksq << 6) | from;
+        lo &= attacks.LINE_RAY_LO[idx];
+        hi &= attacks.LINE_RAY_HI[idx];
+      }
+      count += sq.popcountParts(lo, hi);
+    }
+  }
 
   return count;
 }
 
-export function legalMovesInto(pos: Position, out: Uint16Array | Uint32Array): number {
+
+export function legalMovesInto(pos: Position, out: Uint16Array | Uint32Array, existingContext?: CheckContext): number {
+  if (existingContext === undefined) {
+    const direct = standardMovesInto(pos, out);
+    if (direct !== undefined) return direct;
+  }
   let count = 0;
-  const ctx = analyzeCheckContext(pos);
+  const ctx = existingContext ?? analyzeCheckContext(pos);
   const us = pos.turn;
   const isWhite = us === Color.White;
   const own = isWhite ? pos.board.white : pos.board.black;
@@ -1150,10 +1445,56 @@ export function legalMovesInto(pos: Position, out: Uint16Array | Uint32Array): n
   let pLo = (own.lo & pos.board.pawn.lo) >>> 0;
   let pHi = (own.hi & pos.board.pawn.hi) >>> 0;
   const promoRank = isWhite ? 7 : 0;
+  const fastPawns = pos.epSquare === null && ctx.checkMask === sq.FULL
+    && (((ctx.pinned.lo & pLo) | (ctx.pinned.hi & pHi)) === 0);
+  const occ = pos.board.occupied;
+  const enemy = isWhite ? pos.board.black : pos.board.white;
 
   const emitPawnDests = (from: number) => {
-    const legal = destsFast(pos, from, pawnPiece, ctx);
-    let dLo = legal.lo >>> 0, dHi = legal.hi >>> 0;
+    let dLo = 0, dHi = 0;
+    if (fastPawns) {
+      // Exactly the standard pawn pseudo-destination set: when there is no
+      // check, pawn pin or en-passant trap, this is already the legal set.
+      if (isWhite) {
+        const one = from + 8;
+        if (!sq.has(occ, one)) {
+          if (one < 32) dLo |= 1 << one;
+          else dHi |= 1 << (one - 32);
+          if (from >= 8 && from <= 15 && !sq.has(occ, from + 16)) dLo |= 1 << (from + 16);
+        }
+        if ((from & 7) !== 0 && sq.has(enemy, from + 7)) {
+          const to = from + 7;
+          if (to < 32) dLo |= 1 << to;
+          else dHi |= 1 << (to - 32);
+        }
+        if ((from & 7) !== 7 && sq.has(enemy, from + 9)) {
+          const to = from + 9;
+          if (to < 32) dLo |= 1 << to;
+          else dHi |= 1 << (to - 32);
+        }
+      } else {
+        const one = from - 8;
+        if (!sq.has(occ, one)) {
+          if (one < 32) dLo |= 1 << one;
+          else dHi |= 1 << (one - 32);
+          if (from >= 48 && from <= 55 && !sq.has(occ, from - 16)) dHi |= 1 << (from - 48);
+        }
+        if ((from & 7) !== 0 && sq.has(enemy, from - 9)) {
+          const to = from - 9;
+          if (to < 32) dLo |= 1 << to;
+          else dHi |= 1 << (to - 32);
+        }
+        if ((from & 7) !== 7 && sq.has(enemy, from - 7)) {
+          const to = from - 7;
+          if (to < 32) dLo |= 1 << to;
+          else dHi |= 1 << (to - 32);
+        }
+      }
+      dLo >>>= 0; dHi >>>= 0;
+    } else {
+      const legal = destsFast(pos, from, pawnPiece, ctx);
+      dLo = legal.lo >>> 0; dHi = legal.hi >>> 0;
+    }
     while (dLo !== 0) {
       const lsb = (dLo & -dLo) >>> 0;
       const to = Math.clz32(lsb) ^ 31;
@@ -1750,11 +2091,11 @@ export class Chess {
     return rows;
   }
 
-  /** "light" | "dark" square color ("a1" is light, like the consumer baseline). */
+  /** "light" | "dark" square color (a1 is dark, h1 is light). */
   squareColor(square: string): "light" | "dark" | undefined {
     const sqIdx = parseSquare(square);
     if (sqIdx === undefined) return undefined;
-    return (((sqIdx & 7) + (sqIdx >> 3)) & 1) === 0 ? "light" : "dark";
+    return (((sqIdx & 7) + (sqIdx >> 3)) & 1) === 0 ? "dark" : "light";
   }
 
   /** PGN: Seven Tag Roster defaults, FEN/SetUp for non-default starts, numbered movetext. */

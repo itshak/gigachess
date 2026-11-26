@@ -7,20 +7,14 @@
 import fs from "node:fs";
 import path from "node:path";
 
-// The baseline bundles chessops@0.14 whose nested package.json says
-// "type": "module" while shipping CJS — the workstation patches this in its
-// postinstall (scripts/patch-chessops-package.mjs). Apply the same idempotent
-// patch here before importing the baseline.
-for (const rel of ["@itshak/chesstree/node_modules/chessops", "chessops"]) {
-  const pkgPath = path.resolve("node_modules", rel, "package.json");
-  if (!fs.existsSync(pkgPath)) continue;
-  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-  const cjsEntry = (pkg.exports ? JSON.stringify(pkg.exports) : String(pkg.main ?? "")).includes("cjs");
-  if (cjsEntry && pkg.type === "module") {
-    delete pkg.type;
-    fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
-    console.log(`  patched ${path.relative(process.cwd(), pkgPath)} (CJS interop, same as workstation postinstall)`);
-  }
+// The DEV-ONLY chesstree baseline requires chessops@0.14's CJS files,
+// whose enclosing package declares type:module. Scope the workaround to
+// that dependency's CJS directory; never alter the independent chessops
+// 0.15 ESM oracle or the package's ESM directory.
+const baselineCjs = path.resolve("node_modules", "@itshak/chesstree", "node_modules", "chessops", "dist", "cjs");
+const baselineScope = path.join(baselineCjs, "package.json");
+if (fs.existsSync(baselineCjs) && !fs.existsSync(baselineScope)) {
+  fs.writeFileSync(baselineScope, '{"type":"commonjs"}\n', { flag: "wx" });
 }
 
 const chesstreeMod = await import("@itshak/chesstree");

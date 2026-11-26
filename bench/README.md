@@ -1,5 +1,10 @@
 # bench — GigaChess Benchmark Harness
 
+## Current release evidence: 0.6.0
+
+See [comparisons and methodology](../docs/BENCHMARKS.md), [raw summary](results/js-phase22-final/summary.json), and [selection report](results/js-phase22-final-2026-11-26.md). The following historical harness notes describe earlier phases, not the current release measurements. Run `npm run build && node bench/cold-start.mjs --measure` for 15-process startup samples. Regenerate graphics with `python3 bench/render-release-graphics.py` (Pillow and DejaVu Sans).
+
+
 **Change:** `purechess-library` (Phase 1 baseline)  
 **Baseline lib:** `chessops@0.15.1` (GPL-3.0-or-later) — the candidate `A: hq` is a thin wrapper over `chessops` `bishopAttacks`/`rookAttacks`.  
 **Target lib:** `gigachess` (MIT, `gigachess/core`, `gigachess/pgn`, `gigachess/chess960`). Previously distributed as `gigachess` — one-release alias kept, see `openspec/adr/015-gigachess-rename.md`.
@@ -331,7 +336,7 @@ defaults (`0 1` counters).
   `bench/magic-tables/*.json` (MIT RecklessMagics pipeline unchanged):
   little-endian uint32 words (6 meta words per square, then the attack table
   as lo/hi pairs), gzip level 9, base64-embedded.
-- The table modules (`src/rookMagicBlob.ts`, `src/bishopMagicBlob.ts`) are
+- The table modules (`src/rookSplit32Blob.ts`, `src/bishopSplit32Blob.ts`) are
   **never in the static import graph** — they load via dynamic `import()`
   behind `ensureMagicTablesLoaded()` (idempotent, concurrency-safe, returns
   the in-flight promise). Until loaded — or if `DecompressionStream` is
@@ -345,3 +350,7 @@ defaults (`0 1` counters).
   aliasing hazard of the old object table (ADR-012 §4) is gone.
 - Bundle: the core static graph carries **zero** table bytes; see the bundle
   gate below for before/after sizes.
+
+### Split-32 attack tables
+
+Run `npm run build && node bench/make-split32-tables.mjs` to regenerate the checked-in split-half perfect-hash tables from board geometry and the independent ray-walk oracle. The legacy Black Magic generator is retained for historical A/B reproduction, but its old blobs are excluded from the npm package. Run `node tests/split32-exhaustive.mjs --cold` and `node tests/split32-exhaustive.mjs` to verify every relevant occupancy in both paths.

@@ -1,0 +1,136 @@
+--- a/src/board.ts
++++ b/src/board.ts
+@@ -46,6 +46,10 @@
+ import { legalMovesInto, forEachLegalMove, countLegalMoves, analyzeCheckContext, isLegal, INITIAL_FEN } from "./chess.js";
+ import type { CheckContext } from "./chess.js";
+ 
++const PERFT_ADJACENT_FILES = Int32Array.from({length: 64}, (_, square) =>
++  ((square & 7) !== 0 ? 1 << ((square - 1) & 31) : 0) |
++  ((square & 7) !== 7 ? 1 << ((square + 1) & 31) : 0));
++
+ export type BoardLike = {
+   readonly white: SquareSet;
+   readonly black: SquareSet;
+@@ -1046,8 +1050,18 @@
+       }
+     }
+ 
+-    this.epSquare = movingRole === Role.Pawn && Math.abs((to >> 3) - (from >> 3)) === 2
+-      ? ((from + to) >>> 1) : null;
++    this.epSquare = null;
++    if (movingRole === Role.Pawn && Math.abs(to - from) === 16) {
++      // The target of a double push is reachable only by an opposing
++      // pawn next to the mover on the same rank. No cross-halfboard shifts.
++      const enemy = them === Color.White ? this.white : this.black;
++      const adjacent = PERFT_ADJACENT_FILES[to];
++      if ((us === Color.White
++          ? this.pawn.lo & enemy.lo & adjacent
++          : this.pawn.hi & enemy.hi & adjacent) !== 0) {
++        this.epSquare = (from + to) >>> 1;
++      }
++    }
+     this.turn = them;
+     this.checkers = kingAttackers(this, them);
+     return {
+@@ -1101,7 +1115,7 @@
+     }
+ 
+     const visit = (ply: number, remaining: number): number => {
+-      const ctx = analyzeCheckContext(this, contexts[ply]);
++      const ctx = analyzeCheckContext(this, contexts[ply], true);
+       contexts[ply] = ctx;
+       if (remaining === 1) return countLegalMoves(this, ctx);
+ 
+--- a/src/chess.ts
++++ b/src/chess.ts
+@@ -788,7 +788,7 @@
+ const BISHOP_KING_RAYS: SquareSet[] = Array.from({ length: 64 }, (_, i) =>
+   attacks.bishopAttacksForTest(i, sq.EMPTY));
+ 
+-export function analyzeCheckContext(pos: Position, reuse?: CheckContext): CheckContext {
++export function analyzeCheckContext(pos: Position, reuse?: CheckContext, perftOnly = false): CheckContext {
+   const us = pos.turn;
+   const them = opposite(us);
+   const ksq = board.kingSquare(pos.board, us);
+@@ -812,21 +812,45 @@
+     const mask = pos.castlingMask ?? getCastlingMask(pos);
+     if (us === Color.White) {
+       if ((mask & CASTLE_WK) !== 0 && ksq === 4) {
+-        const rp = board.pieceAt(pos.board, 7);
+-        if (rp && rp.color === Color.White && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_WHITE_K);
++        if (perftOnly) {
++          if ((pos.board.occupied.lo & 0x60) === 0 &&
++              (pos.board.white.lo & pos.board.rook.lo & 0x80) !== 0)
++            ctx.castlingPlans.push(PLAN_WHITE_K);
++        } else {
++          const rp = board.pieceAt(pos.board, 7);
++          if (rp && rp.color === Color.White && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_WHITE_K);
++        }
+       }
+       if ((mask & CASTLE_WQ) !== 0 && ksq === 4) {
+-        const rp = board.pieceAt(pos.board, 0);
+-        if (rp && rp.color === Color.White && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_WHITE_Q);
++        if (perftOnly) {
++          if ((pos.board.occupied.lo & 0x0e) === 0 &&
++              (pos.board.white.lo & pos.board.rook.lo & 0x01) !== 0)
++            ctx.castlingPlans.push(PLAN_WHITE_Q);
++        } else {
++          const rp = board.pieceAt(pos.board, 0);
++          if (rp && rp.color === Color.White && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_WHITE_Q);
++        }
+       }
+     } else {
+       if ((mask & CASTLE_BK) !== 0 && ksq === 60) {
+-        const rp = board.pieceAt(pos.board, 63);
+-        if (rp && rp.color === Color.Black && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_BLACK_K);
++        if (perftOnly) {
++          if ((pos.board.occupied.hi & 0x60000000) === 0 &&
++              (pos.board.black.hi & pos.board.rook.hi & 0x80000000) !== 0)
++            ctx.castlingPlans.push(PLAN_BLACK_K);
++        } else {
++          const rp = board.pieceAt(pos.board, 63);
++          if (rp && rp.color === Color.Black && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_BLACK_K);
++        }
+       }
+       if ((mask & CASTLE_BQ) !== 0 && ksq === 60) {
+-        const rp = board.pieceAt(pos.board, 56);
+-        if (rp && rp.color === Color.Black && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_BLACK_Q);
++        if (perftOnly) {
++          if ((pos.board.occupied.hi & 0x0e000000) === 0 &&
++              (pos.board.black.hi & pos.board.rook.hi & 0x01000000) !== 0)
++            ctx.castlingPlans.push(PLAN_BLACK_Q);
++        } else {
++          const rp = board.pieceAt(pos.board, 56);
++          if (rp && rp.color === Color.Black && rp.role === Role.Rook) ctx.castlingPlans.push(PLAN_BLACK_Q);
++        }
+       }
+     }
+   } else {
+@@ -890,11 +914,8 @@
+     const blockerBits = (bLo | bHi) >>> 0;
+     if (blockerBits !== 0 && (bLo === 0 || bHi === 0)
+         && (blockerBits & (blockerBits - 1)) === 0) {
+-      const blockerSq = bLo !== 0 ? (Math.clz32((bLo & -bLo) >>> 0) ^ 31) : (32 + (Math.clz32((bHi & -bHi) >>> 0) ^ 31));
+-      if (!sq.has(themOcc, blockerSq)) {
+-        if (blockerSq < 32) pinnedLo |= (1 << blockerSq) >>> 0;
+-        else pinnedHi |= (1 << (blockerSq - 32)) >>> 0;
+-      }
++      pinnedLo |= bLo & ~themOcc.lo;
++      pinnedHi |= bHi & ~themOcc.hi;
+     }
+   }
+   while (sHi !== 0) {
+@@ -908,11 +929,8 @@
+     const blockerBits = (bLo | bHi) >>> 0;
+     if (blockerBits !== 0 && (bLo === 0 || bHi === 0)
+         && (blockerBits & (blockerBits - 1)) === 0) {
+-      const blockerSq = bLo !== 0 ? (Math.clz32((bLo & -bLo) >>> 0) ^ 31) : (32 + (Math.clz32((bHi & -bHi) >>> 0) ^ 31));
+-      if (!sq.has(themOcc, blockerSq)) {
+-        if (blockerSq < 32) pinnedLo |= (1 << blockerSq) >>> 0;
+-        else pinnedHi |= (1 << (blockerSq - 32)) >>> 0;
+-      }
++      pinnedLo |= bLo & ~themOcc.lo;
++      pinnedHi |= bHi & ~themOcc.hi;
+     }
+   }
+   ctx.pinned = { lo: pinnedLo >>> 0, hi: pinnedHi >>> 0 };

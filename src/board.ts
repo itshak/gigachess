@@ -1,3 +1,4 @@
+import { compactPerft } from "./perftCompact.js";
 // src/board.ts — stateful high-performance Board class and bitboard operations
 // Mirrors gigachess::Board in Rust (ADR-001, ADR-003).
 
@@ -30,6 +31,7 @@ import {
   CASTLE_BQ,
   CASTLE_CLEAR_STD,
   CASTLING_RIGHTS_TABLE,
+  fixedRookRights,
   getCastlingMask,
   detectCastling,
 } from "./castling.js";
@@ -42,7 +44,12 @@ import {
 } from "./packedMove.js";
 import { parseFen, makeFen } from "./fen.js";
 import { parseSan, parseSanCandidates, makeSan, parseUci, makeUci } from "./san.js";
-import { legalMovesInto, forEachLegalMove, countLegalMoves, isLegal, INITIAL_FEN } from "./chess.js";
+import { legalMovesInto, forEachLegalMove, countLegalMoves, analyzeCheckContext, isLegal, INITIAL_FEN } from "./chess.js";
+import type { CheckContext } from "./chess.js";
+
+const PERFT_ADJACENT_FILES = Int32Array.from({length: 64}, (_, square) =>
+  ((square & 7) !== 0 ? 1 << ((square - 1) & 31) : 0) |
+  ((square & 7) !== 7 ? 1 << ((square + 1) & 31) : 0));
 
 export type BoardLike = {
   readonly white: SquareSet;
@@ -96,6 +103,27 @@ export type NullUndo = {
   readonly zobristHi: number;
 };
 
+type PerftUndo = {
+  word: number;
+  movingRole: Role;
+  capturedRole: Role | -1;
+  capturedSq: number;
+  promoRole: Role | null;
+  castlingPlan: CastlingPlan | null;
+  castling: CastlingRights;
+  castlingMask?: number;
+  epSquare: number | null;
+  checkers: SquareSet;
+};
+
+// Internal synchronous move generation has no user callbacks. Scratch does
+// not escape: each public result is an independently owned typed array.
+const ownedMoveScratch = new Uint16Array(256);
+let ownedMoveScratchBusy = false;
+// Cache only the canonical initial position, not arbitrary user FENs.
+// Each instance receives independent mutable bitboards and king coordinates.
+let initialTemplate: Board | undefined;
+let buildingInitialTemplate = false;
 export class Board implements BoardLike {
   white: MutableSquareSet;
   black: MutableSquareSet;
@@ -122,6 +150,56 @@ export class Board implements BoardLike {
   _zobristHi: number;
 
   constructor(input?: string | Position | Board | BoardLike) {
+    // Prepare the single canonical template on first ordinary Board use,
+    // even for an arbitrary input FEN. In addition to cheap start-position
+    // creation, keeping this reusable instance stabilizes V8's weak
+    // optimized-code dependencies across full collections.
+    // Avoid eager module evaluation (the board/FEN modules are cyclic).
+    if (new.target === Board && initialTemplate === undefined && !buildingInitialTemplate) {
+      buildingInitialTemplate = true;
+      try { initialTemplate = new Board(INITIAL_FEN); }
+      finally { buildingInitialTemplate = false; }
+    }
+    // String construction owns the newly parsed board. Unlike loadFen on an
+    // existing Board, there are no prior public bitboard references to retain.
+    // Subclass initialization keeps the original virtual loadFen behavior.
+    if (new.target === Board && (input === undefined || typeof input === "string")) {
+      const fen = input ?? INITIAL_FEN;
+      const template = fen === INITIAL_FEN ? initialTemplate : undefined;
+      let pos: Position, b: BoardLike;
+      if (template) {
+        pos = template;
+        b = cloneAsWritable(template);
+      } else {
+        const parsed = parseFen(fen);
+        if (!parsed.ok) throw new Error(`Invalid FEN: ${fen}`);
+        pos = parsed.value;
+        b = pos.board;
+      }
+      this.white = b.white as MutableSquareSet;
+      this.black = b.black as MutableSquareSet;
+      this.pawn = b.pawn as MutableSquareSet;
+      this.knight = b.knight as MutableSquareSet;
+      this.bishop = b.bishop as MutableSquareSet;
+      this.rook = b.rook as MutableSquareSet;
+      this.queen = b.queen as MutableSquareSet;
+      this.king = b.king as MutableSquareSet;
+      this.occupied = b.occupied as MutableSquareSet;
+      this.promoted = b.promoted as MutableSquareSet;
+      this.kingSq = b.kingSq as [number,number];
+      this.turn = pos.turn;
+      this.castling = pos.castling;
+      this.castlingMask = pos.castlingMask;
+      this.epSquare = pos.epSquare;
+      this.halfmoves = pos.halfmoves ?? pos.halfmove ?? 0;
+      this.fullmoves = pos.fullmoves ?? pos.fullmove ?? 1;
+      this.checkers = template ? { lo: template.checkers.lo, hi: template.checkers.hi } : pos.checkers!;
+      this.isChess960 = !!pos.isChess960;
+      this._zobristLo = pos.zobristLo ?? 0;
+      this._zobristHi = pos.zobristHi ?? 0;
+      if (this._zobristLo === 0 && this._zobristHi === 0 && zobristTablesLoaded()) this.refreshZobrist();
+      return;
+    }
     this.white = { lo: 0, hi: 0 };
     this.black = { lo: 0, hi: 0 };
     this.pawn = { lo: 0, hi: 0 };
@@ -170,15 +248,47 @@ export class Board implements BoardLike {
     return b;
   }
 
-  static fromFen(fen: string): Board {
-    return new Board(fen);
+  static fromFen(fen: string, opts?: { chess960?: boolean; strict?: boolean }): Board {
+    if (!opts) return new Board(fen);
+    const parsed = parseFen(fen, opts);
+    if (!parsed.ok) throw new Error(`Invalid FEN: ${fen}`);
+    return new Board(parsed.value);
   }
 
   static fromMoves2(buffer: Uint16Array | Uint8Array, startFen: string = INITIAL_FEN, isChess960: boolean = false): Board {
-    const b = new Board(startFen);
-    b.isChess960 = isChess960;
-    const moves = buffer instanceof Uint16Array ? buffer : new Uint16Array(buffer.buffer, buffer.byteOffset, buffer.byteLength >> 1);
+    const b = Board.fromFen(startFen, isChess960 ? { chess960: true } : undefined);
+    // moves2 is little-endian; a Uint8Array slice may have an odd byte offset.
+    // Retain zero-copy for aligned words and decode only unaligned input.
+    const moves = Board.moveWords(buffer);
     for (let i = 0; i < moves.length; i++) {
+      b.makeMove(moves[i]);
+    }
+    return b;
+  }
+
+  /** Decode a moves2 byte stream, including unaligned Uint8Array views. */
+  private static moveWords(buffer: Uint16Array | Uint8Array): Uint16Array {
+    if (buffer instanceof Uint16Array) return buffer;
+    const length = buffer.byteLength >>> 1;
+    if ((buffer.byteOffset & 1) === 0) {
+      return new Uint16Array(buffer.buffer, buffer.byteOffset, length);
+    }
+    const words = new Uint16Array(length);
+    for (let i = 0; i < length; i++) words[i] = buffer[i * 2] | (buffer[i * 2 + 1] << 8);
+    return words;
+  }
+
+  /** Checked moves2 replay for untrusted files and network input. */
+  static fromMoves2Checked(buffer: Uint16Array | Uint8Array, startFen: string = INITIAL_FEN, isChess960 = false): Board {
+    if (buffer instanceof Uint8Array && !(buffer instanceof Uint16Array) && (buffer.byteLength & 1)) {
+      throw new Error("moves2: truncated 16-bit word");
+    }
+    const b = Board.fromFen(startFen, isChess960 ? { chess960: true } : undefined);
+    const moves = Board.moveWords(buffer);
+    for (let i = 0; i < moves.length; i++) {
+      if (!isLegal(b.pos, unpackToMove(moves[i]))) {
+        throw new Error(`moves2: illegal move at ply ${i + 1}`);
+      }
       b.makeMove(moves[i]);
     }
     return b;
@@ -323,14 +433,16 @@ export class Board implements BoardLike {
 
     const pos = src as Partial<Position>;
     this.turn = pos.turn ?? Color.White;
-    this.castling = pos.castling ?? {
-      white: new Set(),
-      black: new Set(),
-      whiteKing: false,
-      whiteQueen: false,
-      blackKing: false,
-      blackQueen: false,
-    };
+    const rights = pos.castling;
+    this.castling = rights
+      ? (!pos.isChess960 && pos.castlingMask !== undefined
+        ? CASTLING_RIGHTS_TABLE[pos.castlingMask]
+        : Object.freeze({
+          ...rights,
+          white: fixedRookRights(rights.white),
+          black: fixedRookRights(rights.black),
+        }))
+      : CASTLING_RIGHTS_TABLE[0];
     this.castlingMask = pos.castlingMask;
     this.epSquare = pos.epSquare ?? null;
     this.halfmoves = pos.halfmoves ?? pos.halfmove ?? 0;
@@ -471,6 +583,9 @@ export class Board implements BoardLike {
    * `Board::make_null_move`.
    */
   makeNullMove(): NullUndo {
+    if (zobristTablesLoaded() && this._zobristLo === 0 && this._zobristHi === 0) {
+      this.refreshZobrist();
+    }
     const us = this.turn;
     const them = opposite(us);
     // Fresh in-check scan — the cache may describe an earlier position.
@@ -531,7 +646,21 @@ export class Board implements BoardLike {
     this._zobristHi = undo.zobristHi;
   }
 
+  /** Public move execution always maintains the Polyglot hash. */
   makeMove(moveWord: number | Move): Undo | NullUndo {
+    return this._makeMoveCore(moveWord, true);
+  }
+
+  /** Internal perft-only fast path; the cached hash is invalid until undo.
+   * The method is PRIVATE so ordinary callers cannot corrupt their board.
+   * Mirrors gigachess-rs make_move_perft without changing public semantics.
+   */
+  private _makeMoveCore(moveWord: number | Move, updateHash: boolean): Undo | NullUndo {
+    // Tables can become ready after this Board was constructed; refresh the
+    // pre-move state BEFORE edits, never hash the new state as the old key.
+    if (updateHash && zobristTablesLoaded() && this._zobristLo === 0 && this._zobristHi === 0) {
+      this.refreshZobrist();
+    }
     const word = typeof moveWord === "number" ? moveWord : packOf(moveWord);
     // The null sentinel is a first-class pass, not a from/to/promo word.
     if (isNull(word)) return this.makeNullMove();
@@ -557,7 +686,7 @@ export class Board implements BoardLike {
     const prevHalfmoves = this.halfmoves;
     const prevFullmoves = this.fullmoves;
     const prevKingSq: [number, number] = [this.kingSq[0], this.kingSq[1]];
-    const prevEpHashable = prevEpSquare !== null && zobristTablesLoaded() && epIsHashable(this, prevEpSquare, us);
+    const prevEpHashable = updateHash && prevEpSquare !== null && zobristTablesLoaded() && epIsHashable(this, prevEpSquare, us);
 
     let plan: CastlingPlan | null = null;
     if (movingRole === Role.King) {
@@ -645,7 +774,13 @@ export class Board implements BoardLike {
         blackQueen: newBlack.has(56),
       };
     }
-    this.castling = newCastling;
+    this.castling = this.isChess960
+      ? Object.freeze({
+          ...newCastling,
+          white: newCastling.white === prevCastling.white ? prevCastling.white : fixedRookRights(newCastling.white),
+          black: newCastling.black === prevCastling.black ? prevCastling.black : fixedRookRights(newCastling.black),
+        })
+      : newCastling;
     this.castlingMask = newMask;
 
     let newEp: number | null = null;
@@ -662,10 +797,7 @@ export class Board implements BoardLike {
     this.turn = them;
     this.checkers = kingAttackers(this, them);
 
-    if (zobristTablesLoaded() && keyLo && keyHi && castleKeyLo && castleKeyHi) {
-      if (this._zobristLo === 0 && this._zobristHi === 0) {
-        this.refreshZobrist();
-      }
+    if (updateHash && zobristTablesLoaded() && keyLo && keyHi && castleKeyLo && castleKeyHi) {
       let zLo = this._zobristLo;
       let zHi = this._zobristHi;
 
@@ -809,9 +941,23 @@ export class Board implements BoardLike {
   }
 
   legalMoves(outBuffer?: Uint16Array): Uint16Array {
-    const buf = outBuffer ?? new Uint16Array(256);
-    const count = legalMovesInto(this, buf);
-    return buf.subarray(0, count);
+    if (outBuffer) {
+      const count = legalMovesInto(this, outBuffer);
+      return outBuffer.subarray(0, count);
+    }
+    // Reentrant calls (e.g. through custom property accessors) must not
+    // overwrite an in-flight list. Caller-owned buffer contract unchanged.
+    if (ownedMoveScratchBusy) {
+      const local = new Uint16Array(256);
+      return local.subarray(0, legalMovesInto(this, local));
+    }
+    ownedMoveScratchBusy = true;
+    try {
+      const count = legalMovesInto(this, ownedMoveScratch);
+      return ownedMoveScratch.slice(0, count);
+    } finally {
+      ownedMoveScratchBusy = false;
+    }
   }
 
   forEachLegalMove(fn: (moveWord: number) => void): void {
@@ -886,18 +1032,179 @@ export class Board implements BoardLike {
       : { ok: false, code: res.error.code };
   }
 
+  /**
+   * Perft with caller-owned per-ply scratch buffers and analysis contexts.
+   * Correctness: the parent ply's moves and castling plans remain untouched
+   * when the recursive child recalculates check/pin/castling information.
+   * This preserves the ordinary fully-maintained make/unmake contract.
+   */
+  /** Specialized perft-only make: no clock/hash updates or Undo snapshot array.
+   * Public makeMove/unmakeMove remain entirely unchanged.
+   * All rule-relevant state (castling, en-passant, checkers, turn, piece boards)
+   * is updated exactly, and restored by _unmakePerft.
+   */
+  private _makePerft(word: number, pieceCodes: Uint8Array): PerftUndo {
+    const from = word & 63, to = (word >>> 6) & 63;
+    const promoRole = promoCodeToRole((word >>> 12) & 15) ?? null;
+    const movingRole = (pieceCodes[from] - 1) as Role;
+    const us = this.turn;
+    const them = opposite(us);
+    const prevCastling = this.castling;
+    const prevMask = this.castlingMask;
+    const prevEp = this.epSquare;
+    const prevCheckers = this.checkers;
+
+    const plan = movingRole === Role.King ? detectCastling(this, from, to) : null;
+    const isEp = movingRole === Role.Pawn && prevEp !== null &&
+      to === prevEp && (from & 7) !== (to & 7);
+    let capturedRole: Role | -1 = -1, capturedSq = -1;
+    if (isEp) {
+      capturedRole = Role.Pawn;
+      capturedSq = us === Color.White ? to - 8 : to + 8;
+    } else if (plan === null) {
+      const cap = pieceCodes[to] === 0 ? undefined : (pieceCodes[to] - 1) as Role;
+      if (cap !== undefined) { capturedRole = cap; capturedSq = to; }
+    }
+
+    // Perft-private exact square cache: eliminates roleAt bitboard probing.
+    // Update in the same order as chess960 overlapping source/dest edits.
+    pieceCodes[from] = 0;
+    if (capturedSq >= 0) pieceCodes[capturedSq] = 0;
+    this._clearSquare(from);
+    if (capturedSq >= 0) this._clearSquare(capturedSq);
+    if (plan !== null) {
+      pieceCodes[plan.rookFrom] = 0;
+      pieceCodes[plan.rookTo] = Role.Rook + 1;
+      pieceCodes[plan.kingTo] = Role.King + 1;
+      this._clearSquare(plan.rookFrom);
+      this._putPiece(plan.rookTo, us, Role.Rook);
+      this._putPiece(plan.kingTo, us, Role.King);
+      this.kingSq[us] = plan.kingTo;
+    } else {
+      pieceCodes[to] = (promoRole ?? movingRole) + 1;
+      this._putPiece(to, us, promoRole ?? movingRole);
+      if (movingRole === Role.King) this.kingSq[us] = to;
+    }
+
+    if (!this.isChess960) {
+      const mask = prevMask ?? getCastlingMask(this);
+      const updated = (mask & CASTLE_CLEAR_STD[from] & CASTLE_CLEAR_STD[to]) >>> 0;
+      this.castlingMask = updated;
+      this.castling = CASTLING_RIGHTS_TABLE[updated];
+    } else {
+      let nextWhite: ReadonlySet<number> = prevCastling.white;
+      let nextBlack: ReadonlySet<number> = prevCastling.black;
+      if (movingRole === Role.King) {
+        if (us === Color.White) {
+          if (nextWhite.size) nextWhite = new Set<number>();
+        } else if (nextBlack.size) nextBlack = new Set<number>();
+      }
+      if (movingRole === Role.Rook) {
+        if (us === Color.White && nextWhite.has(from)) {
+          const next = new Set(nextWhite); next.delete(from); nextWhite = next;
+        } else if (us === Color.Black && nextBlack.has(from)) {
+          const next = new Set(nextBlack); next.delete(from); nextBlack = next;
+        }
+      }
+      if (capturedRole === Role.Rook && capturedSq >= 0) {
+        if (them === Color.White && nextWhite.has(capturedSq)) {
+          const next = new Set(nextWhite); next.delete(capturedSq); nextWhite = next;
+        } else if (them === Color.Black && nextBlack.has(capturedSq)) {
+          const next = new Set(nextBlack); next.delete(capturedSq); nextBlack = next;
+        }
+      }
+      if (nextWhite !== prevCastling.white || nextBlack !== prevCastling.black) {
+        this.castling = Object.freeze({
+          white: fixedRookRights(nextWhite),
+          black: fixedRookRights(nextBlack),
+          whiteKing: nextWhite.has(7), whiteQueen: nextWhite.has(0),
+          blackKing: nextBlack.has(63), blackQueen: nextBlack.has(56),
+        });
+      }
+    }
+
+    this.epSquare = null;
+    if (movingRole === Role.Pawn && Math.abs(to - from) === 16) {
+      // The target of a double push is reachable only by an opposing
+      // pawn next to the mover on the same rank. No cross-halfboard shifts.
+      const enemy = them === Color.White ? this.white : this.black;
+      const adjacent = PERFT_ADJACENT_FILES[to];
+      if ((us === Color.White
+          ? this.pawn.lo & enemy.lo & adjacent
+          : this.pawn.hi & enemy.hi & adjacent) !== 0) {
+        this.epSquare = (from + to) >>> 1;
+      }
+    }
+    this.turn = them;
+    this.checkers = kingAttackers(this, them);
+    return {
+      word, movingRole, capturedRole, capturedSq, promoRole,
+      castlingPlan: plan, castling: prevCastling, castlingMask: prevMask,
+      epSquare: prevEp, checkers: prevCheckers,
+    };
+  }
+
+  private _unmakePerft(undo: PerftUndo, pieceCodes: Uint8Array): void {
+    const from = undo.word & 63, to = (undo.word >>> 6) & 63;
+    const us = opposite(this.turn);
+    this.turn = us;
+    this.castling = undo.castling;
+    this.castlingMask = undo.castlingMask;
+    this.epSquare = undo.epSquare;
+    this.checkers = undo.checkers;
+    if (undo.castlingPlan !== null) {
+      const plan = undo.castlingPlan;
+      pieceCodes[plan.kingTo] = 0;
+      pieceCodes[plan.rookTo] = 0;
+      pieceCodes[plan.kingFrom] = Role.King + 1;
+      pieceCodes[plan.rookFrom] = Role.Rook + 1;
+      this._clearSquare(plan.kingTo);
+      this._clearSquare(plan.rookTo);
+      this._putPiece(plan.kingFrom, us, Role.King);
+      this._putPiece(plan.rookFrom, us, Role.Rook);
+      this.kingSq[us] = plan.kingFrom;
+    } else {
+      pieceCodes[to] = 0;
+      pieceCodes[from] = undo.movingRole + 1;
+      this._clearSquare(to);
+      this._putPiece(from, us, undo.movingRole);
+      if (undo.capturedSq >= 0) {
+        pieceCodes[undo.capturedSq] = undo.capturedRole + 1;
+        this._putPiece(undo.capturedSq, opposite(us), undo.capturedRole as Role);
+      }
+      if (undo.movingRole === Role.King) this.kingSq[us] = from;
+    }
+  }
+
   perft(depth: number): number {
     if (depth <= 0) return 1;
-    if (depth === 1) return countLegalMoves(this);
-    const buf = new Uint16Array(256);
-    const count = legalMovesInto(this, buf);
-    let nodes = 0;
-    for (let i = 0; i < count; i++) {
-      const undo = this.makeMove(buf[i]);
-      nodes += this.perft(depth - 1);
-      this.unmakeMove(undo);
+    const compact = compactPerft(this, depth);
+    if (compact !== undefined) return compact;
+    const lists = Array.from({ length: depth }, () => new Uint16Array(256));
+    const contexts: (CheckContext | undefined)[] = new Array(depth);
+    // Local to this invocation; never observed by public move API.
+    const pieceCodes = new Uint8Array(64);
+    for (let sqIdx = 0; sqIdx < 64; sqIdx++) {
+      const role = this.roleAt(sqIdx);
+      if (role !== undefined) pieceCodes[sqIdx] = role + 1;
     }
-    return nodes;
+
+    const visit = (ply: number, remaining: number): number => {
+      const ctx = analyzeCheckContext(this, contexts[ply], true);
+      contexts[ply] = ctx;
+      if (remaining === 1) return countLegalMoves(this, ctx);
+
+      const moves = lists[ply];
+      const count = legalMovesInto(this, moves, ctx);
+      let nodes = 0;
+      for (let i = 0; i < count; i++) {
+        const undo = this._makePerft(moves[i], pieceCodes);
+        nodes += visit(ply + 1, remaining - 1);
+        this._unmakePerft(undo, pieceCodes);
+      }
+      return nodes;
+    };
+    return visit(0, depth);
   }
 }
 

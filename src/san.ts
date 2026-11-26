@@ -67,7 +67,7 @@ export function makeSan(move: Move, pos: Position): string {
     return base;
   }
 
-  const piece = board.pieceAt(pos.board, move.from);
+  const piece = movingPiece;
   if (!piece) return "";
 
   const toName = squareName(move.to);
@@ -104,8 +104,8 @@ export function makeSan(move: Move, pos: Position): string {
 
   // Disambiguation for non-pawn (and pawn capture already handled)
   if (piece.role !== Role.Pawn) {
-    // Find other pieces of same role/color that can legally move to same destination
-    const candidates: number[] = [];
+    // Legal alternatives determine the shortest SAN disambiguation.
+    // Track only the facts needed for formatting; no candidate array.
     const own = pos.turn === Color.White ? pos.board.white : pos.board.black;
     let attackers: SquareSet;
     switch (piece.role) {
@@ -119,39 +119,19 @@ export function makeSan(move: Move, pos: Position): string {
     const otherAttackers = sq.minus(attackers, sq.singleton(move.from));
     if (!sq.isEmpty(otherAttackers)) {
       const ctx = chess.analyzeCheckContext(pos);
+      const movingFile = squareFile(move.from), movingRank = squareRank(move.from);
+      let ambiguous = false, sameFile = false, sameRank = false;
       for (const sqIdx of sq.iter(otherAttackers)) {
         const cand = board.pieceAt(pos.board, sqIdx);
-        if (!cand) continue;
-        const d = chess.destsFast(pos, sqIdx, cand, ctx);
-        if (sq.has(d, move.to)) candidates.push(sqIdx);
+        if (!cand || !sq.has(chess.destsFast(pos, sqIdx, cand, ctx), move.to)) continue;
+        ambiguous = true;
+        sameFile ||= squareFile(sqIdx) === movingFile;
+        sameRank ||= squareRank(sqIdx) === movingRank;
+        if (sameFile && sameRank) break;
       }
-    }
-    // Include moving piece itself, total candidates +1 = all that can reach dest
-    // If there is any other candidate, need disambiguation
-    if (candidates.length > 0) {
-      // Determine minimal disambiguation
-      const movingFile = squareFile(move.from);
-      const movingRank = squareRank(move.from);
-      let needFile = false;
-      let needRank = false;
-      // Check if file alone distinguishes
-      let fileUnique = true;
-      for (const c of candidates) {
-        if (squareFile(c) === movingFile) { fileUnique = false; break; }
-      }
-      if (fileUnique) {
-        san += String.fromCharCode(97 + movingFile);
-      } else {
-        // file not unique, check rank
-        let rankUnique = true;
-        for (const c of candidates) {
-          if (squareRank(c) === movingRank) { rankUnique = false; break; }
-        }
-        if (rankUnique) {
-          san += String.fromCharCode(49 + movingRank);
-        } else {
-          san += String.fromCharCode(97 + movingFile) + String.fromCharCode(49 + movingRank);
-        }
+      if (ambiguous) {
+        if (!sameFile || sameRank) san += String.fromCharCode(97 + movingFile);
+        if (sameFile) san += String.fromCharCode(49 + movingRank);
       }
     }
   }

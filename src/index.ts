@@ -50,6 +50,8 @@ export {
   isFiftyMoveDraw,
   isSeventyFiveMoveDraw,
   isThreefoldRepetition,
+  repetitionKey,
+  isFivefoldRepetition,
   isLegal,
   isNullMoveLegal,
   perft,

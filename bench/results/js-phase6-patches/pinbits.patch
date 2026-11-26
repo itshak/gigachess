@@ -1,0 +1,34 @@
+--- a/src/chess.ts
++++ b/src/chess.ts
+@@ -890,11 +890,10 @@
+     const blockerBits = (bLo | bHi) >>> 0;
+     if (blockerBits !== 0 && (bLo === 0 || bHi === 0)
+         && (blockerBits & (blockerBits - 1)) === 0) {
+-      const blockerSq = bLo !== 0 ? (Math.clz32((bLo & -bLo) >>> 0) ^ 31) : (32 + (Math.clz32((bHi & -bHi) >>> 0) ^ 31));
+-      if (!sq.has(themOcc, blockerSq)) {
+-        if (blockerSq < 32) pinnedLo |= (1 << blockerSq) >>> 0;
+-        else pinnedHi |= (1 << (blockerSq - 32)) >>> 0;
+-      }
++      // The unique blocker is already a singleton in its own halfboard.
++      // Preserve its bit directly instead of decoding and re-encoding it.
++      pinnedLo |= bLo & ~themOcc.lo;
++      pinnedHi |= bHi & ~themOcc.hi;
+     }
+   }
+   while (sHi !== 0) {
+@@ -908,11 +907,10 @@
+     const blockerBits = (bLo | bHi) >>> 0;
+     if (blockerBits !== 0 && (bLo === 0 || bHi === 0)
+         && (blockerBits & (blockerBits - 1)) === 0) {
+-      const blockerSq = bLo !== 0 ? (Math.clz32((bLo & -bLo) >>> 0) ^ 31) : (32 + (Math.clz32((bHi & -bHi) >>> 0) ^ 31));
+-      if (!sq.has(themOcc, blockerSq)) {
+-        if (blockerSq < 32) pinnedLo |= (1 << blockerSq) >>> 0;
+-        else pinnedHi |= (1 << (blockerSq - 32)) >>> 0;
+-      }
++      // The unique blocker is already a singleton in its own halfboard.
++      // Preserve its bit directly instead of decoding and re-encoding it.
++      pinnedLo |= bLo & ~themOcc.lo;
++      pinnedHi |= bHi & ~themOcc.hi;
+     }
+   }
+   ctx.pinned = { lo: pinnedLo >>> 0, hi: pinnedHi >>> 0 };

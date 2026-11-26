@@ -1,0 +1,28 @@
+{
+  "node": "v22.5.0",
+  "v8": "12.4.254.21-node.16",
+  "platform": "linux",
+  "arch": "x64",
+  "cpu": [
+    {
+      "model": "AMD EPYC 7763 64-Core Processor",
+      "speed": 0
+    },
+    {
+      "model": "AMD EPYC 7763 64-Core Processor",
+      "speed": 0
+    },
+    {
+      "model": "AMD EPYC 7763 64-Core Processor",
+      "speed": 0
+    },
+    {
+      "model": "AMD EPYC 7763 64-Core Processor",
+      "speed": 0
+    }
+  ],
+  "memory": 16760340480,
+  "release": "7.0.0-1017-azure",
+  "runner": "GitHub Actions 1000022748",
+  "sha": "e81b3fcb0a4581ac080d917620f9f53561d94fc5"
+}

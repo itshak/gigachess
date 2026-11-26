@@ -221,22 +221,20 @@ function xorInto(lo: number, hi: number, keyIdx: number): [number, number] {
 export function calculateZobrist(pos: Position): ZobristKey {
   if (!zobristTablesLoaded()) throw new Error("zobrist tables not loaded — call ensureZobristLoaded() first");
   let lo = 0, hi = 0;
-  const b = pos.board;
-  for (let color = 0; color <= 1; color++) {
-    const colorOcc = color === Color.White ? b.white : b.black;
-    const roleSets = [b.pawn, b.knight, b.bishop, b.rook, b.queen, b.king];
+  const b = pos.board, kl = keyLo!, kh = keyHi!;
+  const roleSets = [b.pawn,b.knight,b.bishop,b.rook,b.queen,b.king];
+  for (let color = 0; color < 2; color++) {
+    const c = color === Color.White ? b.white : b.black;
     for (let role = 0; role < 6; role++) {
-      const set = roleSets[role];
-      const halves = [((colorOcc.lo & set.lo) >>> 0), ((colorOcc.hi & set.hi) >>> 0)];
-      for (let half = 0; half < 2; half++) {
-        let cur = halves[half];
-        const offset = half === 0 ? 0 : 32;
-        while (cur !== 0) {
-          const lsb = (cur & -cur) >>> 0;
-          const sqIdx = offset + (31 - Math.clz32(lsb));
-          [lo, hi] = xorInto(lo, hi, pieceKeyIdx(color as Color, role as Role, sqIdx));
-          cur ^= lsb;
-        }
+      const set = roleSets[role], base = pieceKeyIdx(color as Color,role as Role,0);
+      let l = c.lo & set.lo, h = c.hi & set.hi;
+      while (l) {
+        const idx = base + 31 - Math.clz32(l & -l);
+        lo ^= kl[idx]; hi ^= kh[idx]; l &= l - 1;
+      }
+      while (h) {
+        const idx = base + 63 - Math.clz32(h & -h);
+        lo ^= kl[idx]; hi ^= kh[idx]; h &= h - 1;
       }
     }
   }

@@ -49,7 +49,7 @@ for (const [name, [fen, counts]] of Object.entries(PERFT_POS)) {
 }
 
 console.log("== 2. FEN round-trip + dests parity (samplefen1000.epd) ==");
-const fenLines = readFileSync(new URL("../bench/data/samplefen1000.epd", import.meta.url).pathname, "utf8")
+const fenLines = readFileSync(new URL("../bench/data/samplefen1000.epd", import.meta.url), "utf8")
   .split("\n").map(l => l.trim()).filter(Boolean).slice(0, 1000);
 let fenRt = 0, fenParity = 0, fenFailPc = 0, fenFailCo = 0, fenN = 0; const fenBad = [];
 for (const line of fenLines) {
@@ -169,7 +169,7 @@ check("K vs K insufficient material", kvk.ok && pcIsInsuff(toPos(kvk.value)) ===
 
 console.log("== 5. PGN parse -> makePgn round-trip ==");
 const { parsePgn: pcParsePgn, makePgn: pcMakePgn } = await import("../dist/pgn.js");
-const samplePgn = readFileSync(new URL("../bench/data/lichess_db.sample.pgn", import.meta.url).pathname, "utf8");
+const samplePgn = readFileSync(new URL("../bench/data/lichess_db.sample.pgn", import.meta.url), "utf8");
 try {
   const r = pcParsePgn(samplePgn);
   if (!r.ok) { check("PGN parse", false, r.error?.code); }

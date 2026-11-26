@@ -1,0 +1,177 @@
+{
+  "source": "Frozen checked GigaChess Board.perft before perft-only move rewrite",
+  "sourceCommit": "1675beba766404f7f24a83eb7f022d47365ceaec",
+  "positions": [
+    {
+      "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "chess960": false,
+      "nodes": [
+        20,
+        400,
+        8902
+      ]
+    },
+    {
+      "fen": "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+      "chess960": false,
+      "nodes": [
+        48,
+        2039,
+        97862
+      ]
+    },
+    {
+      "fen": "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+      "chess960": false,
+      "nodes": [
+        14,
+        191,
+        2812
+      ]
+    },
+    {
+      "fen": "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+      "chess960": false,
+      "nodes": [
+        44,
+        1486,
+        62379
+      ]
+    },
+    {
+      "fen": "k3r3/8/8/3pP3/8/8/8/4K3 w - d6 0 1",
+      "chess960": false,
+      "nodes": [
+        6,
+        77,
+        530
+      ]
+    },
+    {
+      "fen": "4k3/8/8/1pP5/8/8/8/4K3 w - b6 0 1",
+      "chess960": false,
+      "nodes": [
+        7,
+        40,
+        293
+      ]
+    },
+    {
+      "fen": "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1",
+      "chess960": false,
+      "nodes": [
+        7,
+        38,
+        276
+      ]
+    },
+    {
+      "fen": "3k4/8/8/8/8/8/8/R1K4R w AH - 0 1",
+      "chess960": true,
+      "nodes": [
+        26,
+        116,
+        3273
+      ]
+    },
+    {
+      "fen": "3k4/8/8/8/8/8/8/1RK3R1 w BG - 0 1",
+      "chess960": true,
+      "nodes": [
+        25,
+        111,
+        3032
+      ]
+    },
+    {
+      "fen": "3k4/8/8/8/8/8/8/RK5R w AH - 0 1",
+      "chess960": true,
+      "nodes": [
+        25,
+        109,
+        3001
+      ]
+    },
+    {
+      "fen": "3k4/8/8/8/8/8/8/R2K3R w AH - 0 1",
+      "chess960": true,
+      "nodes": [
+        26,
+        115,
+        3265
+      ]
+    },
+    {
+      "fen": "3k4/8/8/8/8/8/8/R3K2R w AH - 0 1",
+      "chess960": true,
+      "nodes": [
+        26,
+        116,
+        3287
+      ]
+    },
+    {
+      "fen": "3k4/8/8/8/8/8/8/R4K1R w AH - 0 1",
+      "chess960": true,
+      "nodes": [
+        26,
+        114,
+        3228
+      ]
+    },
+    {
+      "fen": "3k4/8/8/8/8/8/8/R5KR w AH - 0 1",
+      "chess960": true,
+      "nodes": [
+        25,
+        109,
+        3001
+      ]
+    },
+    {
+      "fen": "3k4/8/8/8/8/8/8/2RK1R2 w CF - 0 1",
+      "chess960": true,
+      "nodes": [
+        25,
+        76,
+        2003
+      ]
+    },
+    {
+      "fen": "3k4/8/8/8/8/8/8/2RK2R1 w CG - 0 1",
+      "chess960": true,
+      "nodes": [
+        25,
+        76,
+        2024
+      ]
+    },
+    {
+      "fen": "4k3/8/8/8/8/8/8/r3K2R w H - 0 1",
+      "chess960": true,
+      "nodes": [
+        3,
+        57,
+        951
+      ]
+    },
+    {
+      "fen": "r3k2r/8/8/8/8/8/8/R3K2R w AHah - 0 1",
+      "chess960": true,
+      "nodes": [
+        26,
+        568,
+        13744
+      ]
+    },
+    {
+      "fen": "r3k2r/8/8/8/8/8/8/R3K2R b AHah - 0 1",
+      "chess960": true,
+      "nodes": [
+        26,
+        568,
+        13744
+      ]
+    }
+  ]
+}

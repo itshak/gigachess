@@ -61,3 +61,18 @@ The system SHALL expose `board.parseSanResult(san: string)` and `board.parseSanC
 - **WHEN** `parseSanCandidates` is called for `a8=Q`, `a8=R`, `a8=B` and `a8=N` in a promoting position
 - **THEN** each returns its own distinct move word
 - **AND** the bare destination without a promotion piece names no move rather than defaulting to one
+
+### Requirement: Canonical initial position reuse SHALL preserve independent board ownership
+
+A private, bounded canonical start-position template MAY be prepared on
+first ordinary Board construction. Each returned Board SHALL own mutable
+bitboards, king coordinates and checkers independently. The template SHALL
+not retain user FENs or returned move lists. Cold and loaded hash behavior,
+existing loadFen references, subclass initialization, exact legal move
+order, and public undo/castling semantics SHALL remain correct.
+
+#### Scenario: First construction is arbitrary FEN
+- **WHEN** the caller constructs an arbitrary valid FEN before startpos,
+  then constructs several initial boards and mutates one
+- **THEN** all other boards remain unchanged, initial hashes match the
+  canonical contract and the first arbitrary position has exact legal moves.

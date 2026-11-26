@@ -126,43 +126,52 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
   // per-piece `setPiece`. The scanner walks the raw string with charCodeAt:
   // '/' drops a rank, '1'..'8' skips empty squares, anything else must be a
   // piece letter (color = uppercase ⇒ white).
-  const scratch = board.newScratchBoard();
-  let r = 7;
-  let file = 0;
-  for (let k = fs[0]; k < fe[0]; k++) {
-    const c = fen.charCodeAt(k);
-    if (c === 47) {
-      // '/': next rank down
-      if (file !== 8 || r === 0) return Err({ code: "fen/invalidPiecePlacement" });
-      r--;
-      file = 0;
-      continue;
+  // Build locally owned words, then materialize the public board once.
+  let scratch: board.WritableBoard;
+  {
+  let wl=0,wh=0,bl=0,bh=0,pl=0,ph=0,nl=0,nh=0,il=0,ih=0,rl=0,rh=0,ql=0,qh=0,kl=0,kh=0;
+  let wk=-1,bk=-1,r=7,file=0;
+  for(let k=fs[0];k<fe[0];k++){
+    const c=fen.charCodeAt(k);
+    if(c===47){
+      if(file!==8||r===0)return Err({code:"fen/invalidPiecePlacement"});
+      r--;file=0;continue;
     }
-    if (c >= 49 && c <= 56) {
-      // '1'..'8': consecutive empty squares
-      file += c - 48;
-      if (file > 8) return Err({ code: "fen/invalidPiecePlacement" });
-      continue;
+    if(c>=49&&c<=56){
+      file+=c-48;if(file>8)return Err({code:"fen/invalidPiecePlacement"});continue;
     }
-    if (file >= 8) return Err({ code: "fen/invalidPiecePlacement" });
-    // inline role/color decode (no per-piece object allocation)
-    let role: Role;
-    switch (c | 32) {
-      case 112: role = Role.Pawn; break;   // p
-      case 110: role = Role.Knight; break; // n
-      case 98: role = Role.Bishop; break;  // b
-      case 114: role = Role.Rook; break;   // r
-      case 113: role = Role.Queen; break;  // q
-      case 107: role = Role.King; break;   // k
-      default: return Err({ code: "fen/invalidPiecePlacement" });
+    if(file>=8)return Err({code:"fen/invalidPiecePlacement"});
+    const index=r*8+file, bit=1<<(index&31), high=index>=32, white=c<97;
+    if(high){
+      switch(c|32){
+        case 112: ph|=bit;break; case 110: nh|=bit;break;
+        case 98: ih|=bit;break; case 114: rh|=bit;break;
+        case 113: qh|=bit;break; case 107: kh|=bit;if(white)wk=index;else bk=index;break;
+        default:return Err({code:"fen/invalidPiecePlacement"});
+      }
+      if(white)wh|=bit;else bh|=bit;
+    }else{
+      switch(c|32){
+        case 112: pl|=bit;break; case 110: nl|=bit;break;
+        case 98: il|=bit;break; case 114: rl|=bit;break;
+        case 113: ql|=bit;break; case 107: kl|=bit;if(white)wk=index;else bk=index;break;
+        default:return Err({code:"fen/invalidPiecePlacement"});
+      }
+      if(white)wl|=bit;else bl|=bit;
     }
-    const color = c >= 97 ? Color.Black : Color.White; // lowercase ⇒ black
-    const sqIdx = r * 8 + file;
-    board.putPieceInPlace(scratch, sqIdx, { color, role });
     file++;
   }
-  if (file !== 8 || r !== 0) return Err({ code: "fen/invalidPiecePlacement" });
-  const curBoard: BoardLike = board.cloneBoard(scratch);
+  if(file!==8||r!==0)return Err({code:"fen/invalidPiecePlacement"});
+  scratch = {
+    white:{lo:wl>>>0,hi:wh>>>0},black:{lo:bl>>>0,hi:bh>>>0},
+    pawn:{lo:pl>>>0,hi:ph>>>0},knight:{lo:nl>>>0,hi:nh>>>0},
+    bishop:{lo:il>>>0,hi:ih>>>0},rook:{lo:rl>>>0,hi:rh>>>0},
+    queen:{lo:ql>>>0,hi:qh>>>0},king:{lo:kl>>>0,hi:kh>>>0},
+    occupied:{lo:(wl|bl)>>>0,hi:(wh|bh)>>>0},promoted:{lo:0,hi:0},
+    kingSq:[wk,bk]
+  };
+  }
+  const curBoard: BoardLike = scratch;
 
   // ----- active color -----
   let turn: Color;
@@ -178,8 +187,9 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
   }
 
   // ----- castling -----
-  let whiteSet = new Set<number>();
-  let blackSet = new Set<number>();
+  let standardMask = 0;
+  const whiteSet = opts?.chess960 ? new Set<number>() : undefined;
+  const blackSet = opts?.chess960 ? new Set<number>() : undefined;
   const castlingStart = fieldCount > 2 ? fs[2] : -1;
   const castlingIsDash = castlingStart === -1 || (fe[2] - fs[2] === 1 && fen.charCodeAt(fs[2]) === 45);
   if (!castlingIsDash) {
@@ -198,10 +208,10 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
         if (ch !== "K" && ch !== "Q" && ch !== "k" && ch !== "q") {
           return Err({ code: "fen/invalidCastling" });
         }
-        if (ch === "K") whiteSet.add(7);
-        else if (ch === "Q") whiteSet.add(0);
-        else if (ch === "k") blackSet.add(63);
-        else if (ch === "q") blackSet.add(56);
+        if (ch === "K") standardMask |= CASTLE_WK;
+        else if (ch === "Q") standardMask |= CASTLE_WQ;
+        else if (ch === "k") standardMask |= CASTLE_BK;
+        else if (ch === "q") standardMask |= CASTLE_BQ;
       } else {
         // chess960 tolerant
         if (ch === "K") {
@@ -216,8 +226,8 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
             if (p && p.color === Color.White && p.role === Role.Rook) { best = sqIdx; break; }
             // if no rook found, still add H1 as fallback for standard
           }
-          if (best !== undefined) whiteSet.add(best);
-          else whiteSet.add(7); // fallback to H1
+          if (best !== undefined) whiteSet!.add(best);
+          else whiteSet!.add(7); // fallback to H1
         } else if (ch === "Q") {
           if (wk === undefined) return Err({ code: "fen/invalidCastling" });
           const kf = squareFile(wk);
@@ -227,8 +237,8 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
             const p = board.pieceAt(curBoard, sqIdx);
             if (p && p.color === Color.White && p.role === Role.Rook) { best = sqIdx; break; }
           }
-          if (best !== undefined) whiteSet.add(best);
-          else whiteSet.add(0);
+          if (best !== undefined) whiteSet!.add(best);
+          else whiteSet!.add(0);
         } else if (ch === "k") {
           if (bk === undefined) return Err({ code: "fen/invalidCastling" });
           const kf = squareFile(bk);
@@ -238,8 +248,8 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
             const p = board.pieceAt(curBoard, sqIdx);
             if (p && p.color === Color.Black && p.role === Role.Rook) { best = sqIdx; break; }
           }
-          if (best !== undefined) blackSet.add(best);
-          else blackSet.add(63);
+          if (best !== undefined) blackSet!.add(best);
+          else blackSet!.add(63);
         } else if (ch === "q") {
           if (bk === undefined) return Err({ code: "fen/invalidCastling" });
           const kf = squareFile(bk);
@@ -249,16 +259,16 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
             const p = board.pieceAt(curBoard, sqIdx);
             if (p && p.color === Color.Black && p.role === Role.Rook) { best = sqIdx; break; }
           }
-          if (best !== undefined) blackSet.add(best);
-          else blackSet.add(56);
+          if (best !== undefined) blackSet!.add(best);
+          else blackSet!.add(56);
         } else if (ch >= "A" && ch <= "H") {
           const file = ch.charCodeAt(0) - 65;
           const sqIdx = file; // rank 0
-          whiteSet.add(sqIdx);
+          whiteSet!.add(sqIdx);
         } else if (ch >= "a" && ch <= "h") {
           const file = ch.charCodeAt(0) - 97;
           const sqIdx = 56 + file;
-          blackSet.add(sqIdx);
+          blackSet!.add(sqIdx);
         } else {
           return Err({ code: "fen/invalidCastling" });
         }
@@ -268,7 +278,7 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
     // For non-960, ensure no duplicate file letters etc already handled
   }
 
-  const castling = makeCastling(whiteSet, blackSet);
+  const castling = opts?.chess960 ? makeCastling(whiteSet!, blackSet!) : CASTLING_RIGHTS_TABLE[standardMask];
 
   // ----- en passant -----
   // Structural validation (square name + rank for the side to move) stays
@@ -312,7 +322,7 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
 
   // ----- halfmove -----
   const half = fieldCount > 4 ? parseFenCount(fen, fs[4], fe[4]) : 0;
-  if (!Number.isInteger(half) || half < 0 || half > 150) return Err({ code: "fen/invalidHalfmove" });
+  if (!Number.isSafeInteger(half) || half < 0) return Err({ code: "fen/invalidHalfmove" });
 
   // ----- fullmove -----
   const full = fieldCount > 5 ? parseFenCount(fen, fs[5], fe[5]) : 1;
@@ -320,46 +330,29 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
 
   // ----- validations per purechess-rules -----
   // pawn on back rank
-  for (let f = 0; f < 8; f++) {
-    const sq1 = f; // rank 1
-    const sq8 = 56 + f; // rank 8
-    const p1 = board.pieceAt(curBoard, sq1);
-    const p8 = board.pieceAt(curBoard, sq8);
-    if (p1 && p1.role === Role.Pawn) return Err({ code: "fen/pawnOnBackRank" });
-    if (p8 && p8.role === Role.Pawn) return Err({ code: "fen/pawnOnBackRank" });
-  }
-
-  // kings count
-  const whiteKings = sq.popcnt(sq.and(curBoard.white, curBoard.king));
-  const blackKings = sq.popcnt(sq.and(curBoard.black, curBoard.king));
-  const totalKings = sq.popcnt(curBoard.king);
-  if (totalKings !== 2 || whiteKings !== 1 || blackKings !== 1) {
-    return Err({ code: "fen/kingsCount" });
-  }
+  if ((curBoard.pawn.lo & 255) || (curBoard.pawn.hi & 0xff000000)) return Err({ code: "fen/pawnOnBackRank" });
+  const wl = curBoard.white.lo & curBoard.king.lo, wh = curBoard.white.hi & curBoard.king.hi;
+  const bl = curBoard.black.lo & curBoard.king.lo, bh = curBoard.black.hi & curBoard.king.hi;
+  const w = wl | wh, b = bl | bh;
+  if (!w || !b || (wl && wh) || (bl && bh) || (w & (w-1)) || (b & (b-1))) return Err({ code: "fen/kingsCount" });
 
   // kings adjacent
-  const wkSq = board.kingSquare(curBoard, Color.White);
-  const bkSq = board.kingSquare(curBoard, Color.Black);
+  const wkSq = scratch.kingSq[Color.White];
+  const bkSq = scratch.kingSq[Color.Black];
   if (wkSq !== undefined && bkSq !== undefined) {
     const wAtt = attacks.kingAttacks(wkSq);
     if (sq.has(wAtt, bkSq)) return Err({ code: "fen/kingsAdjacent" });
   }
 
-  // oppositeCheck: side not to move king attacked
-  if (wkSq !== undefined && bkSq !== undefined) {
-    const whiteAttacked = attacks.isAttacked(curBoard, wkSq, Color.Black);
-    const blackAttacked = attacks.isAttacked(curBoard, bkSq, Color.White);
-    // illegal if both in check
-    if (whiteAttacked && blackAttacked) return Err({ code: "fen/oppositeCheck" });
-    // illegal if opponent king is in check (side not to move)
-    if (turn === Color.White && blackAttacked) return Err({ code: "fen/oppositeCheck" });
-    if (turn === Color.Black && whiteAttacked) return Err({ code: "fen/oppositeCheck" });
-  }
+  // Only the non-moving king must not be attacked; double check of
+  // both kings necessarily violates that condition as well.
+  if (turn === Color.White ? attacks.isAttacked(curBoard, bkSq, Color.White) : attacks.isAttacked(curBoard, wkSq, Color.Black))
+    return Err({ code: "fen/oppositeCheck" });
 
   const is960 = !!opts?.chess960;
   const kingSqPair: [number, number] = [wkSq ?? -1, bkSq ?? -1];
   (curBoard as { kingSq?: [number, number] }).kingSq = kingSqPair;
-  const chk = attacks.kingAttackers(curBoard, turn);
+  const chk = attacks.attackersTo(curBoard, kingSqPair[turn], turn === Color.White ? Color.Black : Color.White);
   const setup: Setup = {
     board: curBoard,
     turn,
@@ -387,33 +380,28 @@ export function parseFen(fen: string, opts?: { chess960?: boolean, strict?: bool
 
 export function makeFen(setup: Setup, opts?: { shredder?: boolean; chess960?: boolean }): string {
   const boardVal = setup.board;
-  // piece placement
   let placement = "";
   for (let r = 7; r >= 0; r--) {
-    let empty = 0;
-    let rankStr = "";
-    for (let f = 0; f < 8; f++) {
-      const sqIdx = r * 8 + f;
-      // occupancy + role/color via direct bit tests (no per-square pieceAt
-      // allocation — task 5.1)
-      if (!sq.has(boardVal.occupied, sqIdx)) {
-        empty++;
-      } else {
-        if (empty > 0) { rankStr += String(empty); empty = 0; }
-        const isWhite = sq.has(boardVal.white, sqIdx);
-        let ch: string;
-        if (sq.has(boardVal.pawn, sqIdx)) ch = isWhite ? "P" : "p";
-        else if (sq.has(boardVal.knight, sqIdx)) ch = isWhite ? "N" : "n";
-        else if (sq.has(boardVal.bishop, sqIdx)) ch = isWhite ? "B" : "b";
-        else if (sq.has(boardVal.rook, sqIdx)) ch = isWhite ? "R" : "r";
-        else if (sq.has(boardVal.queen, sqIdx)) ch = isWhite ? "Q" : "q";
-        else ch = isWhite ? "K" : "k";
-        rankStr += ch;
-      }
+    const high = r >= 4, shift = (r & 3) * 8;
+    const occupied = high ? boardVal.occupied.hi : boardVal.occupied.lo;
+    const white = high ? boardVal.white.hi : boardVal.white.lo;
+    const pawn = high ? boardVal.pawn.hi : boardVal.pawn.lo;
+    const knight = high ? boardVal.knight.hi : boardVal.knight.lo;
+    const bishop = high ? boardVal.bishop.hi : boardVal.bishop.lo;
+    const rook = high ? boardVal.rook.hi : boardVal.rook.lo;
+    const queen = high ? boardVal.queen.hi : boardVal.queen.lo;
+    let bits = (occupied >>> shift) & 255, prev = 0;
+    while (bits) {
+      const bit = bits & -bits, f = 31 - Math.clz32(bit), mask = bit << shift;
+      if (f > prev) placement += String(f - prev);
+      const w = (white & mask) !== 0;
+      placement += pawn & mask ? (w?"P":"p") : knight & mask ? (w?"N":"n") :
+        bishop & mask ? (w?"B":"b") : rook & mask ? (w?"R":"r") :
+        queen & mask ? (w?"Q":"q") : (w?"K":"k");
+      prev = f + 1; bits &= bits - 1;
     }
-    if (empty > 0) rankStr += String(empty);
-    placement += rankStr;
-    if (r > 0) placement += "/";
+    if (prev < 8) placement += String(8 - prev);
+    if (r) placement += "/";
   }
 
   const active = setup.turn === Color.White ? "w" : "b";

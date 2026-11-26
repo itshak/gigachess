@@ -1,0 +1,28 @@
+{
+  "node": "v22.5.0",
+  "v8": "12.4.254.21-node.16",
+  "platform": "linux",
+  "arch": "x64",
+  "cpu": [
+    {
+      "model": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+      "speed": 3478
+    },
+    {
+      "model": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+      "speed": 3490
+    },
+    {
+      "model": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+      "speed": 3485
+    },
+    {
+      "model": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+      "speed": 3491
+    }
+  ],
+  "memory": 16759304192,
+  "release": "7.0.0-1017-azure",
+  "runner": "GitHub Actions 1000021887",
+  "sha": "6ee2ebefcfd6dec722f6acd24ec9bd8be1d44b08"
+}

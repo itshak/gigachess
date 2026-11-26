@@ -62,7 +62,8 @@ export function complement(a: SquareSet): SquareSet {
 }
 
 export function minus(a: SquareSet, b: SquareSet): SquareSet {
-  return and(a, not(b));
+  // Single result allocation rather than the temporary not(b) + and pair.
+  return { lo: (a.lo & ~b.lo) >>> 0, hi: (a.hi & ~b.hi) >>> 0 };
 }
 
 export function shl(set: SquareSet, n: number): SquareSet {
@@ -96,6 +97,11 @@ function popcnt32(x: number): number {
   // Math.imul keeps the multiply in exact int32 domain (the old `*` went
   // through double-precision and cost a ToNumber round-trip in V8).
   return Math.imul((x + (x >>> 4)) & 0x0f0f0f0f, 0x01010101) >>> 24;
+}
+
+/** Count a transient bitboard without allocating a SquareSet wrapper. */
+export function popcountParts(lo: number, hi: number): number {
+  return popcnt32(lo >>> 0) + popcnt32(hi >>> 0);
 }
 
 export function popcount(set: SquareSet): number {

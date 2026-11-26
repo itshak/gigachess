@@ -17,7 +17,7 @@ import { build } from "esbuild";
 import { gzipSync } from "node:zlib";
 import { writeFileSync, readFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, basename } from "node:path";
 import { gate } from "./lib/common.mjs";
 import { fileURLToPath } from "node:url";
 
@@ -61,7 +61,8 @@ async function bundleSplit(entrySource, dir, label) {
     },
   });
   // entry chunk = output named after the entry file; the rest are lazy chunks
-  const entryChunk = res.outputFiles.find((f) => f.path.endsWith(`/${safe}.js`));
+  const entryChunk = res.outputFiles.find((f) => basename(f.path) === `${safe}.js`);
+  if (!entryChunk) throw new Error(`Expected bundle entry ${safe}.js; got ${res.outputFiles.map(f => f.path).join(", ")}`);
   const lazyChunks = res.outputFiles.filter((f) => f !== entryChunk);
   return { entry: Buffer.from(entryChunk.text, "utf8"), lazy: lazyChunks.map((f) => Buffer.from(f.text, "utf8")), all: res.outputFiles.map((f) => Buffer.from(f.text, "utf8")) };
 }
@@ -92,9 +93,11 @@ export async function run(opts) {
 
   // Magic-table bytes (the base64 blobs) must load lazily outside the static entry chunk
   const fullText = (await bundleSplit(ENTRIES["gigachess (full)"], dir, "full-deadcode")).entry.toString("utf8");
-  const blobSrc = readFileSync(join(REPO, "src", "rookMagicBlob.ts"), "utf8");
-  const blobNeedle = blobSrc.slice(blobSrc.indexOf('"') + 1, blobSrc.indexOf('"') + 96);
-  const hasMagicBytes = fullText.includes(blobNeedle);
+  const hasMagicBytes = ["rookSplit32Blob.ts", "bishopSplit32Blob.ts"].some(file => {
+    const blobSrc = readFileSync(join(REPO, "src", file), "utf8");
+    const start = blobSrc.indexOf('"') + 1;
+    return fullText.includes(blobSrc.slice(start, start + 95));
+  });
   console.log(`  lazy table check: static entry ${hasMagicBytes ? "INCLUDES magic-table bytes ✗" : "excludes magic-table bytes ✓"}`);
 
   const gates = [

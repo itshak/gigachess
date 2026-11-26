@@ -1,0 +1,1007 @@
+{
+  "run": 45683312594,
+  "candidate": "cc375b0683aaefbf4cbdbcc9e639f70bf1fc51dd",
+  "ci": "6ee2ebefcfd6dec722f6acd24ec9bd8be1d44b08",
+  "configurations": {
+    "phase15-ubuntu-24.04-22.5.0": {
+      "paired": {
+        "fen-parse": 1.6441705912633031,
+        "fen-write": 1.2937863707658819,
+        "fen-roundtrip": 1.6018512949718497,
+        "movegen-fresh": 1.0895132721874843,
+        "validated-replay": 1.3664371603826917,
+        "perft-mixed": 0.9783244948072718,
+        "perft-start-d6": 0.9815966183101295,
+        "perft-kiwi-d5": 0.9661962526808412
+      },
+      "matrix": {
+        "fresh-native-move-list": {
+          "gigachess-phase8": 1.1335192093104325,
+          "gigachess-npm-0.5.0": 2.4262918170537877,
+          "drumevp-published": 2.332212374349284,
+          "drumevp-source": 3.016454282570075,
+          "chessops": 3.6534388987914173,
+          "chess.js": 1196.6274282885481,
+          "ultrachess": 0.34512159967732303
+        },
+        "fresh-normalized-uci-list": {
+          "gigachess-phase8": 1.0289431084810532,
+          "gigachess-npm-0.5.0": 1.4804683603636677,
+          "drumevp-published": 1.5240403092426156,
+          "drumevp-source": 1.5824921797103229,
+          "chessops": 1.667041859561898,
+          "chess.js": 308.69339530216354,
+          "ultrachess": 0.8168935987206535
+        },
+        "fresh-SAN-list": {
+          "gigachess-phase8": 1.0219762522000009,
+          "gigachess-npm-0.5.0": 1.1780013206758013,
+          "chessops": 2.4665964725880416,
+          "chess.js": 6.139528484158672,
+          "ultrachess": 0.3121266505479923
+        },
+        "fen-parse-write": {
+          "gigachess-phase8": 1.6594845345976421,
+          "gigachess-npm-0.5.0": 1.6418165496224295,
+          "drumevp-published": 1.7991699789779143,
+          "chessops": 3.409362153130019,
+          "chess.js": 5.274309126324908,
+          "ultrachess": 0.7336031115743792
+        },
+        "validated-uci-replay": {
+          "gigachess-phase8": 1.2242619783973456,
+          "gigachess-npm-0.5.0": 1.392998900529282,
+          "drumevp-published": 2.2665219079223693,
+          "chessops": 1.2133773145236486,
+          "chess.js": 117.67796976437944,
+          "ultrachess": 0.40989136325121156
+        },
+        "start-d5": {
+          "gigachess-phase8": 0.9834829305019133,
+          "gigachess-npm-0.5.0": 4.94236381426929,
+          "drumevp-published": 1.8636714152889382,
+          "drumevp-source": 1.803518519032249,
+          "chessops": 9.99985147762373,
+          "chess.js": 82.4005880957573,
+          "ultrachess": 0.20560476416075202
+        },
+        "kiwipete-d4": {
+          "gigachess-phase8": 0.9960392044805847,
+          "gigachess-npm-0.5.0": 5.032311580024546,
+          "drumevp-published": 1.7286884879427113,
+          "drumevp-source": 1.7173363740786456,
+          "chessops": 8.982044159230519,
+          "chess.js": 100.26123521152681,
+          "ultrachess": 0.17566175948487053
+        },
+        "endgame-d5": {
+          "gigachess-phase8": 1.0192970122216538,
+          "gigachess-npm-0.5.0": 5.130636047916697,
+          "drumevp-published": 1.3942036812398142,
+          "drumevp-source": 1.3782139686718131,
+          "chessops": 8.584343729780702,
+          "chess.js": 47.57681734981097,
+          "ultrachess": 0.2696923869421773
+        },
+        "promotion-d4": {
+          "gigachess-phase8": 0.9879585131450332,
+          "gigachess-npm-0.5.0": 4.8237063180058,
+          "drumevp-published": 1.664710170959072,
+          "drumevp-source": 1.6477215373873404,
+          "chessops": 9.005089073020835,
+          "chess.js": 92.41406022528754,
+          "ultrachess": 0.2474868466261765
+        },
+        "mixed-perft-d3": {
+          "gigachess-phase8": 0.9994383967242148,
+          "gigachess-npm-0.5.0": 3.85355649091488,
+          "drumevp-published": 1.621493507499022,
+          "drumevp-source": 1.615446234924839,
+          "chessops": 8.128410890211258,
+          "chess.js": 128.45279146648429,
+          "ultrachess": 0.17034814005594853
+        }
+      },
+      "direct": {
+        "baseline": 348851.98480645625,
+        "direct": 302302.3041179306,
+        "published": 347388.67929772445,
+        "source": 282519.85390615935
+      },
+      "correctness": {
+        "gigachess-phase15": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "gigachess-phase8": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "gigachess-npm-0.5.0": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "drumevp-published": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": [
+            "SAN"
+          ]
+        },
+        "drumevp-source": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": [
+            "fen",
+            "replay",
+            "SAN"
+          ]
+        },
+        "chessops": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "chess.js": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "ultrachess": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        }
+      },
+      "corpus": {
+        "source": "lichess_db_standard_rated_2013-01.pgn.zst (first 100000 games, sha256-pinned)",
+        "positions": 20000,
+        "games": 300,
+        "plies": 21046
+      },
+      "isolated-generation": {
+        "baseline": 1.0522948829223617,
+        "published": 3.313584708326115
+      },
+      "isolated-lifecycle": {
+        "baseline": 1.5748049266312119,
+        "published": 2.602915224227455
+      }
+    },
+    "phase15-ubuntu-24.04-24.19.0": {
+      "paired": {
+        "fen-parse": 2.0404140560008526,
+        "fen-write": 1.369171754959689,
+        "fen-roundtrip": 1.5545949604940341,
+        "movegen-fresh": 1.0254373035985678,
+        "validated-replay": 1.4373952198151387,
+        "perft-mixed": 1.0217508334678642,
+        "perft-start-d6": 0.9815405923956084,
+        "perft-kiwi-d5": 1.0037466814312876
+      },
+      "matrix": {
+        "fresh-native-move-list": {
+          "gigachess-phase8": 1.0832700781100795,
+          "gigachess-npm-0.5.0": 2.3773995433277264,
+          "drumevp-published": 1.5815956419485027,
+          "drumevp-source": 2.270207026613354,
+          "chessops": 3.2081978408350498,
+          "chess.js": 1078.0397529668135,
+          "ultrachess": 0.3448574916587163
+        },
+        "fresh-normalized-uci-list": {
+          "gigachess-phase8": 1.0131884320034545,
+          "gigachess-npm-0.5.0": 1.3349491279940722,
+          "drumevp-published": 1.360989160519693,
+          "drumevp-source": 1.4197743143231016,
+          "chessops": 1.5310068072474914,
+          "chess.js": 262.60486934196143,
+          "ultrachess": 0.7733349659435753
+        },
+        "fresh-SAN-list": {
+          "gigachess-phase8": 1.0076761423319947,
+          "gigachess-npm-0.5.0": 1.1547291388381338,
+          "chessops": 2.296160085829614,
+          "chess.js": 6.179352363666309,
+          "ultrachess": 0.30211812566080515
+        },
+        "fen-parse-write": {
+          "gigachess-phase8": 1.5132307880652989,
+          "gigachess-npm-0.5.0": 1.49955605402417,
+          "drumevp-published": 1.5139000260662463,
+          "chessops": 2.997790796893676,
+          "chess.js": 4.411228358598404,
+          "ultrachess": 0.5948930378295825
+        },
+        "validated-uci-replay": {
+          "gigachess-phase8": 1.3208853316069578,
+          "gigachess-npm-0.5.0": 1.451897501957232,
+          "drumevp-published": 1.4543645807830257,
+          "chessops": 1.4078547673243649,
+          "chess.js": 103.33208232534446,
+          "ultrachess": 0.37099778031171304
+        },
+        "start-d5": {
+          "gigachess-phase8": 0.9913675078258535,
+          "gigachess-npm-0.5.0": 5.852240917589255,
+          "drumevp-published": 1.9230325686498937,
+          "drumevp-source": 1.8695600610096754,
+          "chessops": 11.465399733852374,
+          "chess.js": 98.69715286550925,
+          "ultrachess": 0.23845394619895607
+        },
+        "kiwipete-d4": {
+          "gigachess-phase8": 1.0030530714806887,
+          "gigachess-npm-0.5.0": 5.851672427765846,
+          "drumevp-published": 1.9231912615549722,
+          "drumevp-source": 1.8942185590835627,
+          "chessops": 9.869557392284404,
+          "chess.js": 117.68537656306064,
+          "ultrachess": 0.20185389525603234
+        },
+        "endgame-d5": {
+          "gigachess-phase8": 1.0267281137244535,
+          "gigachess-npm-0.5.0": 6.37782597738607,
+          "drumevp-published": 1.4683842231884983,
+          "drumevp-source": 1.4411719617159051,
+          "chessops": 9.254606079532048,
+          "chess.js": 53.213429371603944,
+          "ultrachess": 0.2574041051840691
+        },
+        "promotion-d4": {
+          "gigachess-phase8": 1.0194399863884636,
+          "gigachess-npm-0.5.0": 5.875045988023173,
+          "drumevp-published": 1.73129156558663,
+          "drumevp-source": 1.7164408417547998,
+          "chessops": 10.247577207038239,
+          "chess.js": 104.56023277413618,
+          "ultrachess": 0.28929849609966385
+        },
+        "mixed-perft-d3": {
+          "gigachess-phase8": 1.0249080426612827,
+          "gigachess-npm-0.5.0": 4.497923571213624,
+          "drumevp-published": 1.7484756781892372,
+          "drumevp-source": 1.6985188403981755,
+          "chessops": 8.928028589975622,
+          "chess.js": 155.39780312407007,
+          "ultrachess": 0.1963908424962792
+        }
+      },
+      "direct": {
+        "baseline": 215135.01739230548,
+        "direct": 274590.7139598957,
+        "published": 335958.06168326305,
+        "source": 205569.3992270277
+      },
+      "correctness": {
+        "gigachess-phase15": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "gigachess-phase8": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "gigachess-npm-0.5.0": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "drumevp-published": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": [
+            "SAN"
+          ]
+        },
+        "drumevp-source": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": [
+            "fen",
+            "replay",
+            "SAN"
+          ]
+        },
+        "chessops": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "chess.js": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "ultrachess": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        }
+      },
+      "corpus": {
+        "source": "lichess_db_standard_rated_2013-01.pgn.zst (first 100000 games, sha256-pinned)",
+        "positions": 20000,
+        "games": 300,
+        "plies": 21046
+      },
+      "isolated-generation": {
+        "baseline": 1.096971182378367,
+        "published": 7.1798342594586355
+      },
+      "isolated-lifecycle": {
+        "baseline": 1.3854109853770245,
+        "published": 2.5300922888604505
+      }
+    },
+    "phase15-ubuntu-24.04-arm-24.19.0": {
+      "paired": {
+        "fen-parse": 1.4731511317944466,
+        "fen-write": 1.3014110879185898,
+        "fen-roundtrip": 1.5051415886801551,
+        "movegen-fresh": 1.0695203541857359,
+        "validated-replay": 1.3283739188801014,
+        "perft-mixed": 1.003995252918492,
+        "perft-start-d6": 0.9891391644646348,
+        "perft-kiwi-d5": 0.9816018496014564
+      },
+      "matrix": {
+        "fresh-native-move-list": {
+          "gigachess-phase8": 1.1049151410029108,
+          "gigachess-npm-0.5.0": 2.5005866875098417,
+          "drumevp-published": 1.8762104106255977,
+          "drumevp-source": 2.422697010587099,
+          "chessops": 3.6312883593136,
+          "chess.js": 1411.7245364280789,
+          "ultrachess": 0.36674240943363406
+        },
+        "fresh-normalized-uci-list": {
+          "gigachess-phase8": 1.0303038024199664,
+          "gigachess-npm-0.5.0": 1.4310744810280855,
+          "drumevp-published": 1.5215993437474964,
+          "drumevp-source": 1.5541659458383286,
+          "chessops": 1.6191962450149693,
+          "chess.js": 336.7601007903331,
+          "ultrachess": 0.8005352795534718
+        },
+        "fresh-SAN-list": {
+          "gigachess-phase8": 1.0279483771795481,
+          "gigachess-npm-0.5.0": 1.1741439395632838,
+          "chessops": 2.478044533675163,
+          "chess.js": 7.201752809893864,
+          "ultrachess": 0.41876507374165894
+        },
+        "fen-parse-write": {
+          "gigachess-phase8": 1.4767106189261503,
+          "gigachess-npm-0.5.0": 1.5249009346043905,
+          "drumevp-published": 1.7305413702215349,
+          "chessops": 3.4142904528599165,
+          "chess.js": 5.482640383103172,
+          "ultrachess": 0.6464215447710898
+        },
+        "validated-uci-replay": {
+          "gigachess-phase8": 1.3343074833926454,
+          "gigachess-npm-0.5.0": 1.5119111897723012,
+          "drumevp-published": 1.6046521846084816,
+          "chessops": 1.3387331602751171,
+          "chess.js": 135.32091603292238,
+          "ultrachess": 0.4402584466467049
+        },
+        "start-d5": {
+          "gigachess-phase8": 0.979326694063052,
+          "gigachess-npm-0.5.0": 5.000148741675935,
+          "drumevp-published": 1.888905298242104,
+          "drumevp-source": 1.829175951954316,
+          "chessops": 11.832560010868104,
+          "chess.js": 101.46900861640435,
+          "ultrachess": 0.41376224248533
+        },
+        "kiwipete-d4": {
+          "gigachess-phase8": 0.9702359414870159,
+          "gigachess-npm-0.5.0": 5.498594333248372,
+          "drumevp-published": 1.778334771236745,
+          "drumevp-source": 1.7245202338700583,
+          "chessops": 10.371211794946,
+          "chess.js": 127.14008216823542,
+          "ultrachess": 0.29198202536263856
+        },
+        "endgame-d5": {
+          "gigachess-phase8": 0.9939153198605593,
+          "gigachess-npm-0.5.0": 6.111318444676865,
+          "drumevp-published": 1.460180382147012,
+          "drumevp-source": 1.4170472565645977,
+          "chessops": 9.403052375060685,
+          "chess.js": 61.026718774753256,
+          "ultrachess": 0.24278819778142172
+        },
+        "promotion-d4": {
+          "gigachess-phase8": 0.9774558481933074,
+          "gigachess-npm-0.5.0": 5.604914889262453,
+          "drumevp-published": 1.6933039073756584,
+          "drumevp-source": 1.6455519162646643,
+          "chessops": 10.801137192626285,
+          "chess.js": 119.01953645256484,
+          "ultrachess": 0.36952938366127547
+        },
+        "mixed-perft-d3": {
+          "gigachess-phase8": 1.0034556918349626,
+          "gigachess-npm-0.5.0": 3.9852220353514447,
+          "drumevp-published": 1.646663120101315,
+          "drumevp-source": 1.613505029945716,
+          "chessops": 8.691235916554378,
+          "chess.js": 161.11650428504717,
+          "ultrachess": 0.30550857938152864
+        }
+      },
+      "direct": {
+        "baseline": 255563.60367937016,
+        "direct": 319953.542745603,
+        "published": 314260.0033280145,
+        "source": 164002.6688154271
+      },
+      "correctness": {
+        "gigachess-phase15": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "gigachess-phase8": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "gigachess-npm-0.5.0": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "drumevp-published": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": [
+            "SAN"
+          ]
+        },
+        "drumevp-source": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": [
+            "fen",
+            "replay",
+            "SAN"
+          ]
+        },
+        "chessops": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "chess.js": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "ultrachess": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        }
+      },
+      "corpus": {
+        "source": "lichess_db_standard_rated_2013-01.pgn.zst (first 100000 games, sha256-pinned)",
+        "positions": 20000,
+        "games": 300,
+        "plies": 21046
+      },
+      "isolated-generation": {
+        "baseline": 1.101762752916672,
+        "published": 9.966579691724148
+      },
+      "isolated-lifecycle": {
+        "baseline": 1.4903735058502525,
+        "published": 2.9166405953855215
+      }
+    },
+    "phase15-windows-11-arm-24.19.0": {
+      "paired": {
+        "fen-parse": 1.4273270615487057,
+        "fen-write": 1.3401083300246202,
+        "fen-roundtrip": 1.474638623879708,
+        "movegen-fresh": 1.0863046703210286,
+        "validated-replay": 1.3565837097724431,
+        "perft-mixed": 0.9860490475904216,
+        "perft-start-d6": 0.9863541313180179,
+        "perft-kiwi-d5": 0.9758130501503557
+      },
+      "matrix": {
+        "fresh-native-move-list": {
+          "gigachess-phase8": 1.0771166631476816,
+          "gigachess-npm-0.5.0": 2.418703896859554,
+          "drumevp-published": 2.0534182415990108,
+          "drumevp-source": 1.9230740337294487,
+          "chessops": 3.7081008613116855,
+          "chess.js": 1341.104605906028,
+          "ultrachess": 0.2999806413784451
+        },
+        "fresh-normalized-uci-list": {
+          "gigachess-phase8": 1.0178812360829403,
+          "gigachess-npm-0.5.0": 1.3516065901898149,
+          "drumevp-published": 1.3989579409299258,
+          "drumevp-source": 1.3350123790460802,
+          "chessops": 1.6487319517906027,
+          "chess.js": 330.4073508138532,
+          "ultrachess": 0.7689610012369318
+        },
+        "fresh-SAN-list": {
+          "gigachess-phase8": 1.0195796104594173,
+          "gigachess-npm-0.5.0": 1.1657475267986972,
+          "chessops": 2.5868093629528826,
+          "chess.js": 7.412201184768806,
+          "ultrachess": 0.4899220068691313
+        },
+        "fen-parse-write": {
+          "gigachess-phase8": 1.4729236425415433,
+          "gigachess-npm-0.5.0": 1.4992683472981978,
+          "drumevp-published": 1.8104437998794338,
+          "chessops": 3.7723561994393795,
+          "chess.js": 6.28828157954614,
+          "ultrachess": 0.7176636411125767
+        },
+        "validated-uci-replay": {
+          "gigachess-phase8": 1.26282380056994,
+          "gigachess-npm-0.5.0": 1.3760623773573386,
+          "drumevp-published": 1.797680575594317,
+          "chessops": 1.1376620949541727,
+          "chess.js": 126.67732591303424,
+          "ultrachess": 0.402444012995163
+        },
+        "start-d5": {
+          "gigachess-phase8": 0.9707920941175358,
+          "gigachess-npm-0.5.0": 5.022703318554711,
+          "drumevp-published": 1.8957296079191501,
+          "drumevp-source": 1.8665869486691335,
+          "chessops": 13.370465359084687,
+          "chess.js": 100.90323422557549,
+          "ultrachess": 0.40076740077661543
+        },
+        "kiwipete-d4": {
+          "gigachess-phase8": 0.9903005014452616,
+          "gigachess-npm-0.5.0": 5.757415541161632,
+          "drumevp-published": 1.8102521869640336,
+          "drumevp-source": 1.7687108817417512,
+          "chessops": 11.768257018412925,
+          "chess.js": 128.14829618244107,
+          "ultrachess": 0.2900259873354068
+        },
+        "endgame-d5": {
+          "gigachess-phase8": 0.995010603807968,
+          "gigachess-npm-0.5.0": 6.265362158570429,
+          "drumevp-published": 1.5149975694073208,
+          "drumevp-source": 1.4448308466537532,
+          "chessops": 10.046411000166735,
+          "chess.js": 60.84905741005319,
+          "ultrachess": 0.23718328819053305
+        },
+        "promotion-d4": {
+          "gigachess-phase8": 0.9913996250236664,
+          "gigachess-npm-0.5.0": 5.639991743631941,
+          "drumevp-published": 1.7299688666368418,
+          "drumevp-source": 1.6721709066539763,
+          "chessops": 12.16554001751762,
+          "chess.js": 118.57583982640487,
+          "ultrachess": 0.3592720642631514
+        },
+        "mixed-perft-d3": {
+          "gigachess-phase8": 1.0064607854032663,
+          "gigachess-npm-0.5.0": 4.0108586567331095,
+          "drumevp-published": 1.6913069223885788,
+          "drumevp-source": 1.6282063606155797,
+          "chessops": 9.868308025934347,
+          "chess.js": 163.80301766046685,
+          "ultrachess": 0.2969750335490288
+        }
+      },
+      "direct": {
+        "baseline": 265157.03925650084,
+        "direct": 275194.01177829877,
+        "published": 312158.57655688346,
+        "source": 313828.8691176554
+      },
+      "correctness": {
+        "gigachess-phase15": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "gigachess-phase8": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "gigachess-npm-0.5.0": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "drumevp-published": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": [
+            "SAN"
+          ]
+        },
+        "drumevp-source": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": [
+            "fen",
+            "replay",
+            "SAN"
+          ]
+        },
+        "chessops": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "chess.js": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "ultrachess": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        }
+      },
+      "corpus": {
+        "source": "lichess_db_standard_rated_2013-01.pgn.zst (first 100000 games, sha256-pinned)",
+        "positions": 20000,
+        "games": 300,
+        "plies": 21046
+      },
+      "isolated-generation": {
+        "baseline": 1.0638460842135846,
+        "published": 3.6976554720738926
+      },
+      "isolated-lifecycle": {
+        "baseline": 1.4343347006755618,
+        "published": 2.566400085327106
+      }
+    },
+    "phase15-windows-2025-24.19.0": {
+      "paired": {
+        "fen-parse": 1.4034625471977733,
+        "fen-write": 1.4221248951513934,
+        "fen-roundtrip": 1.5316993165750226,
+        "movegen-fresh": 1.0785651488694024,
+        "validated-replay": 1.4442915124549942,
+        "perft-mixed": 0.9955850307015212,
+        "perft-start-d6": 0.9818032595990265,
+        "perft-kiwi-d5": 1.026936130479602
+      },
+      "matrix": {
+        "fresh-native-move-list": {
+          "gigachess-phase8": 1.1180532801122864,
+          "gigachess-npm-0.5.0": 2.3982877086338226,
+          "drumevp-published": 1.8713423291896256,
+          "drumevp-source": 1.740316543046168,
+          "chessops": 2.9766067935590406,
+          "chess.js": 1111.7805745026278,
+          "ultrachess": 0.3110124810098212
+        },
+        "fresh-normalized-uci-list": {
+          "gigachess-phase8": 1.04928821972975,
+          "gigachess-npm-0.5.0": 1.2999587943745972,
+          "drumevp-published": 1.2769822718995398,
+          "drumevp-source": 1.2431077390931906,
+          "chessops": 1.478071165319504,
+          "chess.js": 270.4258313883052,
+          "ultrachess": 0.7820664166892533
+        },
+        "fresh-SAN-list": {
+          "gigachess-phase8": 1.0154851659665483,
+          "gigachess-npm-0.5.0": 1.1199873277238575,
+          "chessops": 2.2489260727647618,
+          "chess.js": 6.57567189852508,
+          "ultrachess": 0.3296805069949128
+        },
+        "fen-parse-write": {
+          "gigachess-phase8": 1.5315315194627406,
+          "gigachess-npm-0.5.0": 1.517634185080842,
+          "drumevp-published": 1.595845532786931,
+          "chessops": 3.0417991529730912,
+          "chess.js": 4.567628961523583,
+          "ultrachess": 0.6257885558591179
+        },
+        "validated-uci-replay": {
+          "gigachess-phase8": 1.3298732548512258,
+          "gigachess-npm-0.5.0": 1.3549599378360286,
+          "drumevp-published": 1.6166949343714145,
+          "chessops": 1.2447843995640846,
+          "chess.js": 102.72915138379169,
+          "ultrachess": 0.3632815045654158
+        },
+        "start-d5": {
+          "gigachess-phase8": 0.9919987156452753,
+          "gigachess-npm-0.5.0": 5.87168923549925,
+          "drumevp-published": 1.9088157382872608,
+          "drumevp-source": 1.936026773860166,
+          "chessops": 11.243423546918525,
+          "chess.js": 102.00368264081794,
+          "ultrachess": 0.23887643640953965
+        },
+        "kiwipete-d4": {
+          "gigachess-phase8": 1.0195083363764967,
+          "gigachess-npm-0.5.0": 6.1258610198548,
+          "drumevp-published": 1.9956257932229184,
+          "drumevp-source": 1.9749943497005167,
+          "chessops": 10.04859785464835,
+          "chess.js": 125.71011144175674,
+          "ultrachess": 0.20718892887368628
+        },
+        "endgame-d5": {
+          "gigachess-phase8": 0.9699891559837823,
+          "gigachess-npm-0.5.0": 6.355855774446231,
+          "drumevp-published": 1.4400009036673607,
+          "drumevp-source": 1.4348409542749525,
+          "chessops": 9.077010663300365,
+          "chess.js": 53.135595517841345,
+          "ultrachess": 0.24395897343975903
+        },
+        "promotion-d4": {
+          "gigachess-phase8": 0.9914348233830614,
+          "gigachess-npm-0.5.0": 6.08959987496441,
+          "drumevp-published": 1.7863551109758429,
+          "drumevp-source": 1.778537042827577,
+          "chessops": 10.137149109100488,
+          "chess.js": 111.79495467336726,
+          "ultrachess": 0.28621444201193147
+        },
+        "mixed-perft-d3": {
+          "gigachess-phase8": 0.9992318579682465,
+          "gigachess-npm-0.5.0": 4.6078393054690965,
+          "drumevp-published": 1.772247821581143,
+          "drumevp-source": 1.7580884679049193,
+          "chessops": 8.80234273647418,
+          "chess.js": 163.36449693971622,
+          "ultrachess": 0.19986397887580162
+        }
+      },
+      "direct": {
+        "baseline": 249915.65346695477,
+        "direct": 245993.38277800914,
+        "published": 320448.6280793092,
+        "source": 313609.88498356455
+      },
+      "correctness": {
+        "gigachess-phase15": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "gigachess-phase8": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "gigachess-npm-0.5.0": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "drumevp-published": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": [
+            "SAN"
+          ]
+        },
+        "drumevp-source": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": [
+            "fen",
+            "replay",
+            "SAN"
+          ]
+        },
+        "chessops": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "chess.js": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        },
+        "ultrachess": {
+          "moveErrors": 0,
+          "sanErrors": 0,
+          "fenErrors": 0,
+          "replayErrors": 0,
+          "perftErrors": 0,
+          "examples": [],
+          "unsupported": []
+        }
+      },
+      "corpus": {
+        "source": "lichess_db_standard_rated_2013-01.pgn.zst (first 100000 games, sha256-pinned)",
+        "positions": 20000,
+        "games": 300,
+        "plies": 21046
+      },
+      "isolated-generation": {
+        "baseline": 1.0290063101249618,
+        "published": 3.1064693311869203
+      },
+      "isolated-lifecycle": {
+        "baseline": 1.3884259050707894,
+        "published": 2.076817998918929
+      }
+    }
+  }
+}
