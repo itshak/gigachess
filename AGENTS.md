@@ -71,17 +71,23 @@ node --expose-gc bench/bench-real.mjs           # Full 20-run median verificatio
 
 ---
 
-## Current JS candidate (Phase 15)
+## Current JS candidate (Phase 22 EarlySAN)
 
-Read `bench/results/js-phase15-candidate-2026-11-25.md` before continuing.
-The selected implementation is TargetFlat. Mac runner contention is
-not a correctness failure; Apple Silicon validation is deferred, not
-waived. Regenerate both current sliding blobs using
-`node bench/make-split32-tables.mjs` after building and require byte-exact
-reproduction plus cold/loaded exhaustive parity. Do not restore the old
-Cartesian-product rook blob. Separate native generation, normalized moves,
-full FEN/replay lifecycle and allocation/GC-sensitive benchmarks.
-No cached moves, premature merge, release, or unconditional fastest claim.
+Read `bench/results/js-phase22-final-2026-11-26.md` first; raw evidence
+and summary are in `bench/results/js-phase22-final/`. The selected
+implementation is Phase15 TargetFlat plus the canonical initial-position
+template and SAN disambiguation simplification. The private template is
+initialized on first ordinary Board construction, even arbitrary FEN.
+Each instance owns its mutable data; no arbitrary FEN or move-list cache.
+The original 4k mixed forced-GC gap is closed on all five tested
+Linux/Windows configurations. Keep the template lifetime documented:
+it avoids start-position reparsing and prevents observed V8 weak-code
+invalidations. Mac validation remains deferred, not waived. Regenerate
+both sliding blobs with `node bench/make-split32-tables.mjs` after build;
+require byte-exact reproduction and exhaustive cold/loaded parity.
+Do not restore the old Cartesian-product rook blob. Preserve results
+for native, normalized, SAN, FEN, replay, perft and GC-sensitive lanes.
+No unconditional fastest claim, main merge or release without final gates.
 
 ## JS performance release gate (2026-11-25)
 
@@ -98,8 +104,8 @@ hooks from the same /fast entry; the ordinary build's module-local caches
 are separate. Board.perft uses internal no-hash reversible moves; public
 makeMove/unmakeMove must remain fully maintained and FIDE-correct.
 
-Test on the AI server, **not GitHub CI** except an explicitly requested
-release. Require npm test, frozen perft standard/Chess960/EP fixtures,
+Screen on the AI server, then use GitHub Actions for independent
+public GigaChess cross-platform validation. Require npm test, frozen perft standard/Chess960/EP fixtures,
 exact packed move-order fixtures, and independent chess.js replay/undo
 parity before any performance claim. Compare nine or more alternating
 rounds of equal-work source and **published** competitor npm package,
@@ -107,10 +113,11 @@ plus a paired old/new bundle A/B on start d5, Kiwipete d4,
 promotion d4, endgame d5 and mixed corpus. A cached drumevp
 move-list result is not comparable to freshly generated GigaChess moves.
 
-Phase 15 beats published @drumevp/chess-engine in the five-platform
-real-game matrix (including start and Kiwipete perft), but still loses
-four of five mixed-engine 4k fresh move-list comparisons. See the
-final Phase 15 results. Apple Silicon validation remains outstanding.
+Phase 22 EarlySAN beats both published and pinned source drumevp in
+all supported independent matrix lanes and all five original direct
+comparisons. It also beats published drumevp in the unprimed
+initial-position-free control. See Phase22 for explicit regressions
+relative to Phase15; Apple Silicon/browser validation is outstanding.
 Do NOT merge, tag or publish a new npm version or claim unqualified
 "fastest chess library in JS/TS" until this is independently established
 on multiple CPUs and JS engines without other API regressions.

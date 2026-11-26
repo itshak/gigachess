@@ -81,11 +81,12 @@
 - [x] Same-run nine-round source/npm perft victory in all five measured lanes
 - [x] Reproduce five perft wins on pinned Node 24 and Bun; record Node 22 raw data
 - [x] Add uncached preconstructed equal-work movegen lane; identify remaining deficit
-- [ ] Close uncached movegen deficit, pinned general-gate failures and repeat on another CPU/browser
+- [x] Close uncached movegen deficit across five Linux/Windows configurations (Phase 22)
+- [ ] Repeat on final Apple Silicon/browser configurations
 - [ ] Release only after all gates and independent validation
 - [x] Follow-up isolated direct list, smaller buffer, array emission, compact conversion and direct magic table experiments
 - [x] Preserve raw data, exact patches, fresh-engine fair runner, and arithmetic oracle
-- [ ] Fully validate and retain only broad winning direct movegen variants
+- [x] Independently validate and select EarlySAN (Phase 22)
 
 
 ## Phase 8: direct public movegen and split-half perfect hashes
@@ -95,7 +96,7 @@
 - [x] Pass both unchanged official sliding throughput gates in isolated pinned-runtime run
 - [x] Run full correctness suite, extended movegen/perft tests and package dry run
 - [x] Win all comparable main competitive lanes in nine-round Node 24.19 run
-- [ ] Reproduce fresh 4,000-position uncached movegen victory; report both workloads
+- [x] Reproduce fresh 4,000-position uncached movegen victory on all five configurations (Phase 22)
 - [ ] Complete broader release gates and independent CPU/browser verification
 
 ## Phase 15: selected pure-JS candidate
@@ -104,6 +105,18 @@
 - [x] Pass official 24-gate local suite and five independent Linux/Windows full validation jobs
 - [x] Preserve raw paired, isolated, lifecycle and full competitor matrix results
 - [x] Beat tested pure-JS competitors across supported 20k matrix lanes on all five configurations
-- [ ] Resolve mixed-engine 4k direct-generation gap (four losses against published drumevp)
+- [x] Resolve mixed-engine 4k direct-generation gap with independently validated Phase22 candidate
 - [ ] Verify final Apple Silicon/browser performance; user deferred Mac testing
 - [ ] Decide release after remaining gates; no main merge/tag/publish yet
+
+## Phase 22: selected EarlySAN
+- [x] Diagnose forced-GC generator invalidation, preserve rejected variants and traces
+- [x] Use bounded private canonical start-position template with first ordinary Board initialization
+- [x] Preserve separate mutable state, cold/loaded hashes, subclass and existing-reference behavior
+- [x] Simplify SAN formatting; exact 348148 ordered SAN/UCI moves across 12000 positions on each configuration
+- [x] Complete full correctness and reproducibility checks on all ten variant/runtime configurations (one infrastructure retry)
+- [x] Win every original 4k direct benchmark and initial-free unprimed comparison versus published drumevp
+- [x] Win all supported real-game matrix lanes versus tested external pure-JS competitors
+- [x] Archive raw timings, disclose FEN and perft trade-offs, integrate exact validated sources into draft
+- [ ] Recheck official release gates on integrated tree
+- [ ] Complete deferred Apple Silicon/browser checks and release decision
