@@ -12,6 +12,7 @@ jobs:
   release:
     name: Build, Test & Publish to npm
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,7 +20,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24.19.0'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
@@ -60,6 +61,44 @@ jobs:
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: Official quick benchmark gates
+        run: node --expose-gc bench/bench-real.mjs --quick
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify public npm registry and installed package
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          set -euo pipefail
+          for attempt in {1..12}; do
+            actual=$(npm view "gigachess@$VERSION" version --registry=https://registry.npmjs.org --prefer-online 2>/dev/null || true)
+            latest=$(npm view gigachess dist-tags.latest --registry=https://registry.npmjs.org --prefer-online 2>/dev/null || true)
+            if [[ "$actual" == "$VERSION" && "$latest" == "$VERSION" ]]; then break; fi
+            sleep 5
+          done
+          test "$actual" = "$VERSION"
+          test "$latest" = "$VERSION"
+          tmp=$(mktemp -d)
+          cd "$tmp"
+          npm install --ignore-scripts --no-audit --no-fund "gigachess@$VERSION" --registry=https://registry.npmjs.org
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          for(const name of ['gigachess','gigachess/fast']){
+            const m=await import(name);
+            const cold=new m.Board();
+            assert.equal(cold.legalMoves().length,20);
+            await Promise.all([m.ensureMagicTablesLoaded(),m.ensureZobristLoaded()]);
+            const b=new m.Board();
+            assert.equal(b.perft(3),8902);
+            assert.equal(b.zobristHex(),'463b96181691fc9c');
+          }
+          console.log('Verified installed public npm package, root and fast entries');
+          JS
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -67,8 +106,3 @@ jobs:
           body: ${{ steps.changelog.outputs.CHANGELOG }}
           draft: false
           prerelease: false
-
-      - name: Publish to npm
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

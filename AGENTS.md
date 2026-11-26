@@ -87,7 +87,7 @@ both sliding blobs with `node bench/make-split32-tables.mjs` after build;
 require byte-exact reproduction and exhaustive cold/loaded parity.
 Do not restore the old Cartesian-product rook blob. Preserve results
 for native, normalized, SAN, FEN, replay, perft and GC-sensitive lanes.
-No unconditional fastest claim, main merge or release without final gates.
+No unconditional fastest claim. The user authorized 0.6.0 publication; the tag workflow enforces build, correctness and npm verification. Final Mac/browser evidence remains deferred.
 
 ## JS performance release gate (2026-11-25)
 
@@ -118,9 +118,7 @@ all supported independent matrix lanes and all five original direct
 comparisons. It also beats published drumevp in the unprimed
 initial-position-free control. See Phase22 for explicit regressions
 relative to Phase15; Apple Silicon/browser validation is outstanding.
-Do NOT merge, tag or publish a new npm version or claim unqualified
-"fastest chess library in JS/TS" until this is independently established
-on multiple CPUs and JS engines without other API regressions.
+Do not claim unqualified "fastest chess library in JS/TS". Future releases require explicit authorization, correctness and measured performance evidence; 0.6.0 is authorized with deferred Mac/browser checks.
 
 ## Repository Map
 

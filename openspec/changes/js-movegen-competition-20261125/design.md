@@ -28,3 +28,11 @@ there is no robust broad improvement and it adds state/undo risk.
 
 Longer-term: test a carefully isolated depth-two bulk counting algorithm
 with deep Chess960, EP and random replay/undo correctness gates.
+
+## Selected implementation (0.6.0)
+See [ADR-020](../../adr/020-validated-pure-js-performance-0.6.0.md),
+[final report](../../../docs/BENCHMARKS.md) and raw Phase22 data. Earlier
+prototypes above are historical; the selected scratch storage is guarded
+for synchronous reentrancy and never escapes as a public returned array.
+The bounded canonical template and scalar SAN formatting close the
+observed V8 direct-generation deficit. Report bounded FEN/perft trade-offs.

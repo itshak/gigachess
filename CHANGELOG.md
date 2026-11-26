@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.0] - 2026-11-26
+
+### Added
+- Optimized bundled `gigachess/fast` ESM entry, with separately loaded attack and Zobrist tables.
+- Independent packed standard-chess move generator, compact perft state, reproducible split-32 attack tables and exact synchronous ray fallback.
+- Checked moves2 replay and FIDE repetition-key handling, with shared Rust/TypeScript contract fixtures.
+
+### Changed
+- Reuse a private canonical initial-position template while keeping all mutable board state independent. Simplify SAN disambiguation and FEN/replay hot paths.
+- Preserve ordered packed moves, Chess960, null moves, Polyglot keys, undo, and compatibility entry points.
+- Replace historical benchmark marketing with independent five-configuration comparisons. Original direct movegen is 2.33–3.73× faster than published drumevp; all ten supported real-game lanes beat tested external pure-JS competitors. Separate UltraChess warm WASM and cold-start measurements.
+
+### Fixed
+- Reentrant castling/legality context and mirrored chess-state correctness issues, checked packed replay, cross-platform fixtures and deterministic table generation.
+- Isolate the legacy test-only CommonJS oracle from modern chessops metadata.
+
+### Evidence and limitations
+- Full correctness suites, 20,000-position legal-move parity, and 12,000-position ordered SAN/UCI parity across all five configurations.
+- See [benchmark report](docs/BENCHMARKS.md) for versions, raw data, trade-offs versus Phase15 and deferred final Mac/browser checks.
+
 ## [0.5.0] - 2026-10-29
 
 ### Added

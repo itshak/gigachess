@@ -1,0 +1,337 @@
+{
+  "node": "v24.19.0",
+  "cpu": "Intel(R) Xeon(R) CPU E5-1620 v2 @ 3.70GHz",
+  "platform": "linux",
+  "arch": "x64",
+  "release": "6.12.117+deb13-amd64",
+  "runs": 15,
+  "excludesProcessLaunch": true,
+  "samples": {
+    "giga-cold": [
+      {
+        "importMs": 13.141745999999998,
+        "firstListMs": 16.471230999999996,
+        "count": 20
+      },
+      {
+        "importMs": 14.404400000000003,
+        "firstListMs": 17.778472,
+        "count": 20
+      },
+      {
+        "importMs": 13.216713000000006,
+        "firstListMs": 16.597379000000004,
+        "count": 20
+      },
+      {
+        "importMs": 13.362279000000001,
+        "firstListMs": 16.721823,
+        "count": 20
+      },
+      {
+        "importMs": 13.087367,
+        "firstListMs": 17.3408,
+        "count": 20
+      },
+      {
+        "importMs": 21.558499999999995,
+        "firstListMs": 26.717341000000005,
+        "count": 20
+      },
+      {
+        "importMs": 13.543250000000004,
+        "firstListMs": 16.928732,
+        "count": 20
+      },
+      {
+        "importMs": 13.207899999999999,
+        "firstListMs": 16.568246,
+        "count": 20
+      },
+      {
+        "importMs": 14.185381,
+        "firstListMs": 17.910035,
+        "count": 20
+      },
+      {
+        "importMs": 13.164903000000002,
+        "firstListMs": 16.547963000000003,
+        "count": 20
+      },
+      {
+        "importMs": 13.392915000000002,
+        "firstListMs": 16.871626,
+        "count": 20
+      },
+      {
+        "importMs": 13.487293999999999,
+        "firstListMs": 16.966960999999998,
+        "count": 20
+      },
+      {
+        "importMs": 13.215828000000002,
+        "firstListMs": 16.580337,
+        "count": 20
+      },
+      {
+        "importMs": 14.040276000000006,
+        "firstListMs": 17.752764000000006,
+        "count": 20
+      },
+      {
+        "importMs": 14.291944,
+        "firstListMs": 17.804043,
+        "count": 20
+      }
+    ],
+    "giga-ready": [
+      {
+        "importMs": 13.197823,
+        "firstListMs": 81.515423,
+        "count": 20
+      },
+      {
+        "importMs": 13.629557999999996,
+        "firstListMs": 82.714732,
+        "count": 20
+      },
+      {
+        "importMs": 13.936475000000002,
+        "firstListMs": 78.275955,
+        "count": 20
+      },
+      {
+        "importMs": 13.430015999999998,
+        "firstListMs": 80.69060300000001,
+        "count": 20
+      },
+      {
+        "importMs": 13.526522,
+        "firstListMs": 80.946142,
+        "count": 20
+      },
+      {
+        "importMs": 12.620175000000003,
+        "firstListMs": 80.274714,
+        "count": 20
+      },
+      {
+        "importMs": 13.125929999999997,
+        "firstListMs": 80.63917599999999,
+        "count": 20
+      },
+      {
+        "importMs": 12.590719999999997,
+        "firstListMs": 85.25971000000001,
+        "count": 20
+      },
+      {
+        "importMs": 13.355288000000002,
+        "firstListMs": 87.48316,
+        "count": 20
+      },
+      {
+        "importMs": 13.409505000000003,
+        "firstListMs": 80.785984,
+        "count": 20
+      },
+      {
+        "importMs": 13.498786000000003,
+        "firstListMs": 77.606766,
+        "count": 20
+      },
+      {
+        "importMs": 14.172585999999995,
+        "firstListMs": 82.136836,
+        "count": 20
+      },
+      {
+        "importMs": 13.225974999999998,
+        "firstListMs": 80.59224900000001,
+        "count": 20
+      },
+      {
+        "importMs": 13.163544000000002,
+        "firstListMs": 80.872367,
+        "count": 20
+      },
+      {
+        "importMs": 13.322609,
+        "firstListMs": 81.133841,
+        "count": 20
+      }
+    ],
+    "ultra-default": [
+      {
+        "importMs": 4.401268000000002,
+        "firstListMs": 593.907224,
+        "count": 20
+      },
+      {
+        "importMs": 3.828609,
+        "firstListMs": 591.964076,
+        "count": 20
+      },
+      {
+        "importMs": 3.991884000000006,
+        "firstListMs": 588.060069,
+        "count": 20
+      },
+      {
+        "importMs": 4.016513000000003,
+        "firstListMs": 581.994549,
+        "count": 20
+      },
+      {
+        "importMs": 3.901473000000003,
+        "firstListMs": 587.145743,
+        "count": 20
+      },
+      {
+        "importMs": 4.018875000000001,
+        "firstListMs": 584.237309,
+        "count": 20
+      },
+      {
+        "importMs": 5.6081550000000036,
+        "firstListMs": 595.545803,
+        "count": 20
+      },
+      {
+        "importMs": 4.325749999999999,
+        "firstListMs": 594.730891,
+        "count": 20
+      },
+      {
+        "importMs": 4.1078779999999995,
+        "firstListMs": 617.831158,
+        "count": 20
+      },
+      {
+        "importMs": 6.243932999999998,
+        "firstListMs": 588.33847,
+        "count": 20
+      },
+      {
+        "importMs": 3.577062000000005,
+        "firstListMs": 579.999238,
+        "count": 20
+      },
+      {
+        "importMs": 3.566258999999995,
+        "firstListMs": 597.29747,
+        "count": 20
+      },
+      {
+        "importMs": 3.6004860000000036,
+        "firstListMs": 587.067608,
+        "count": 20
+      },
+      {
+        "importMs": 4.203936000000006,
+        "firstListMs": 641.051471,
+        "count": 20
+      },
+      {
+        "importMs": 4.451459,
+        "firstListMs": 594.023641,
+        "count": 20
+      }
+    ],
+    "ultra-inline": [
+      {
+        "importMs": 10.116483000000002,
+        "firstListMs": 685.211703,
+        "count": 20
+      },
+      {
+        "importMs": 10.594918,
+        "firstListMs": 586.387239,
+        "count": 20
+      },
+      {
+        "importMs": 9.947010999999996,
+        "firstListMs": 597.208352,
+        "count": 20
+      },
+      {
+        "importMs": 10.300381000000002,
+        "firstListMs": 646.970251,
+        "count": 20
+      },
+      {
+        "importMs": 10.000540999999998,
+        "firstListMs": 603.470903,
+        "count": 20
+      },
+      {
+        "importMs": 10.068624999999997,
+        "firstListMs": 623.0220869999999,
+        "count": 20
+      },
+      {
+        "importMs": 9.903492999999997,
+        "firstListMs": 582.955771,
+        "count": 20
+      },
+      {
+        "importMs": 10.197611000000002,
+        "firstListMs": 602.225896,
+        "count": 20
+      },
+      {
+        "importMs": 11.112352000000001,
+        "firstListMs": 588.48344,
+        "count": 20
+      },
+      {
+        "importMs": 10.220066,
+        "firstListMs": 586.45831,
+        "count": 20
+      },
+      {
+        "importMs": 9.964718000000005,
+        "firstListMs": 585.7654170000001,
+        "count": 20
+      },
+      {
+        "importMs": 11.402399000000003,
+        "firstListMs": 695.076707,
+        "count": 20
+      },
+      {
+        "importMs": 10.258728999999995,
+        "firstListMs": 582.264267,
+        "count": 20
+      },
+      {
+        "importMs": 10.206969,
+        "firstListMs": 603.197443,
+        "count": 20
+      },
+      {
+        "importMs": 9.936754,
+        "firstListMs": 599.773702,
+        "count": 20
+      }
+    ]
+  },
+  "summary": {
+    "giga-cold": {
+      "importMs": 13.392915000000002,
+      "firstListMs": 16.928732
+    },
+    "giga-ready": {
+      "importMs": 13.355288000000002,
+      "firstListMs": 80.872367
+    },
+    "ultra-default": {
+      "importMs": 4.018875000000001,
+      "firstListMs": 591.964076
+    },
+    "ultra-inline": {
+      "importMs": 10.197611000000002,
+      "firstListMs": 599.773702
+    }
+  }
+}

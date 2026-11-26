@@ -18,3 +18,11 @@ drumevp's published npm package still leads on several perft workloads.
 ## Out of scope
 - WASM, weakening chess correctness, global movegen scratch,
   GPL code adaptation, routine GitHub CI minute consumption.
+
+## Outcome (0.6.0)
+Phase22 EarlySAN closes the direct-generation gap across five tested
+configurations and passes every supported external pure-JS matrix lane.
+GitHub Actions was explicitly authorized for this public project.
+The release also reports separate warm and first-use UltraChess results.
+Final Apple Silicon/browser validation remains deferred. See
+[release benchmarks](../../../docs/BENCHMARKS.md).

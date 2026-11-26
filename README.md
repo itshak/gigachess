@@ -5,7 +5,7 @@
 <h1 align="center">GigaChess</h1>
 
 <p align="center">
-  <strong>A high-performance chess library and engine in pure TypeScript.</strong>
+  <strong>A correctness-tested, high-performance pure TypeScript chess rules library.</strong>
   <br>Pure JS/TS, no Rust or WebAssembly in the runtime. Perft and game-replay benchmarks are tracked separately.<br>
   Built for high-performance web applications, interactive chessboards, and analysis engines.
 </p>
@@ -20,28 +20,20 @@
 
 ---
 
-## ⚡ Highlights
+## Highlights
 
-* 🚀 **45x Faster Move Execution**: In-place stateful `Board` executes moves at **5.98M moves/sec** (167 ns/op).
-* 🏎️ **18.7M nodes/s Perft**: Stockfish-grade bitboard throughput in pure TypeScript.
-* 🛡️ **100% Permissive MIT License**: Completely free for commercial and proprietary applications.
-* 🔄 **1-Line `chess.js` Upgrade**: Drop-in wrapper via `gigachess/chessjs` with zero code changes.
-* ♟️ **Full Chess & Chess960**: Complete support for standard chess, Fischer Random (960), FEN, SAN, and UCI.
-* 🌲 **Study Trees & Fast PGN**: Interactive variation trees, comments, glyphs, and 128k games/sec PGN streaming.
-* 🔑 **Instant Polyglot Zobrist Hashing**: Zero-allocation $O(1)$ 64-bit incremental hash matching Polyglot startpos.
-* 📦 **16-bit Packed Move Streams (`moves2`)**: Compact 2-byte binary serialization replaying at **4.8M plies/sec**.
+- **2.33–3.73× faster direct legal move generation than drumevp 1.3.2** across five tested Linux/Windows configurations.
+- Wins all ten supported real-game benchmark lanes against the tested external pure-JS competitors.
+- Zero runtime dependencies, no native binaries or WASM. Synchronous move generation before optional table loading.
+- Standard chess and Chess960, compact 16-bit moves, checked replay, FEN/SAN/UCI, PGN and study trees.
+- Incremental Polyglot-compatible Zobrist hashing and FIDE repetition keys.
+- MIT license; compatibility entry points for chess.js and chessops.
 
----
+### Optimized pure-JavaScript Board
 
-> 💡 **100% Pure TypeScript with Zero Dependencies**: GigaChess requires no native C++ binaries, node-gyp, or WebAssembly. It runs seamlessly in modern browsers, Node.js, Bun, Deno, and edge workers.
-
----
-
-### Experimental optimized pure-JavaScript Board (draft)
-
-The optional gigachess/fast entry delivers an independently minified and
-bundled ESM Board with identical public chess rules and move encoding.
-It uses pure JavaScript/TypeScript, without WASM, Rust or runtime dependencies.
+The optional `gigachess/fast` entry delivers an independently minified ESM
+Board with the same public rules and move encoding. Load the compact attack
+and hash tables for peak throughput:
 
 ~~~ts
 import { Board, ensureMagicTablesLoaded, ensureZobristLoaded } from "gigachess/fast";
@@ -53,9 +45,7 @@ Import the table-loading hooks from the SAME /fast entry: the ordinary
 /core module has separate module-local caches. Specialized perft uses its
 own reversible, clock-independent internal move path; makeMove/unmakeMove
 still fully maintain Zobrist, castling, clocks, and move validation.
-The current performance claim is workload-specific, not a statement that
-GigaChess beats every JS chess engine. See the benchmark report before
-claiming universal speed leadership.
+Both entry points work without awaiting attack tables; the synchronous fallback is exact. Await hash readiness before using Polyglot keys.
 
 ## 📦 Installation
 
@@ -73,7 +63,7 @@ import { Board } from "gigachess";
 // Initialize starting position
 const board = new Board();
 
-// Parse SAN and execute move in 167 ns
+// Parse SAN and execute a legal move
 const move = board.parseSan("e4");
 const undo = board.makeMove(move);
 
@@ -87,30 +77,40 @@ console.log(board.toFen());    // startpos restored
 
 ---
 
-## 📊 GigaChess vs `chess.js`
+## Performance comparisons (0.6.0)
 
-Measured under Node.js v24 on Apple Silicon:
+![GigaChess benchmark comparison](./assets/benchmark-comparison.png)
 
-| Feature / Benchmark | 🚀 **GigaChess** | 📦 **`chess.js`** (1.4.0) | Advantage |
-|---|---|---|---|
-| **Move Execution (`make` + `unmake`)** | **5,986,400 ops/s** (167 ns) | 134,500 ops/s (7,434 ns) | **44.5x faster (+4,350%)** |
-| **Legal Move Generation** | **541,200 pos/s** (1,848 ns) | 49,200 pos/s (20,341 ns) | **11.0x faster (+1,001%)** |
-| **Perft Movegen (Depth Search)** | **18,678,516 nodes/s** | ~500,000 nodes/s | **37x faster** |
-| **Game Stream Replay** | **4,803,000 plies/s** | 649,000 plies/s | **7.4x faster (+640%)** |
-| **Check & Status Query (`inCheck`)** | **4.9 ns** (203M ops/s) | 26.3 ns (38M ops/s) | **5.3x faster (+434%)** |
-| **PGN Parsing & Streaming** | **128,701 games/s** (89 MB/s) | 3,634 games/s (2.5 MB/s) | **35.4x faster (+3,440%)** |
-| **SAN Move Validation & Make** | **49,444 ops/s** | 6,992 ops/s | **7.07x faster (+607%)** |
-| **FEN Parsing & Setup** | **458,961 ops/s** | 91,214 ops/s | **5.03x faster (+403%)** |
-| **Memory per 80-Ply Game** | **160 Bytes** (`Uint16Array`) | ~4,200 Bytes (Heap Objects) | **26x less memory** |
-| **64-bit Polyglot Zobrist Hash** | ✅ **Built-in ($O(1)$ incremental)** | ❌ None | **Transposition & repetition** |
-| **Variation Trees & Analysis** | ✅ **Built-in (`chesstree`)** | ❌ None | **Branching, comments, glyphs** |
-| **Chess960 (Fischer Random)** | ✅ **Full 960 support** | ⚠️ Partial / legacy bugs | **Full standard & Chess960** |
+Minimum GigaChess throughput advantage over each competitor across five Linux/Windows Node.js configurations. See the [full benchmark report](docs/BENCHMARKS.md) for ranges, source drumevp, the exact workload, pinned versions and raw measurements.
+
+| Workload | drumevp 1.3.2 | chessops 0.15.1 | chess.js 1.4.0 | GigaChess 0.5.0 |
+|---|---:|---:|---:|---:|
+| Native move list | 2.83× | 5.09× | 1,706.09× | 3.45× |
+| Normalized UCI list | 1.43× | 1.69× | 309.80× | 1.49× |
+| SAN list | — | 2.72× | 7.44× | 1.28× |
+| FEN round trip | 1.56× | 3.00× | 4.34× | 1.51× |
+| Validated UCI replay | 5.22× | 3.70× | 358.57× | 4.71× |
+| Start perft d5 | 1.80× | 9.57× | 79.75× | 4.26× |
+| Kiwipete perft d4 | 1.76× | 9.11× | 103.78× | 4.75× |
+| Endgame perft d5 | 1.35× | 7.60× | 45.86× | 4.79× |
+| Promotion perft d4 | 1.64× | 8.71× | 90.96× | 4.39× |
+| Mixed perft d3 | 1.66× | 7.83× | 132.10× | 3.57× |
+
+The native list workload uses each library's public return type (chess.js produces verbose move objects); normalized UCI and SAN are separate. — means unsupported/not measured. 20,000 positions, 300 validated games, exact move-set and SAN parity. Final Apple Silicon/browser performance remains unverified.
+
+### UltraChess: warm Rust/WASM vs first-use latency
+
+UltraChess 1.4.0 is faster in warm perft and move-list workloads; GigaChess is faster in validated UCI replay on these runs. WASM is not part of the pure-JS ranking. GigaChess can generate legal moves synchronously before table loading, with no WASM compile/instantiation step.
+
+![First-use latency, local Node 24.19](./assets/cold-start.png)
+
+On one Linux x64 host, median import-to-first-list latency was **16.9 ms** for GigaChess with synchronous fallback, **80.9 ms** with sliding/hash tables ready, and **592.0 ms** for UltraChess default WASM (599.8 ms inline). 15 fresh processes per entry, process launch excluded; not a universal startup claim. [Warm WASM results, methodology and samples](docs/BENCHMARKS.md).
 
 ---
 
 ## 🔄 Drop-in `chess.js` Compatibility
 
-Existing `chess.js` code can be upgraded in 1 line with zero refactoring:
+For supported `chess.js` APIs, switch the import:
 
 ```ts
 // Simply replace your import:
@@ -139,7 +139,7 @@ board.forEachLegalMove((move) => {
   console.log(board.toSan(move));
 });
 
-// Or write into a reusable buffer (541k pos/s):
+// Or write into a reusable caller-owned buffer:
 const buffer = new Uint16Array(256);
 const count = board.legalMoves(buffer);
 ```
@@ -188,7 +188,7 @@ console.log(board.toFen());
 ```ts
 import { Board } from "gigachess";
 
-// Replay full games at 4.8M plies/s from compact 16-bit buffers:
+// Replay full games from compact 16-bit buffers:
 const moves = new Uint16Array([ /* packed 16-bit moves */ ]);
 const board = Board.fromMoves2(moves); // trusted, already-validated data
 
@@ -204,9 +204,11 @@ const safeBoard = Board.fromMoves2Checked(moves);
 ## 🔬 Under the Hood: Why GigaChess is Fast
 
 1. **In-Place Bitboard Mutation**: Unlike engines that clone full state on every move, `Board` mutates bitboards in-place and returns a compact `Undo` for instant $O(1)$ rollback.
-2. **Zero-BigInt 32-bit Integer Pairs**: 64-bit `BigInt` forces object allocation on the heap. GigaChess executes all bitboards as 32-bit unsigned integer pairs (`lo >>> 0`, `hi >>> 0`), running directly in CPU registers.
+2. **32-bit integer pairs**: Bitboards use unsigned low/high words and typed lookup tables, avoiding BigInt arithmetic in hot move-generation loops.
 3. **Stockfish Single-Pass Pin Analysis (`CheckContext`)**: Checkers and pin lines are computed once per position, turning legal move validation into fast bitwise intersections.
-4. **16-bit Unboxed Small Integers (Smis)**: Packed moves are stored as 16-bit integers, bypassing garbage collection pauses.
+4. **Compact packed moves**: Independent Uint16Array results and caller-owned buffer APIs reduce allocation; no internal move-list cache.
+5. **Compact sliding tables and perft state**: Split-half occupancy lookups, exact cold ray fallback, and independent compact perft state.
+6. **Reusable canonical initial position**: Independent mutable state per board, plus less allocation in FEN and SAN hot paths.
 
 ---
 

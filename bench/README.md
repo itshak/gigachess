@@ -1,5 +1,10 @@
 # bench — GigaChess Benchmark Harness
 
+## Current release evidence: 0.6.0
+
+See [comparisons and methodology](../docs/BENCHMARKS.md), [raw summary](results/js-phase22-final/summary.json), and [selection report](results/js-phase22-final-2026-11-26.md). The following historical harness notes describe earlier phases, not the current release measurements. Run `npm run build && node bench/cold-start.mjs --measure` for 15-process startup samples. Regenerate graphics with `python3 bench/render-release-graphics.py` (Pillow and DejaVu Sans).
+
+
 **Change:** `purechess-library` (Phase 1 baseline)  
 **Baseline lib:** `chessops@0.15.1` (GPL-3.0-or-later) — the candidate `A: hq` is a thin wrapper over `chessops` `bishopAttacks`/`rookAttacks`.  
 **Target lib:** `gigachess` (MIT, `gigachess/core`, `gigachess/pgn`, `gigachess/chess960`). Previously distributed as `gigachess` — one-release alias kept, see `openspec/adr/015-gigachess-rename.md`.

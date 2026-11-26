@@ -24,3 +24,11 @@ The system SHALL only evaluate `isCheckmate` if the move delivers check (`isChec
 #### Scenario: Quiet non-checking move
 - **WHEN** `makeSan(move, pos)` is called for a move that does not deliver check
 - **THEN** `isCheckmate` is never evaluated, saving all evasion scan overhead.
+
+### Requirement: SAN rendering SHALL preserve exact legal disambiguation
+
+SAN rendering MAY track whether another legal origin shares the moving
+piece's file or rank instead of collecting candidate arrays. It SHALL
+preserve the shortest legal disambiguation, castling, promotion, EP,
+check/mate and null-move strings. Exact ordered UCI/SAN parity SHALL be
+verified on the pinned real-game corpus in addition to frozen fixtures.

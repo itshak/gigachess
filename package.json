@@ -1,7 +1,7 @@
 {
   "name": "gigachess",
-  "version": "0.5.0",
-  "description": "High-performance pure TypeScript chess library: legal movegen, validated game replay, Chess960, SAN/PGN, FEN, 16-bit moves, MIT.",
+  "version": "0.6.0",
+  "description": "Fast MIT pure TypeScript chess rules, move generation, Chess960, SAN/PGN and 16-bit replay; independently benchmarked against drumevp, chessops and chess.js.",
   "type": "module",
   "license": "MIT",
   "author": "Itshak <aistreltsov@outlook.com>",

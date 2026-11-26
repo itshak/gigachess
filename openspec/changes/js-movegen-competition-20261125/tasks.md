@@ -120,3 +120,9 @@
 - [x] Archive raw timings, disclose FEN and perft trade-offs, integrate exact validated sources into draft
 - [ ] Recheck official release gates on integrated tree
 - [ ] Complete deferred Apple Silicon/browser checks and release decision
+
+## 0.6.0 release
+- [x] Update public comparisons, README, changelog, specs, ADR, package metadata and generated visual assets
+- [x] Measure UltraChess first-use separately from warm throughput
+- [x] User authorizes 0.6.0 release; Mac/browser checks remain deferred
+- [ ] Verify automatic npm publication and registry-installed smoke test
