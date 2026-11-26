@@ -5,9 +5,9 @@
 <h1 align="center">GigaChess</h1>
 
 <p align="center">
-  <strong>A correctness-tested, high-performance pure TypeScript chess rules library.</strong>
-  <br>Pure JS/TS, no Rust or WebAssembly in the runtime. Perft and game-replay benchmarks are tracked separately.<br>
-  Built for high-performance web applications, interactive chessboards, and analysis engines.
+  <strong>The fastest pure JavaScript/TypeScript chess library in our benchmarks.</strong>
+  <br>Up to 164× the perft throughput of chess.js and 13× that of chessops.<br>
+  Full chess rules. Zero runtime dependencies. No WebAssembly.
 </p>
 
 <p align="center">
@@ -20,14 +20,29 @@
 
 ---
 
-## Highlights
+## Built to be the fastest
 
-- **2.33–3.73× faster direct legal move generation than drumevp 1.3.2** across five tested Linux/Windows configurations.
-- Wins all ten supported real-game benchmark lanes against the tested external pure-JS competitors.
-- Zero runtime dependencies, no native binaries or WASM. Synchronous move generation before optional table loading.
-- Standard chess and Chess960, compact 16-bit moves, checked replay, FEN/SAN/UCI, PGN and study trees.
-- Incremental Polyglot-compatible Zobrist hashing and FIDE repetition keys.
-- MIT license; compatibility entry points for chess.js and chessops.
+GigaChess 0.6.0 leads every supported pure-JS workload in our independent
+Linux and Windows benchmark matrix, including move generation, notation,
+FEN, game replay and perft. It is built for chess applications, interactive
+boards, analysis tools and high-throughput game databases.
+
+| Benchmark | vs chess.js | vs chessops |
+|---|---:|---:|
+| Mixed-position perft | **132–164×** | **7.8–9.9×** |
+| Starting-position perft (depth 5) | **80–104×** | **9.6–13.4×** |
+| SAN move lists | **7.4–8.1×** | **2.7–3.1×** |
+| FEN round trip | **4.3–6.3×** | **3.0–3.8×** |
+
+Throughput ratios across five tested Node.js configurations; higher is better.
+Perft measures legal move-tree traversal, not AI search strength.
+[Full results, all competitors and methodology](#performance-comparisons-060).
+
+- **Pure TypeScript, zero runtime dependencies:** no WASM, native binaries or compilation step to begin playing.
+- **Complete chess rules:** standard chess, Chess960, SAN, UCI, FEN, PGN and annotated study trees.
+- **Developer-friendly:** familiar chess.js and chessops compatibility entry points, plus a high-throughput stateful Board API.
+- **Compact and correct:** independent packed 16-bit moves, checked replay, incremental Polyglot hashes, FIDE repetition keys and reversible moves.
+- **MIT licensed:** use in open-source or commercial projects.
 
 ### Optimized pure-JavaScript Board
 
@@ -81,30 +96,29 @@ console.log(board.toFen());    // startpos restored
 
 ![GigaChess benchmark comparison](./assets/benchmark-comparison.png)
 
-Minimum GigaChess throughput advantage over each competitor across five Linux/Windows Node.js configurations. See the [full benchmark report](docs/BENCHMARKS.md) for ranges, source drumevp, the exact workload, pinned versions and raw measurements.
+Minimum GigaChess throughput advantage over each competitor across five Linux/Windows Node.js configurations. The strongest tested pure-JS competitor, drumevp, is also included: GigaChess is 2.33–3.73× faster in the separate direct move-generation comparison. See the [full benchmark report](docs/BENCHMARKS.md) for ranges, exact workloads, pinned versions and raw measurements.
 
-| Workload | drumevp 1.3.2 | chessops 0.15.1 | chess.js 1.4.0 | GigaChess 0.5.0 |
-|---|---:|---:|---:|---:|
-| Native move list | 2.83× | 5.09× | 1,706.09× | 3.45× |
-| Normalized UCI list | 1.43× | 1.69× | 309.80× | 1.49× |
-| SAN list | — | 2.72× | 7.44× | 1.28× |
-| FEN round trip | 1.56× | 3.00× | 4.34× | 1.51× |
-| Validated UCI replay | 5.22× | 3.70× | 358.57× | 4.71× |
-| Start perft d5 | 1.80× | 9.57× | 79.75× | 4.26× |
-| Kiwipete perft d4 | 1.76× | 9.11× | 103.78× | 4.75× |
-| Endgame perft d5 | 1.35× | 7.60× | 45.86× | 4.79× |
-| Promotion perft d4 | 1.64× | 8.71× | 90.96× | 4.39× |
-| Mixed perft d3 | 1.66× | 7.83× | 132.10× | 3.57× |
+| Workload | chess.js 1.4.0 | chessops 0.15.1 | drumevp 1.3.2 | drumevp source | GigaChess 0.5.0 |
+|---|---:|---:|---:|---:|---:|
+| Native move list | 1,706.09× | 5.09× | 2.83× | 2.79× | 3.45× |
+| Normalized UCI list | 309.80× | 1.69× | 1.43× | 1.35× | 1.49× |
+| SAN list | 7.44× | 2.72× | — | — | 1.28× |
+| FEN round trip | 4.34× | 3.00× | 1.56× | — | 1.51× |
+| Validated UCI replay | 358.57× | 3.70× | 5.22× | — | 4.71× |
+| Start perft d5 | 79.75× | 9.57× | 1.80× | 1.81× | 4.26× |
+| Kiwipete perft d4 | 103.78× | 9.11× | 1.76× | 1.75× | 4.75× |
+| Endgame perft d5 | 45.86× | 7.60× | 1.35× | 1.37× | 4.79× |
+| Promotion perft d4 | 90.96× | 8.71× | 1.64× | 1.65× | 4.39× |
+| Mixed perft d3 | 132.10× | 7.83× | 1.66× | 1.63× | 3.57× |
 
 The native list workload uses each library's public return type (chess.js produces verbose move objects); normalized UCI and SAN are separate. — means unsupported/not measured. 20,000 positions, 300 validated games, exact move-set and SAN parity. Final Apple Silicon/browser performance remains unverified.
 
-### UltraChess: warm Rust/WASM vs first-use latency
+### WebAssembly comparison
 
-UltraChess 1.4.0 is faster in warm perft and move-list workloads; GigaChess is faster in validated UCI replay on these runs. WASM is not part of the pure-JS ranking. GigaChess can generate legal moves synchronously before table loading, with no WASM compile/instantiation step.
-
-![First-use latency, local Node 24.19](./assets/cold-start.png)
-
-On one Linux x64 host, median import-to-first-list latency was **16.9 ms** for GigaChess with synchronous fallback, **80.9 ms** with sliding/hash tables ready, and **592.0 ms** for UltraChess default WASM (599.8 ms inline). 15 fresh processes per entry, process launch excluded; not a universal startup claim. [Warm WASM results, methodology and samples](docs/BENCHMARKS.md).
+UltraChess (Rust/WASM) is a separate runtime category, not part of the
+pure-JS ranking. Its warm perft throughput is higher, while GigaChess leads
+validated replay and offers synchronous first-use without WASM initialization.
+See the [separate warm and cold-start comparisons](docs/BENCHMARKS.md#ultrachess-rustwebassembly-separate-category).
 
 ---
 
