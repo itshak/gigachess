@@ -10,7 +10,9 @@ git worktree add --detach ci-benchmark/baseline cc375b0683aaefbf4cbdbcc9e639f70b
 git init ci-benchmark/drumevp
 git -C ci-benchmark/drumevp remote add origin https://github.com/drumevp/chess-engine.git
 git -C ci-benchmark/drumevp fetch --depth=1 origin 0bfd032c197dde4dddfcf0810f036cdf78bb8b45
-git -C ci-benchmark/drumevp checkout --detach FETCH_HEAD
+# Core FEN/movegen/perft imports do not require the search NNUE model.
+# Keep LFS pointers rather than downloading unrelated model weights.
+GIT_LFS_SKIP_SMUDGE=1 git -C ci-benchmark/drumevp checkout --detach FETCH_HEAD
 test "$(git -C ci-benchmark/drumevp rev-parse HEAD)" = 0bfd032c197dde4dddfcf0810f036cdf78bb8b45
 npm install --prefix ci-benchmark/tools --ignore-scripts --no-audit --no-fund tsx@4.22.3
 npm pack --ignore-scripts --pack-destination ci-benchmark @drumevp/chess-engine@1.3.2

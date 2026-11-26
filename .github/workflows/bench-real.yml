@@ -1,6 +1,12 @@
 name: bench-real
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: Validation scope
+        type: choice
+        options: [all, earlysan-node22]
+        default: all
 permissions:
   contents: read
 jobs:
@@ -30,12 +36,7 @@ jobs:
       fail-fast: false
       max-parallel: 8
       matrix:
-        variant: [early, earlysan]
-        runner: [ubuntu-24.04, ubuntu-24.04-arm, windows-2025, windows-11-arm]
-        node: ['24.19.0']
-        include:
-          - {variant: early, runner: ubuntu-24.04, node: '22.5.0'}
-          - {variant: earlysan, runner: ubuntu-24.04, node: '22.5.0'}
+        include: ${{ fromJSON(inputs.target == 'earlysan-node22' && '[{"variant":"earlysan","runner":"ubuntu-24.04","node":"22.5.0"}]' || '[{"variant":"early","runner":"ubuntu-24.04","node":"24.19.0"},{"variant":"early","runner":"ubuntu-24.04-arm","node":"24.19.0"},{"variant":"early","runner":"windows-2025","node":"24.19.0"},{"variant":"early","runner":"windows-11-arm","node":"24.19.0"},{"variant":"earlysan","runner":"ubuntu-24.04","node":"24.19.0"},{"variant":"earlysan","runner":"ubuntu-24.04-arm","node":"24.19.0"},{"variant":"earlysan","runner":"windows-2025","node":"24.19.0"},{"variant":"earlysan","runner":"windows-11-arm","node":"24.19.0"},{"variant":"early","runner":"ubuntu-24.04","node":"22.5.0"},{"variant":"earlysan","runner":"ubuntu-24.04","node":"22.5.0"}]') }}
     defaults:
       run:
         shell: bash

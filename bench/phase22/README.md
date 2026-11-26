@@ -28,3 +28,10 @@ Both unprimed arbitrary-FEN traces have zero generator invalidations
 locally. No decision based on the local noisy rates alone. Compare to
 validated Phase15 cc375b0, no additional Mac jobs. Select only after
 checking all practical lanes; no release or main merge yet.
+
+Validation infrastructure correction: original run 45721285801 EarlySAN
+Node22 failed at pinned competitor checkout (Git LFS model timeout).
+Skip LFS smudge for the competitor only; core import, source commit pin
+and package integrity checks remain unchanged. Targeted dispatch
+earlysan-node22 repeats the missing configuration without rerunning
+successful jobs. No production source or correctness gates changed.
